@@ -1,0 +1,403 @@
+"""Unified CubeStore — function-based persistence layer.
+
+Prompt is a state. Functions (func table) operate on it.
+Config = a set of func_ids. No hardcoded experimental variables.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import sqlite3
+import threading
+from contextlib import contextmanager
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
+
+
+class OnConflict(Enum):
+    """Policy for handling INSERT conflicts."""
+    ERROR = "error"       # raise if exists (safe default)
+    REPLACE = "replace"   # overwrite silently
+    SKIP = "skip"         # ignore, keep existing
+    WARN = "warn"         # log warning + skip
+
+
+_SQL_CLAUSE = {
+    OnConflict.ERROR: "",             # plain INSERT — will raise on conflict
+    OnConflict.REPLACE: "OR REPLACE",
+    OnConflict.SKIP: "OR IGNORE",
+    OnConflict.WARN: "OR IGNORE",     # skip in SQL, warn in Python
+}
+
+from prompt_profiler.core.schema import (
+    INDEXES,
+    META_TABLE,
+    SCHEMA_VERSION,
+    TABLES,
+    VIEWS,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class CubeStore:
+
+    def __init__(self, db_path: str | Path) -> None:
+        self._db_path = str(db_path)
+        self._conn: Optional[sqlite3.Connection] = None
+        self._lock = threading.Lock()
+        self._ensure_schema()
+
+    # ── connection management ──────────────────────────────────────────
+
+    @contextmanager
+    def _cursor(self):
+        with self._lock:
+            conn = self._get_conn()
+            cur = conn.cursor()
+            try:
+                yield cur
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+    def _get_conn(self) -> sqlite3.Connection:
+        if self._conn is None:
+            self._conn = sqlite3.connect(self._db_path, timeout=30, check_same_thread=False)
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA foreign_keys=ON")
+            self._conn.execute("PRAGMA synchronous=NORMAL")
+            self._conn.row_factory = sqlite3.Row
+        return self._conn
+
+    def _ensure_schema(self) -> None:
+        conn = self._get_conn()
+        conn.execute(META_TABLE)
+        for ddl in TABLES:
+            conn.execute(ddl)
+        for view in VIEWS:
+            conn.execute(view)
+        for idx in INDEXES:
+            conn.execute(idx)
+        conn.execute(
+            "INSERT OR REPLACE INTO _cube_meta (key, value) VALUES (?, ?)",
+            ("schema_version", str(SCHEMA_VERSION)),
+        )
+        conn.commit()
+        logger.info("CubeStore ready: %s", self._db_path)
+
+    def close(self) -> None:
+        if self._conn:
+            self._conn.close()
+            self._conn = None
+
+    # ── funcs ──────────────────────────────────────────────────────────
+
+    def upsert_funcs(
+        self,
+        funcs: List[Dict[str, Any]],
+        on_conflict: OnConflict = OnConflict.ERROR,
+    ) -> int:
+        clause = _SQL_CLAUSE[on_conflict]
+        if on_conflict == OnConflict.WARN:
+            existing = {r["func_id"] for r in self.list_funcs()}
+            incoming = {f["func_id"] for f in funcs}
+            conflicts = existing & incoming
+            if conflicts:
+                logger.warning("func conflicts (skipping): %s", conflicts)
+
+        with self._cursor() as cur:
+            cur.executemany(
+                f"""INSERT {clause} INTO func
+                   (func_id, func_type, params, meta)
+                   VALUES (?, ?, ?, ?)""",
+                [
+                    (
+                        f["func_id"],
+                        f["func_type"],
+                        json.dumps(f.get("params", {})),
+                        json.dumps(f.get("meta", {})),
+                    )
+                    for f in funcs
+                ],
+            )
+            return cur.rowcount
+
+    def get_func(self, func_id: str) -> Optional[Dict[str, Any]]:
+        row = self._get_conn().execute(
+            "SELECT * FROM func WHERE func_id = ?", (func_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_funcs(self, func_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        conn = self._get_conn()
+        if func_type:
+            rows = conn.execute(
+                "SELECT * FROM func WHERE func_type = ?", (func_type,)
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM func").fetchall()
+        return [dict(r) for r in rows]
+
+    # ── queries ────────────────────────────────────────────────────────
+
+    def upsert_queries(
+        self,
+        queries: List[Dict[str, Any]],
+        on_conflict: OnConflict = OnConflict.ERROR,
+    ) -> int:
+        clause = _SQL_CLAUSE[on_conflict]
+        if on_conflict == OnConflict.WARN:
+            existing = {r[0] for r in self._get_conn().execute(
+                "SELECT query_id FROM query"
+            ).fetchall()}
+            incoming = {q["query_id"] for q in queries}
+            conflicts = existing & incoming
+            if conflicts:
+                logger.warning("query conflicts (skipping): %d rows", len(conflicts))
+
+        with self._cursor() as cur:
+            cur.executemany(
+                f"""INSERT {clause} INTO query
+                   (query_id, dataset, content, meta)
+                   VALUES (?, ?, ?, ?)""",
+                [
+                    (
+                        q["query_id"],
+                        q["dataset"],
+                        q["content"],
+                        json.dumps(q.get("meta", {})),
+                    )
+                    for q in queries
+                ],
+            )
+            return cur.rowcount
+
+    # ── config management ──────────────────────────────────────────────
+
+    def get_or_create_config(
+        self,
+        func_ids: List[str],
+        *,
+        meta: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        canonical = json.dumps(sorted(func_ids))
+        conn = self._get_conn()
+        row = conn.execute(
+            "SELECT config_id FROM config WHERE func_ids = ?", (canonical,)
+        ).fetchone()
+        if row:
+            return row[0]
+
+        with self._cursor() as cur:
+            cur.execute(
+                "INSERT INTO config (func_ids, meta) VALUES (?, ?)",
+                (canonical, json.dumps(meta or {})),
+            )
+            return cur.lastrowid
+
+    def get_config_func_ids(self, config_id: int) -> List[str]:
+        row = self._get_conn().execute(
+            "SELECT func_ids FROM config WHERE config_id = ?",
+            (config_id,),
+        ).fetchone()
+        return json.loads(row[0]) if row else []
+
+    def list_configs(self) -> List[Dict[str, Any]]:
+        rows = self._get_conn().execute(
+            "SELECT * FROM config ORDER BY config_id"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ── execution (LLM call cache) ─────────────────────────────────────
+
+    def get_cached_execution(
+        self, config_id: int, query_id: str, model: str
+    ) -> Optional[Dict[str, Any]]:
+        row = self._get_conn().execute(
+            """SELECT * FROM execution
+               WHERE config_id = ? AND query_id = ? AND model = ?""",
+            (config_id, query_id, model),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_cached_query_ids(self, config_id: int, model: str) -> Set[str]:
+        rows = self._get_conn().execute(
+            "SELECT query_id FROM execution WHERE config_id = ? AND model = ?",
+            (config_id, model),
+        ).fetchall()
+        return {r[0] for r in rows}
+
+    def insert_execution(
+        self,
+        config_id: int,
+        query_id: str,
+        model: str,
+        *,
+        system_prompt: str = "",
+        user_content: str = "",
+        raw_response: str = "",
+        prediction: str = "",
+        latency_ms: Optional[float] = None,
+        prompt_tokens: Optional[int] = None,
+        completion_tokens: Optional[int] = None,
+        error: Optional[str] = None,
+        meta: Optional[Dict[str, Any]] = None,
+        phase: Optional[str] = None,
+        on_conflict: OnConflict = OnConflict.ERROR,
+    ) -> int:
+        clause = _SQL_CLAUSE[on_conflict]
+        phase_ids = json.dumps([phase]) if phase else "[]"
+        if on_conflict == OnConflict.WARN:
+            existing = self.get_cached_execution(config_id, query_id, model)
+            if existing:
+                logger.warning(
+                    "execution exists (skipping): config=%d query=%s model=%s",
+                    config_id, query_id, model,
+                )
+
+        with self._cursor() as cur:
+            cur.execute(
+                f"""INSERT {clause} INTO execution
+                   (config_id, query_id, model,
+                    system_prompt, user_content, raw_response, prediction,
+                    latency_ms, prompt_tokens, completion_tokens,
+                    error, phase_ids, meta)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    config_id, query_id, model,
+                    system_prompt, user_content, raw_response, prediction,
+                    latency_ms, prompt_tokens, completion_tokens,
+                    error, phase_ids, json.dumps(meta or {}),
+                ),
+            )
+            return cur.lastrowid
+
+    def tag_phase(self, execution_id: int, phase: str) -> None:
+        """Append a phase ID to an execution's phase_ids list (idempotent)."""
+        row = self._get_conn().execute(
+            "SELECT phase_ids FROM execution WHERE execution_id = ?",
+            (execution_id,),
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"execution_id {execution_id} not found")
+        current = json.loads(row[0] or "[]")
+        if phase not in current:
+            current.append(phase)
+            with self._cursor() as cur:
+                cur.execute(
+                    "UPDATE execution SET phase_ids = ? WHERE execution_id = ?",
+                    (json.dumps(current), execution_id),
+                )
+
+    def get_executions_by_phase(
+        self, phase: str, model: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Return all executions tagged with a given phase."""
+        conn = self._get_conn()
+        if model:
+            rows = conn.execute(
+                """SELECT * FROM execution
+                   WHERE phase_ids LIKE ? AND model = ?""",
+                (f'%"{phase}"%', model),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM execution WHERE phase_ids LIKE ?",
+                (f'%"{phase}"%',),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ── evaluation (lazy scoring) ──────────────────────────────────────
+
+    def get_evaluation(
+        self, execution_id: int, scorer: str
+    ) -> Optional[Dict[str, Any]]:
+        row = self._get_conn().execute(
+            "SELECT * FROM evaluation WHERE execution_id = ? AND scorer = ?",
+            (execution_id, scorer),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def upsert_evaluation(
+        self,
+        execution_id: int,
+        scorer: str,
+        score: float,
+        metrics: Optional[Dict[str, Any]] = None,
+        on_conflict: OnConflict = OnConflict.ERROR,
+    ) -> int:
+        clause = _SQL_CLAUSE[on_conflict]
+        with self._cursor() as cur:
+            cur.execute(
+                f"""INSERT {clause} INTO evaluation
+                   (execution_id, scorer, score, metrics)
+                   VALUES (?, ?, ?, ?)""",
+                (execution_id, scorer, score, json.dumps(metrics or {})),
+            )
+            return cur.lastrowid
+
+    def evaluate_batch(
+        self,
+        rows: List[Dict[str, Any]],
+        on_conflict: OnConflict = OnConflict.ERROR,
+    ) -> int:
+        clause = _SQL_CLAUSE[on_conflict]
+        with self._cursor() as cur:
+            cur.executemany(
+                f"""INSERT {clause} INTO evaluation
+                   (execution_id, scorer, score, metrics)
+                   VALUES (?, ?, ?, ?)""",
+                [
+                    (
+                        r["execution_id"],
+                        r["scorer"],
+                        r["score"],
+                        json.dumps(r.get("metrics", {})),
+                    )
+                    for r in rows
+                ],
+            )
+            return cur.rowcount
+
+    # ── query helpers ──────────────────────────────────────────────────
+
+    def config_progress(
+        self, config_id: int, model: str, total_queries: int
+    ) -> Dict[str, Any]:
+        done = len(self.get_cached_query_ids(config_id, model))
+        return {
+            "config_id": config_id,
+            "done": done,
+            "total": total_queries,
+            "remaining": total_queries - done,
+        }
+
+    def scores_by_config(
+        self, model: str, scorer: str
+    ) -> List[Dict[str, Any]]:
+        rows = self._get_conn().execute(
+            """SELECT c.config_id,
+                      COUNT(ev.score) as n,
+                      AVG(ev.score) as avg_score,
+                      MIN(ev.score) as min_score,
+                      MAX(ev.score) as max_score
+               FROM config c
+               JOIN execution e ON c.config_id = e.config_id
+               JOIN evaluation ev ON e.execution_id = ev.execution_id
+               WHERE e.model = ? AND ev.scorer = ?
+               GROUP BY c.config_id
+               ORDER BY avg_score DESC""",
+            (model, scorer),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def stats(self) -> Dict[str, int]:
+        conn = self._get_conn()
+        tables = ["func", "query", "config", "execution", "evaluation"]
+        return {
+            t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+            for t in tables
+        }
