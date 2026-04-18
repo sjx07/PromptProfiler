@@ -79,17 +79,15 @@ class BaseTask:
             )
 
     def _get_parser_registry(self) -> Optional[dict]:
-        """Return the task's PARSER_REGISTRY module, or None if not defined."""
-        # Subclasses override _parser_module_path to point to their parsers module.
+        """Return the task's PARSER_REGISTRY, or None if not defined.
+
+        Looks up the global PARSER_REGISTRY populated by autoload_parsers()
+        (called from prompt_profiler/__init__.py).  Falls back to lazy import
+        for test isolation / unusual import orders.
+        """
         module_path = getattr(self, "_parser_module_path", None)
-        if module_path is None:
-            return None
-        import importlib
-        try:
-            mod = importlib.import_module(module_path)
-            return getattr(mod, "PARSER_REGISTRY", None)
-        except ImportError:
-            return None
+        from prompt_profiler.core.parser_registry import get_parser_registry
+        return get_parser_registry(module_path)
 
     def _validate_dispatch_field(self) -> None:
         """Enforce exactly one parser-registered output_field in the config.
