@@ -10,6 +10,8 @@ from prompt_profiler.task import BaseTask
 class SqlRepair(BaseTask):
     name = "sql_repair"
     scorer = "ex_acc"
+    # Parser module for output_field dispatch (sql_query)
+    _parser_module_path = "prompt_profiler.tasks.nl2sql.parsers"
     # Fallback only — new configs should use base_field_specs() explicitly.
     default_input_fields: Dict[str, str] = {
         "question": "The natural language question",
@@ -25,9 +27,9 @@ class SqlRepair(BaseTask):
         base config. This makes input fields part of the config identity.
         """
         return [
-            {"func_type": "add_input_field", "params": {"name": "question", "description": "The natural language question"}},
-            {"func_type": "add_input_field", "params": {"name": "schema", "description": "Database schema (DDL)"}},
-            {"func_type": "add_input_field", "params": {"name": "wrong_sql", "description": "The incorrect SQL query to fix"}},
+            {"func_type": "insert_node", "params": {"node_type": "input_field", "parent_id": "__root__", "payload": {"name": "question", "description": "The natural language question"}}},
+            {"func_type": "insert_node", "params": {"node_type": "input_field", "parent_id": "__root__", "payload": {"name": "schema", "description": "Database schema (DDL)"}}},
+            {"func_type": "insert_node", "params": {"node_type": "input_field", "parent_id": "__root__", "payload": {"name": "wrong_sql", "description": "The incorrect SQL query to fix"}}},
         ]
     default_output_fields: Dict[str, str] = {
         "sql_query": "The corrected SQL query",
@@ -46,14 +48,8 @@ class SqlRepair(BaseTask):
         }
 
     def parse_response(self, raw_response: str) -> str:
-        from prompt_profiler.tasks.nl2sql.sql_generation import _extract_sql
-
-        if self._prompt_state is not None:
-            parsed = self._prompt_state.parse_output(raw_response)
-            sql = parsed.get("sql_query", "").strip() if parsed else ""
-            if sql:
-                return _extract_sql(sql)
-        return _extract_sql(raw_response)
+        """Dispatch to the registered parser for the single dispatch output_field."""
+        return super().parse_response(raw_response)
 
     def score(self, prediction: str, query_meta: dict) -> tuple[float, dict]:
         from prompt_profiler.tasks.nl2sql.evaluate_sql import evaluate_execution_wrapper

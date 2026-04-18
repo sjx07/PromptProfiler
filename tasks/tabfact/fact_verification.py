@@ -20,6 +20,8 @@ _OUTPUT_TO_TABLE_FORMAT = {
 class FactVerification(BaseTask):
     name = "fact_verification"
     scorer = "fv_acc"
+    # Parser module for output_field dispatch (code / verdict)
+    _parser_module_path = "prompt_profiler.tasks.tabfact.parsers"
     default_input_fields: Dict[str, str] = {
         "table": "The table data to verify the statement against",
         "statement": "The statement to verify as True or False",
@@ -36,12 +38,10 @@ class FactVerification(BaseTask):
 
     def bind(self, state, **kwargs) -> None:
         super().bind(state, **kwargs)
-        # Override generic code field description with task-specific one
-        if self._prompt_state and self._prompt_state.code_execution:
-            eof = self._prompt_state.effective_output_fields
-            if "code" in eof:
-                self._prompt_state.semantic.output_fields.pop("verdict", None)
-                self._prompt_state.semantic.output_fields["code"] = self.code_field_description
+        # Override generic code field description with task-specific one when
+        # the config includes an explicit "code" output_field.
+        if self._prompt_state and "code" in self._prompt_state.semantic.output_fields:
+            self._prompt_state.semantic.output_fields["code"] = self.code_field_description
 
     def _gold_output(self, meta: dict, raw: dict) -> dict:
         gold = raw.get("label", meta.get("gold_label", 0))
@@ -85,18 +85,10 @@ class FactVerification(BaseTask):
         }
 
     def parse_response(self, raw_response: str) -> str:
+        """Dispatch to the registered parser for the single dispatch output_field."""
         # Coerce to string — LLM may return bare bool from JSON true/false
         raw_response = str(raw_response) if not isinstance(raw_response, str) else raw_response
-        if self._prompt_state is not None:
-            parsed = self._prompt_state.parse_output(raw_response)
-            if parsed:
-                code = str(parsed.get("code", "")).strip()
-                if code:
-                    return f"__CODE__{code}"
-                verdict = str(parsed.get("verdict", "")).strip()
-                if verdict:
-                    return _extract_verdict(verdict)
-        return _extract_verdict(raw_response)
+        return super().parse_response(raw_response)
 
     def score(self, prediction: str, query_meta: dict) -> tuple[float, dict]:
         if isinstance(query_meta, str):

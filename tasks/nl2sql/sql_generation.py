@@ -16,6 +16,8 @@ from prompt_profiler.tasks.nl2sql.evaluate_sql import evaluate_execution_wrapper
 class SqlGeneration(BaseTask):
     name = "sql_generation"
     scorer = "ex_acc"
+    # Parser module for output_field dispatch (sql_query)
+    _parser_module_path = "prompt_profiler.tasks.nl2sql.parsers"
     default_input_fields = {
         "question": "The natural language question to answer",
         "schema": "Database schema (DDL)",
@@ -40,12 +42,8 @@ class SqlGeneration(BaseTask):
         return record
 
     def parse_response(self, raw_response: str) -> str:
-        if self._prompt_state is not None:
-            parsed = self._prompt_state.parse_output(raw_response)
-            sql = parsed.get("sql_query", "").strip() if parsed else ""
-            if sql:
-                return _extract_sql(sql)
-        return _extract_sql(raw_response)
+        """Dispatch to the registered parser for the single dispatch output_field."""
+        return super().parse_response(raw_response)
 
     def score(self, prediction: str, query_meta: dict) -> tuple[float, dict]:
         if isinstance(query_meta, str):

@@ -147,6 +147,8 @@ _OUTPUT_TO_TABLE_FORMAT = {
 class TableQA(BaseTask):
     name = "table_qa"
     scorer = "denotation_acc"
+    # Parser module for output_field dispatch (code / sql / answer)
+    _parser_module_path = "prompt_profiler.tasks.wtq.parsers"
     default_input_fields: Dict[str, str] = {
         "table": "The table data to answer the question about",
         "question": "The question to answer using the table",
@@ -194,19 +196,8 @@ class TableQA(BaseTask):
         }
 
     def parse_response(self, raw_response: str) -> str:
-        if self._prompt_state is not None:
-            parsed = self._prompt_state.parse_output(raw_response)
-            if parsed:
-                code = str(parsed.get("code", "")).strip()
-                if code:
-                    return f"__CODE__{code}"
-                sql = str(parsed.get("sql", "")).strip()
-                if sql:
-                    return f"__SQL__{sql}"
-                answer = str(parsed.get("answer", "")).strip()
-                if answer:
-                    return answer
-        return _extract_answer(raw_response)
+        """Dispatch to the registered parser for the single dispatch output_field."""
+        return super().parse_response(raw_response)
 
     def score(self, prediction: str, query_meta: dict) -> tuple[float, dict]:
         if isinstance(query_meta, str):
