@@ -302,6 +302,8 @@ def main():
     configs = generate(
         experiment_type, store,
         base_ids=base_ids, bundles=bundles, conflicts=conflicts,
+        base_canonical_ids=list(base_features),
+        base_feature_ids=[base_feature_hashes[c] for c in base_features],
         n_samples=n_samples, seed=seed,
     )
     logger.info("Generated %d configs (%s)", len(configs), experiment_type)

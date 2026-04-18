@@ -130,6 +130,50 @@ def test_add_one_feature_meta_carries_feature_hash(store_and_bundles):
         assert meta["feature_id"] == bundles[meta["canonical_id"]][0]
 
 
+def test_add_one_feature_meta_feature_ids_includes_base(store_and_bundles):
+    """config.meta.feature_ids must be the FULL active feature set
+    (base + added), so downstream `has_feature` / `feature_effect`
+    queries resolve correctly.
+    """
+    import json as _json
+    reg, store, base_ids, bundles, conflicts = store_and_bundles
+    base_feature_ids = [reg.feature_id_for(c) for c in BASE_FEATURES]
+    configs = generate(
+        "add_one_feature", store,
+        base_ids=base_ids, bundles=bundles,
+        base_canonical_ids=BASE_FEATURES,
+        base_feature_ids=base_feature_ids,
+    )
+    conn = store._get_conn()
+    for config_id, _func_ids, meta in configs:
+        # 1. feature_ids in the generator-returned meta is base+added.
+        assert set(meta["feature_ids"]) == set(base_feature_ids) | {meta["feature_id"]}
+        assert set(meta["canonical_ids"]) == set(BASE_FEATURES) | {meta["canonical_id"]}
+        # 2. The same arrays made it to config.meta in the store.
+        row = conn.execute(
+            "SELECT meta FROM config WHERE config_id = ?", (config_id,)
+        ).fetchone()
+        stored = _json.loads(row["meta"])
+        assert set(stored["feature_ids"]) == set(base_feature_ids) | {meta["feature_id"]}
+
+
+def test_leave_one_out_feature_meta_feature_ids_includes_base(store_and_bundles):
+    """LOO config.meta.feature_ids must be base + all-non-removed features
+    (minus any conflict-resolved drops).
+    """
+    reg, store, base_ids, bundles, conflicts = store_and_bundles
+    base_feature_ids = [reg.feature_id_for(c) for c in BASE_FEATURES]
+    configs = generate(
+        "leave_one_out_feature", store,
+        base_ids=base_ids, bundles=bundles, conflicts=conflicts,
+        base_canonical_ids=BASE_FEATURES,
+        base_feature_ids=base_feature_ids,
+    )
+    for _cid, _func_ids, meta in configs:
+        active_hashes = {bundles[c][0] for c in meta["active_canonical_ids"]}
+        assert set(meta["feature_ids"]) == set(base_feature_ids) | active_hashes
+
+
 # ── leave_one_out_feature ─────────────────────────────────────────────
 
 def test_leave_one_out_feature_count(store_and_bundles):
