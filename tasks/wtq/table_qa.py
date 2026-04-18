@@ -135,12 +135,15 @@ def _execute_sql(sql: str, table_data: dict) -> Any:
         return None
 
 
-# Default table format when not explicitly set — follows output format style
+# Default table format when not explicitly set — follows output format style.
+# code_block → json_records because code-writing features typically do
+# `pd.DataFrame(table['rows'])` on a JSON payload.
 _OUTPUT_TO_TABLE_FORMAT = {
-    "json": "json_records",
-    "markdown": "markdown",
-    "plain": "markdown",
-    "yaml": "markdown",
+    "json":       "json_records",
+    "markdown":   "markdown",
+    "plain":      "markdown",
+    "yaml":       "markdown",
+    "code_block": "json_records",
 }
 
 

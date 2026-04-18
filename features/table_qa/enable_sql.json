@@ -3,7 +3,7 @@
   "canonical_id": "enable_sql",
   "task": "table_qa",
   "requires": ["_section_strategy"],
-  "conflicts_with": ["enable_code"],
+  "conflicts_with": ["enable_code", "enable_cot"],
   "primitive_edits": [
     {
       "func_type": "insert_node",
@@ -20,6 +20,10 @@
         "parent_id": "__root__",
         "payload": {"name": "sql", "description": "SQL query that answers the question."}
       }
+    },
+    {
+      "func_type": "set_format",
+      "params": {"style": "code_block"}
     }
   ]
 }

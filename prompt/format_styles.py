@@ -19,10 +19,93 @@ from prompt.rules import RuleItem, RuleGroup, RuleSection, RuleTree, _get_node_i
 
 logger = logging.getLogger(__name__)
 
+
+# ── soft dependency: json_repair ─────────────────────────────────────
+# `json-repair` (pip install json-repair) forgives unescaped newlines,
+# trailing commas, unquoted keys, truncated JSON, etc.  When installed,
+# JSONStyle uses it as the primary parser.  When absent, we fall back
+# to the built-in custom repair below (_repair_unescaped_newlines_in_json).
+try:
+    from json_repair import loads as _json_repair_loads  # type: ignore
+    _HAS_JSON_REPAIR = True
+except ImportError:   # pragma: no cover
+    _json_repair_loads = None
+    _HAS_JSON_REPAIR = False
+    logger.info(
+        "json-repair not installed; falling back to built-in repair. "
+        "For robust LLM-JSON parsing install: pip install json-repair"
+    )
+
+def _repair_unescaped_newlines_in_json(text: str) -> str:
+    """Convert raw newlines/tabs inside JSON string values into escape sequences.
+
+    Many LLMs (Llama, Qwen, ...) emit code inside JSON string values with
+    *literal* newlines instead of ``\\n`` escapes, which makes the result
+    invalid JSON. This helper walks the string, tracks whether we're inside
+    a JSON string, and escapes raw whitespace that would otherwise break
+    ``json.loads``.
+
+    Idempotent: valid JSON passes through unchanged.
+    """
+    out: List[str] = []
+    in_string = False
+    prev_backslash = False
+    for ch in text:
+        if prev_backslash:
+            out.append(ch)
+            prev_backslash = False
+            continue
+        if ch == "\\":
+            out.append(ch)
+            prev_backslash = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            out.append(ch)
+            continue
+        if in_string:
+            if ch == "\n":
+                out.append("\\n")
+                continue
+            if ch == "\r":
+                out.append("\\r")
+                continue
+            if ch == "\t":
+                out.append("\\t")
+                continue
+        out.append(ch)
+    return "".join(out)
+
+
+def _extract_quoted_field(text: str, field_name: str) -> Optional[str]:
+    """Extract the value of ``"field_name": "..."`` where the value may contain
+    unescaped newlines.  Returns the (JSON-decoded) string value or None.
+
+    Accepts:
+      "field": "single line value"
+      "field": "multi
+                line
+                value"
+    """
+    # Capture everything up to the unescaped closing quote.
+    pattern = rf'"{re.escape(field_name)}"\s*:\s*"((?:[^"\\]|\\.)*)"'
+    m = re.search(pattern, text, re.DOTALL)
+    if not m:
+        return None
+    raw = m.group(1)
+    # Interpret standard JSON escapes (\n, \", \\, etc.).
+    try:
+        return json.loads('"' + raw + '"')
+    except json.JSONDecodeError:
+        return raw
+
+
 def fallback_parse_output(response: str, output_fields: Dict[str, str]) -> Dict[str, Any]:
     """Fallback parser that tries multiple parsing strategies.
 
     Tries in order:
+    0. JSON with newline-repair, then direct quoted-field extraction
+       (handles multi-line code strings that LLMs emit unescaped).
     1. JSON parsing - looks for JSON objects/strings in response
     2. Key-value pairs with various delimiters (: = ->)
     3. YAML-style lists (- key: value)
@@ -38,9 +121,49 @@ def fallback_parse_output(response: str, output_fields: Dict[str, str]) -> Dict[
     result = {}
     response_stripped = response.strip()
 
-    # Strategy 1: Try to parse as JSON
+    # Strategy 0a: If json-repair is installed, let it handle everything
+    # (unescaped newlines, trailing commas, unquoted keys, ...).
+    if _HAS_JSON_REPAIR:
+        try:
+            parsed = _json_repair_loads(response_stripped)
+            if isinstance(parsed, dict):
+                for field_name in output_fields.keys():
+                    if field_name in parsed:
+                        result[field_name] = parsed[field_name]
+                if result:
+                    logger.debug("Parsed output via json-repair (fallback)")
+                    return result
+        except Exception:
+            pass
+
+    # Strategy 0b: Built-in newline-repair.
     try:
-        # Look for JSON object in response
+        repaired = _repair_unescaped_newlines_in_json(response_stripped)
+        json_match = re.search(r'\{.*\}', repaired, re.DOTALL)
+        if json_match:
+            json_obj = json.loads(json_match.group(0))
+            if isinstance(json_obj, dict):
+                for field_name in output_fields.keys():
+                    if field_name in json_obj:
+                        result[field_name] = json_obj[field_name]
+                if result:
+                    logger.debug("Parsed output via built-in newline-repair")
+                    return result
+    except (json.JSONDecodeError, AttributeError):
+        pass
+
+    # Strategy 0c: Quoted-field extraction — handles {"OutputFields": {...}}
+    # wrappers and trailing prose that the full-object path can't salvage.
+    for field_name in output_fields.keys():
+        val = _extract_quoted_field(response_stripped, field_name)
+        if val is not None:
+            result[field_name] = val
+    if result:
+        logger.debug("Parsed output via quoted-field extraction")
+        return result
+
+    # Strategy 1: Try to parse as JSON (original, simple object match)
+    try:
         json_match = re.search(r'\{[^{}]*\}', response_stripped, re.DOTALL)
         if json_match:
             json_obj = json.loads(json_match.group(0))
@@ -1089,56 +1212,218 @@ class JSONStyle(FormatStyle):
           "another_field": "value"
         }
         """
-        result = {}
         response_stripped = response.strip()
 
-        # Try to parse as complete JSON first
+        def _pick(parsed: Any) -> Optional[Dict[str, Any]]:
+            """From a parsed JSON value, pick out requested output_fields."""
+            if not isinstance(parsed, dict):
+                return None
+            hit = {k: parsed[k] for k in output_fields if k in parsed}
+            return hit or None
+
+        # 1. Strict json.loads on the raw response (fast path for valid JSON).
         try:
-            parsed = json.loads(response_stripped)
-            if isinstance(parsed, dict):
-                for field_name in output_fields.keys():
-                    if field_name in parsed:
-                        result[field_name] = parsed[field_name]
-                if result:
-                    logger.debug("Successfully parsed output as complete JSON")
-                    return result
+            hit = _pick(json.loads(response_stripped))
+            if hit:
+                return hit
         except json.JSONDecodeError:
             pass
 
-        # Try to find JSON object within response (e.g., wrapped in markdown code blocks)
+        # 2. Delegate to json-repair when available; it handles unescaped
+        #    newlines, trailing commas, unquoted keys, truncated JSON, etc.
+        if _HAS_JSON_REPAIR:
+            try:
+                hit = _pick(_json_repair_loads(response_stripped))
+                if hit:
+                    logger.debug("Parsed output via json-repair")
+                    return hit
+            except Exception:   # json-repair rarely raises, but be defensive
+                pass
+
+        # 3. Built-in fallback: escape raw newlines inside strings, then retry.
+        repaired = _repair_unescaped_newlines_in_json(response_stripped)
+        try:
+            hit = _pick(json.loads(repaired))
+            if hit:
+                logger.debug("Parsed output after built-in newline-repair")
+                return hit
+        except json.JSONDecodeError:
+            pass
+
+        # 4. Fenced/embedded JSON block extraction.
         json_patterns = [
             r'```json\s*\n(.*?)\n```',  # ```json ... ```
             r'```\s*\n(\{.*?\})\n```',  # ``` {...} ```
-            r'(\{[^{}]*\})',  # Simple {...} object
-            r'(\{.*\})',  # Any JSON-like object (greedy)
+            r'(\{[^{}]*\})',            # simple {...} (no nested braces)
+            r'(\{.*\})',                # greedy
         ]
-
         for pattern in json_patterns:
             match = re.search(pattern, response_stripped, re.DOTALL)
-            if match:
+            if not match:
+                continue
+            inner = match.group(1).strip()
+            for payload in (inner, _repair_unescaped_newlines_in_json(inner)):
                 try:
-                    json_str = match.group(1).strip()
-                    parsed = json.loads(json_str)
-                    if isinstance(parsed, dict):
-                        for field_name in output_fields.keys():
-                            if field_name in parsed:
-                                result[field_name] = parsed[field_name]
-                        if result:
-                            logger.debug("Successfully parsed embedded JSON in response")
-                            return result
+                    hit = _pick(json.loads(payload))
+                    if hit:
+                        logger.debug("Parsed embedded JSON via pattern=%r", pattern)
+                        return hit
                 except json.JSONDecodeError:
-                    continue
+                    pass
+                if _HAS_JSON_REPAIR:
+                    try:
+                        hit = _pick(_json_repair_loads(payload))
+                        if hit:
+                            return hit
+                    except Exception:
+                        pass
 
-        # If JSON parsing failed, use fallback
+        # 5. Final fallback — multi-strategy key/value extractor.
         return fallback_parse_output(response, output_fields)
+
+
+class CodeBlockStyle(FormatStyle):
+    """Fenced markdown code block — designed for single-field code/sql output.
+
+    Instructs the model to reply with exactly one fenced block like::
+
+        ```python
+        # ... code here ...
+        ```
+
+    The parser extracts the LAST fenced block in the response (so any
+    preamble or <think> prose is ignored) and assigns its inner text to
+    the single declared output field.
+
+    Contract
+    ────────
+    * Exactly one output_field must be declared (``code`` or ``sql`` in
+      practice). Declaring two raises at parse time — there's no natural
+      way to attribute the single block to multiple fields.
+    * No JSON escape handling needed; newlines / quotes / backslashes inside
+      code pass through verbatim. This is the point.
+    * If the model omits the fence, the entire response is treated as the
+      code block (charitable fallback — lets smaller models that forget
+      the fence still score).
+    """
+
+    _LANG_HINTS = {"code": "python", "sql": "sql"}
+
+    def _language_hint(self, output_fields: Dict[str, str]) -> str:
+        if not output_fields:
+            return ""
+        field = next(iter(output_fields))
+        return self._LANG_HINTS.get(field, "")
+
+    def format_system_message(self, semantic: "SemanticContent") -> str:
+        parts: List[str] = []
+        if semantic.instruction:
+            parts.append(_safe_strip(getattr(semantic.instruction, "text", "")))
+        if semantic.rule_sections:
+            parts.append(self.format_rule_sections(semantic.rule_sections, semantic.tree))
+        if semantic.input_fields:
+            parts.append(self.format_field_descriptions(semantic.input_fields, "Input Fields"))
+        parts.append(self.format_structure_template(
+            semantic.input_fields or {}, semantic.output_fields or {},
+        ))
+        return "\n\n".join(p for p in parts if p).strip()
+
+    def format_user_message(self, record: Dict[str, Any], semantic: "SemanticContent") -> str:
+        lines: List[str] = []
+        for name in (semantic.input_fields or {}).keys():
+            if name in record:
+                lines.append(f"{name}:\n{record[name]}")
+        return "\n\n".join(lines).strip()
+
+    def format_rule_sections(self, sections: List[RuleSection], tree: "RuleTree") -> str:
+        out: List[str] = []
+        for s in sections:
+            title = _safe_strip(getattr(s, "title", ""))
+            if title:
+                out.append(f"## {title}")
+            for child in getattr(s, "children", []) or []:
+                if isinstance(child, RuleItem):
+                    txt = _safe_strip(getattr(child, "text", ""))
+                    if txt:
+                        out.append(f"- {txt}")
+            out.append("")
+        return "\n".join(out).strip()
+
+    def format_field_descriptions(self, fields: Dict[str, str], label: str) -> str:
+        lines = [f"## {label}"]
+        for name, desc in fields.items():
+            lines.append(f"- {name}: {desc}")
+        return "\n".join(lines)
+
+    def format_structure_template(
+        self, input_fields: Dict[str, str], output_fields: Dict[str, str],
+    ) -> str:
+        if len(output_fields) != 1:
+            raise ValueError(
+                f"CodeBlockStyle requires exactly one output_field; got "
+                f"{sorted(output_fields)!r}. Declare conflicts_with between the "
+                f"offending features, or use a different format style."
+            )
+        lang = self._language_hint(output_fields)
+        fence_open = f"```{lang}" if lang else "```"
+        return (
+            "## Output Format\n"
+            f"Reply with a single fenced code block:\n\n"
+            f"{fence_open}\n"
+            "<your code here>\n"
+            "```\n\n"
+            "Do not include any text outside the fenced block."
+        )
+
+    def render_output(self, output: Dict[str, Any]) -> str:
+        if not output:
+            return ""
+        # For rendered few-shot examples.
+        value = next(iter(output.values()))
+        lang = self._language_hint(output)
+        fence = f"```{lang}" if lang else "```"
+        return f"{fence}\n{value}\n```"
+
+    def format_contexts(self, contexts: List[Context]) -> str:
+        return "\n\n".join(c.content for c in contexts)
+
+    def get_field_delimiter(self) -> str:
+        return "\n"
+
+    def get_section_delimiter(self) -> str:
+        return "\n\n"
+
+    def parse_output(self, response: str, output_fields: Dict[str, str]) -> Dict[str, Any]:
+        if len(output_fields) != 1:
+            raise ValueError(
+                f"CodeBlockStyle.parse_output requires exactly one output_field; "
+                f"got {sorted(output_fields)!r}."
+            )
+        field = next(iter(output_fields))
+        text = response.strip()
+
+        # Strip <think>...</think> blocks (thinking models).
+        text = re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL)
+
+        # Prefer the LAST fenced block — models often think before the block.
+        matches = list(re.finditer(
+            r"```(?:[a-zA-Z0-9_+-]*)\s*\n?(.*?)```",
+            text, re.DOTALL,
+        ))
+        if matches:
+            return {field: matches[-1].group(1).strip()}
+
+        # No fence — assume the whole response is the code (charitable fallback).
+        return {field: text}
 
 
 # Format style registry
 FORMAT_STYLES: Dict[str, FormatStyle] = {
-    "plain": PlainStyle(),
-    "yaml": YAMLStyle(),
-    "markdown": MarkdownStyle(),
-    "json": JSONStyle(),
+    "plain":      PlainStyle(),
+    "yaml":       YAMLStyle(),
+    "markdown":   MarkdownStyle(),
+    "json":       JSONStyle(),
+    "code_block": CodeBlockStyle(),
 }
 
 
