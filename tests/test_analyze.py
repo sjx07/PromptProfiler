@@ -27,6 +27,9 @@ from analyze import (
     ProgressMonitor,
     add_one_deltas,
     feature_effect_ranking,
+    flip_rows,
+    harm_cases,
+    help_cases,
     list_configs,
     list_configs_with_features,
     list_datasets,
@@ -457,3 +460,91 @@ def test_monitor_recent(seeded_store):
     assert len(r) == 5
     # most-recent first
     assert r[0]["execution_id"] >= r[-1]["execution_id"]
+
+
+# ══════════════════════════════════════════════════════════════════════
+# flip_rows / harm_cases / help_cases
+# ══════════════════════════════════════════════════════════════════════
+
+def test_flip_rows_both_directions(seeded_store):
+    """Fixture scoring:
+      base:    q1=0, q2=0, q3=1, q4=1
+      feat_a:  q1=1, q2=1, q3=1, q4=1  (helped on q1,q2; same on q3,q4)
+      feat_b:  q1=0, q2=0, q3=0, q4=0  (same on q1,q2; hurt on q3,q4)
+    """
+    store, ctx = seeded_store
+    # Compare base vs feat_a → 2 up-flips, 0 down-flips.
+    rows_a = flip_rows(store, base_config=ctx["base_cid"],
+                       target_config=ctx["a_cid"],
+                       model=MODEL, scorer=SCORER)
+    assert len(rows_a) == 2
+    assert all(r["direction"] == "up" for r in rows_a)
+    assert {r["query_id"] for r in rows_a} == {"q1", "q2"}
+
+    # Compare base vs feat_b → 0 up-flips, 2 down-flips.
+    rows_b = flip_rows(store, base_config=ctx["base_cid"],
+                       target_config=ctx["b_cid"],
+                       model=MODEL, scorer=SCORER)
+    assert len(rows_b) == 2
+    assert all(r["direction"] == "down" for r in rows_b)
+    assert {r["query_id"] for r in rows_b} == {"q3", "q4"}
+
+
+def test_flip_rows_direction_filter(seeded_store):
+    store, ctx = seeded_store
+    # feat_b has 2 down-flips (q3, q4) and 0 up-flips.
+    down = flip_rows(store, base_config=ctx["base_cid"],
+                     target_config=ctx["b_cid"],
+                     model=MODEL, scorer=SCORER, direction="down")
+    up = flip_rows(store, base_config=ctx["base_cid"],
+                   target_config=ctx["b_cid"],
+                   model=MODEL, scorer=SCORER, direction="up")
+    assert len(down) == 2
+    assert len(up) == 0
+
+
+def test_flip_rows_includes_predictions_and_question(seeded_store):
+    store, ctx = seeded_store
+    rows = flip_rows(store, base_config=ctx["base_cid"],
+                     target_config=ctx["a_cid"],
+                     model=MODEL, scorer=SCORER)
+    r = rows[0]
+    assert set(r.keys()) >= {
+        "query_id", "question", "direction",
+        "base_score", "target_score",
+        "base_prediction", "target_prediction",
+        "base_raw", "target_raw",
+        "gold",
+    }
+    # Predictions/raw were seeded to distinct strings per config_id × query.
+    assert r["base_prediction"] != r["target_prediction"]
+    assert r["base_raw"] != r["target_raw"]
+
+
+def test_harm_cases_alias(seeded_store):
+    store, ctx = seeded_store
+    harms = harm_cases(store, base_config=ctx["base_cid"],
+                       target_config=ctx["b_cid"],
+                       model=MODEL, scorer=SCORER)
+    assert len(harms) == 2
+    assert all(h["direction"] == "down" for h in harms)
+    # 'harm': base was right, feature wrong.
+    assert all(h["base_score"] == 1.0 and h["target_score"] == 0.0 for h in harms)
+
+
+def test_help_cases_alias(seeded_store):
+    store, ctx = seeded_store
+    helps = help_cases(store, base_config=ctx["base_cid"],
+                       target_config=ctx["a_cid"],
+                       model=MODEL, scorer=SCORER)
+    assert len(helps) == 2
+    assert all(h["direction"] == "up" for h in helps)
+    assert all(h["base_score"] == 0.0 and h["target_score"] == 1.0 for h in helps)
+
+
+def test_flip_rows_bad_direction_raises(seeded_store):
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="direction must be"):
+        flip_rows(store, base_config=ctx["base_cid"],
+                  target_config=ctx["a_cid"],
+                  model=MODEL, scorer=SCORER, direction="sideways")
