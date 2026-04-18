@@ -9,14 +9,24 @@ from task import BaseTask
 
 
 def _execute_code(code: str, table_data: dict) -> Any:
-    """Execute model-generated Python code with table as a pandas DataFrame.
+    """Execute model-generated Python code with the table exposed in scope.
 
-    Provides `df` (pandas DataFrame with auto-coerced types) and `table`/`header`
-    as legacy fallbacks. Returns the result or None on failure.
+    Scope provided:
+      * ``df``     — pandas DataFrame with auto-coerced numeric types.
+      * ``data``   — dict ``{"table": <name>, "rows": [<record dict>, ...]}``
+                     that mirrors the JSON shape the model sees in the
+                     user prompt. Lets `pd.DataFrame(data['rows'])` and
+                     `data['rows'][0]['Col']` "just work."
+      * ``table``  — legacy alias: list of record dicts (the old shape,
+                     pre-``data`` rename). Kept for backward compat.
+      * ``header`` — list of column names.
+
+    Returns the result or None on failure.
     """
     import pandas as pd
     import datetime as _dt, math as _math, collections as _collections
 
+    name = table_data.get("name", "")
     header = table_data.get("header", [])
     rows = table_data.get("rows", [])
     df = pd.DataFrame(rows, columns=header)
@@ -31,12 +41,15 @@ def _execute_code(code: str, table_data: dict) -> Any:
         except (ValueError, TypeError):
             df[col] = df[col]  # keep original
 
-    # Legacy: also provide list-of-dicts for backward compat
+    # Legacy list-of-dicts (pre-round-5 shape).
     table = df.to_dict("records")
+    # New: JSON-shape dict that matches what the model sees in the prompt.
+    data = {"table": name, "rows": table}
 
     safe_globals = {
         "df": df,
         "pd": pd,
+        "data": data,
         "table": table,
         "header": header,
         "re": re,
@@ -77,8 +90,15 @@ def _execute_code(code: str, table_data: dict) -> Any:
 def _execute_sql(sql: str, table_data: dict) -> Any:
     """Execute model-generated SQL against an in-memory SQLite table.
 
-    Creates table `t` with columns from the header, inserts all rows,
-    then runs the query. Returns the result or None on failure.
+    Creates table ``t`` (canonical name, per enable_sql rule) with columns
+    from the header, inserts all rows, then runs the query.
+
+    Charitable aliasing: models frequently write ``FROM table`` despite the
+    rule — we rewrite bare ``FROM table`` / ``JOIN table`` into ``FROM t`` /
+    ``JOIN t`` before executing. Also registers a view named ``"table"``
+    (quoted) so explicit usage works too.
+
+    Returns the result or None on failure.
     """
     import sqlite3
 
@@ -109,12 +129,21 @@ def _execute_sql(sql: str, table_data: dict) -> Any:
             padded = row + [""] * (len(header) - len(row))
             conn.execute(f"INSERT INTO t VALUES ({placeholders})", padded[:len(header)])
 
+        # Charitable alias so `FROM "table"` also works.
+        conn.execute('CREATE VIEW "table" AS SELECT * FROM t')
+
         # Rewrite query: replace original column names with safe names
         rewritten = sql
         for orig, safe in col_map.items():
             if orig != safe:
                 rewritten = rewritten.replace(f'"{orig}"', f'"{safe}"')
                 rewritten = rewritten.replace(f"'{orig}'", f'"{safe}"')
+
+        # Unquoted `FROM table` / `JOIN table` → `FROM t` / `JOIN t`.
+        rewritten = re.sub(r"\bFROM\s+table\b", "FROM t",
+                           rewritten, flags=re.IGNORECASE)
+        rewritten = re.sub(r"\bJOIN\s+table\b", "JOIN t",
+                           rewritten, flags=re.IGNORECASE)
 
         cursor = conn.execute(rewritten)
         results = cursor.fetchall()
