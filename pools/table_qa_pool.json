@@ -1,0 +1,47 @@
+[
+  {
+    "func_type": "insert_node",
+    "params": {
+      "node_type": "section",
+      "parent_id": "__root__",
+      "payload": {"title": "role", "ordinal": 0, "is_system": true, "min_rules": 1, "max_rules": 3}
+    },
+    "meta": {"pool_id": "s_role"}
+  },
+  {
+    "func_type": "insert_node",
+    "params": {
+      "node_type": "section",
+      "parent_id": "__root__",
+      "payload": {"title": "strategy", "ordinal": 10, "is_system": true, "min_rules": 0, "max_rules": 10}
+    },
+    "meta": {"pool_id": "s_strategy"}
+  },
+  {
+    "func_type": "insert_node",
+    "params": {
+      "node_type": "section",
+      "parent_id": "__root__",
+      "payload": {"title": "table_handling", "ordinal": 20, "is_system": true, "min_rules": 0, "max_rules": 10}
+    },
+    "meta": {"pool_id": "s_table_handling"}
+  },
+  {
+    "func_type": "insert_node",
+    "params": {
+      "node_type": "section",
+      "parent_id": "__root__",
+      "payload": {"title": "reasoning", "ordinal": 30, "is_system": true, "min_rules": 0, "max_rules": 10}
+    },
+    "meta": {"pool_id": "s_reasoning"}
+  },
+  {
+    "func_type": "insert_node",
+    "params": {
+      "node_type": "section",
+      "parent_id": "__root__",
+      "payload": {"title": "format_fix", "ordinal": 90, "is_system": true, "min_rules": 0, "max_rules": 5}
+    },
+    "meta": {"pool_id": "s_format_fix"}
+  }
+]

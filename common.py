@@ -1,12 +1,17 @@
 """Common utilities — task-agnostic helpers for the unified CubeStore.
 
-Provides generic func seeding, pool.json parsing, and node_id resolution.
+Provides generic func seeding and pool.json parsing.
+
+Pool format (new shape, Phase 1b):
+  A pool.json is a list of primitive func specs:
+    [{"func_type": "insert_node", "params": {...}}, ...]
+
+  Each spec maps directly to a func row. No legacy section/rule nesting.
 """
 from __future__ import annotations
 
 import json
 import logging
-import re
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -55,108 +60,30 @@ def seed_funcs(
 # ── pool.json utilities ──────────────────────────────────────────────
 
 
-def _strip_list_prefix(text: str) -> str:
-    """Strip leading list markers (- , * , 1. , 2. , etc.) from rule content."""
-    return re.sub(r"^(?:[-*]\s+|\d+\.\s+)", "", text.strip())
-
-
 def seed_pool(
     store: CubeStore,
     pool_path: str | Path,
     on_conflict: OnConflict = OnConflict.SKIP,
-) -> Dict[str, int]:
-    """Parse pool.json into func specs and seed via seed_funcs.
+) -> int:
+    """Parse a new-shape pool.json and seed funcs via seed_funcs.
 
-    Returns {"sections": N, "rules": M} counts.
+    Pool format: a JSON array of primitive func specs:
+      [{"func_type": "insert_node", "params": {...}}, ...]
+
+    Each spec is passed directly to seed_funcs. func_ids are
+    content-addressed via make_func_id if not explicitly provided.
+
+    Returns the number of specs seeded.
     """
     with open(pool_path) as f:
         pool = json.load(f)
 
-    sections_data = pool.get("sections", pool if isinstance(pool, list) else [])
-    specs: List[Dict[str, Any]] = []
+    if not isinstance(pool, list):
+        raise ValueError(
+            f"pool.json must be a JSON array of func specs. Got {type(pool).__name__}. "
+            f"File: {pool_path}"
+        )
 
-    for i, sec in enumerate(sections_data):
-        sec_params = {
-            "title": sec["title"],
-            "ordinal": i,
-            "is_system": sec.get("is_system", False),
-            "min_rules": sec.get("min_rules", 0),
-            "max_rules": sec.get("max_rules", 10),
-        }
-        sec_func_id = make_func_id("define_section", sec_params)
-        specs.append({
-            "func_type": "define_section",
-            "func_id": sec_func_id,
-            "params": sec_params,
-            "meta": {"pool_id": sec.get("id", f"s{i}")},
-        })
-
-        for j, child in enumerate(sec.get("children", [])):
-            if child.get("node_type") != "rule":
-                continue
-            rule_params = {
-                "section_id": sec_func_id,
-                "content": _strip_list_prefix(child.get("content", "")),
-            }
-            specs.append({
-                "func_type": "add_rule",
-                "params": rule_params,
-                "meta": {
-                    "pool_id": child.get("id", f"s{i}/r{j}"),
-                    "rule_kind": child.get("rule_kind", ""),
-                },
-            })
-
-    seed_funcs(store, specs, on_conflict=on_conflict)
-
-    section_count = sum(1 for s in specs if s["func_type"] == "define_section")
-    rule_count = sum(1 for s in specs if s["func_type"] == "add_rule")
-    logger.info("Seeded %d sections, %d rules from %s", section_count, rule_count, pool_path)
-    return {"sections": section_count, "rules": rule_count}
-
-
-def resolve_node_ids(
-    specs: List[Dict[str, Any]],
-    pool_path: str | Path,
-) -> List[Dict[str, Any]]:
-    """Resolve node_id references in specs to full pool params.
-
-    Specs with {"func_type": "add_rule", "params": {"node_id": "s2/r0"}}
-    are expanded to match the pool's registration params (section_id + content),
-    ensuring they hash to the same func_id as the pool version.
-    """
-    with open(pool_path) as f:
-        pool = json.load(f)
-
-    sections_data = pool.get("sections", pool if isinstance(pool, list) else [])
-
-    node_map: Dict[str, Dict[str, Any]] = {}
-    for i, sec in enumerate(sections_data):
-        sec_params = {
-            "title": sec["title"],
-            "ordinal": i,
-            "is_system": sec.get("is_system", False),
-            "min_rules": sec.get("min_rules", 0),
-            "max_rules": sec.get("max_rules", 10),
-        }
-        sec_func_id = make_func_id("define_section", sec_params)
-        for j, child in enumerate(sec.get("children", [])):
-            if child.get("node_type") != "rule":
-                continue
-            node_id = child.get("id", f"s{i}/r{j}")
-            node_map[node_id] = {
-                "section_id": sec_func_id,
-                "content": _strip_list_prefix(child.get("content", "")),
-            }
-
-    resolved = []
-    for spec in specs:
-        if spec.get("func_type") == "add_rule" and "node_id" in spec.get("params", {}):
-            nid = spec["params"]["node_id"]
-            if nid in node_map:
-                resolved.append({**spec, "params": node_map[nid]})
-            else:
-                raise ValueError(f"node_id '{nid}' not found in pool {pool_path}")
-        else:
-            resolved.append(spec)
-    return resolved
+    seed_funcs(store, pool, on_conflict=on_conflict)
+    logger.info("Seeded %d funcs from pool %s", len(pool), pool_path)
+    return len(pool)
