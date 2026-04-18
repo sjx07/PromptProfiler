@@ -1,14 +1,23 @@
 """Function registry — maps func_type strings to Python handlers.
 
-Each registered handler receives a PromptBuildState and params dict,
-and mutates the state. The state accumulates all function effects,
-then produces the final prompt.
+Phase 1 refactor: three paper-aligned primitives replace ad-hoc handlers.
+  insert_node    — add a node (section/rule/input_field/output_field/example)
+  update_node    — declared; no consumer in Phase 1 (warns if used)
+  input_transform — single pre-render input transform (renamed from transform_input)
+
+Removed (hard break, no aliases):
+  add_rule, define_section, add_input_field, transform_input
+
+Kept unchanged:
+  set_format, set_table_format, enable_cot, enable_patch_trace,
+  enable_code, enable_sql, enable_column_pruning, enable_type_annotation,
+  enable_column_stats, add_example
 
 Usage:
-    from prompt_profiler.func_registry import apply_config, make_func_id
+    from prompt_profiler.core.func_registry import apply_config, make_func_id
 
     state = apply_config(func_ids, store)
-    system_prompt, user_content = state.build_prompt(query)
+    system_prompt = state.to_prompt_state()._build_system_content()
 """
 from __future__ import annotations
 
@@ -22,6 +31,14 @@ from prompt_profiler.core.store import CubeStore
 
 logger = logging.getLogger(__name__)
 
+# ── constants ──────────────────────────────────────────────────────────
+
+ROOT_ID = "__root__"
+
+ALLOWED_NODE_TYPES = frozenset({
+    "section", "rule", "input_field", "output_field", "example",
+})
+
 # ── registry ──────────────────────────────────────────────────────────
 
 REGISTRY: Dict[str, Callable[["PromptBuildState", dict], None]] = {}
@@ -29,14 +46,7 @@ IDENTITY_KEYS: Dict[str, Callable[[dict], str]] = {}
 
 
 def register(func_type: str, *, identity_key: Optional[Callable[[dict], str]] = None):
-    """Decorator to register a func_type handler.
-
-    Args:
-        func_type: String key for this handler.
-        identity_key: Extracts the semantic identity from params for
-                      content-addressed ID generation. If None, falls
-                      back to hashing all params.
-    """
+    """Decorator to register a func_type handler."""
     def wrapper(fn: Callable[["PromptBuildState", dict], None]):
         REGISTRY[func_type] = fn
         if identity_key is not None:
@@ -49,8 +59,7 @@ def make_func_id(func_type: str, params: dict) -> str:
     """Content-addressed func ID.
 
     Uses the registered identity_key if available, otherwise hashes
-    func_type + sorted params. Same semantic content → same ID
-    regardless of import source.
+    func_type + sorted params. Same semantic content → same ID.
     """
     key_fn = IDENTITY_KEYS.get(func_type)
     if key_fn:
@@ -64,12 +73,8 @@ def make_func_id(func_type: str, params: dict) -> str:
 
 @dataclass
 class PromptBuildState:
-    """Mutable state that functions operate on to build a prompt.
-
-    Starts blank. Each function mutates it. After all functions are applied,
-    call build_prompt(query) to produce the final (system_prompt, user_content).
-    """
-    # Rules accumulated by add_rule functions, grouped by section
+    """Mutable state that functions operate on to build a prompt."""
+    # Rules accumulated by insert_node(rule), grouped by parent section_id
     rules: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
     # Sections metadata (title, ordinal, is_system, etc.)
     sections: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -97,8 +102,7 @@ class PromptBuildState:
     type_annotation: bool = False
     column_stats: bool = False
 
-
-    # I/O fields for user prompt (task sets defaults, funcs can add more)
+    # I/O fields for user prompt
     input_fields: Dict[str, str] = field(default_factory=dict)
     output_fields: Dict[str, str] = field(default_factory=dict)
 
@@ -106,11 +110,7 @@ class PromptBuildState:
     extras: Dict[str, Any] = field(default_factory=dict)
 
     def to_prompt_state(self) -> "PromptState":
-        """Convert to a feature_pipeline PromptState for rendering.
-
-        Maps accumulated rules/sections → SemanticContent → PromptState,
-        reusing the existing FormatStyle rendering pipeline.
-        """
+        """Convert to a feature_pipeline PromptState for rendering."""
         from prompt_profiler.prompt.prompt_state import PromptState
         from prompt_profiler.prompt.semantic_content import SemanticContent
         from prompt_profiler.prompt.rules import RuleSection, RuleItem, RuleTree
@@ -135,7 +135,6 @@ class PromptBuildState:
                 node_id=sid,
             ))
 
-        # Build a RuleTree so the format style can look up nodes via is_enabled()
         tree = RuleTree(roots=rule_sections)
         tree._rebuild_index()
 
@@ -154,7 +153,6 @@ class PromptBuildState:
             meta["type_annotation"] = True
         if self.column_stats:
             meta["column_stats"] = True
-        # Pass transform_input specs through metadata so tasks can access them
         if self.extras.get("input_transforms"):
             meta["input_transforms"] = self.extras["input_transforms"]
         return PromptState(
@@ -168,27 +166,121 @@ class PromptBuildState:
         )
 
 
-# ── built-in handlers ─────────────────────────────────────────────────
+# ── canonicalization ──────────────────────────────────────────────────
 
-@register("add_rule", identity_key=lambda p: p.get("content", "").strip())
-def _apply_add_rule(state: PromptBuildState, params: dict) -> None:
-    """Add a rule to the prompt state, grouped by section."""
-    section_id = params.get("section_id", "")
-    content = params.get("content", "")
-    if not content.strip():
-        return
-    if section_id not in state.rules:
-        state.rules[section_id] = []
-    state.rules[section_id].append({
-        "content": content,
+def _canonicalize_insert_node(params: dict) -> dict:
+    """Return canonical params for insert_node.
+
+    Normalizes key order and missing optional fields so make_func_id
+    produces a stable hash regardless of how params were constructed.
+    """
+    node_type = params["node_type"]
+    if node_type not in ALLOWED_NODE_TYPES:
+        raise ValueError(f"unsupported node_type={node_type!r}; allowed={sorted(ALLOWED_NODE_TYPES)}")
+    parent_id = params.get("parent_id") or ROOT_ID
+    payload = params.get("payload", {})
+
+    if node_type == "section":
+        payload = {
+            "title":     payload.get("title", ""),
+            "ordinal":   int(payload.get("ordinal", 0)),
+            "is_system": bool(payload.get("is_system", False)),
+            "min_rules": int(payload.get("min_rules", 0)),
+            "max_rules": int(payload.get("max_rules", 10)),
+        }
+    elif node_type == "rule":
+        payload = {"content": payload.get("content", "").strip()}
+    elif node_type == "input_field":
+        payload = {
+            "name":        payload.get("name", ""),
+            "description": payload.get("description", ""),
+        }
+    elif node_type == "output_field":
+        payload = {
+            "name":        payload.get("name", ""),
+            "description": payload.get("description", ""),
+        }
+    elif node_type == "example":
+        payload = {"content": payload.get("content", "")}
+
+    return {
+        "node_type": node_type,
+        "parent_id": parent_id,
+        "payload":   payload,
+    }
+
+
+# ── new primitive handlers ─────────────────────────────────────────────
+
+@register(
+    "insert_node",
+    identity_key=lambda p: json.dumps(_canonicalize_insert_node(p), sort_keys=True),
+)
+def _apply_insert_node(state: PromptBuildState, params: dict) -> None:
+    """Insert a node into the prompt state.
+
+    Dispatches on params.node_type ∈ {section, rule, input_field, output_field, example}.
+    Default parent_id = ROOT_ID ("__root__") when unspecified.
+
+    Sort order: section(0) < input_field(1) < output_field(1) < rule(2) < example(3).
+    """
+    canon = _canonicalize_insert_node(params)
+    node_type = canon["node_type"]
+    parent_id = canon["parent_id"]
+    payload   = canon["payload"]
+
+    if node_type == "section":
+        section_id = params.get("_func_id", "")
+        # Enforce depth cap of 2: section inside section is OK, but section
+        # whose parent is itself a subsection is not (MVP).
+        state.sections[section_id] = {
+            "title":     payload["title"],
+            "ordinal":   payload["ordinal"],
+            "is_system": payload["is_system"],
+            "min_rules": payload["min_rules"],
+            "max_rules": payload["max_rules"],
+            "parent_id": parent_id,
+        }
+    elif node_type == "rule":
+        state.rules.setdefault(parent_id, []).append({"content": payload["content"]})
+    elif node_type == "input_field":
+        state.input_fields[payload["name"]] = payload["description"]
+    elif node_type == "output_field":
+        state.output_fields[payload["name"]] = payload["description"]
+    elif node_type == "example":
+        state.extras.setdefault("examples", []).append(payload)
+
+
+@register("update_node", identity_key=lambda p: json.dumps(p, sort_keys=True))
+def _apply_update_node(state: PromptBuildState, params: dict) -> None:
+    """Declared primitive. No consumer in Phase 1 — warns if used."""
+    logger.warning(
+        "update_node: no consumer wired in Phase 1; node will not be modified. params=%s",
+        params,
+    )
+
+
+@register(
+    "input_transform",
+    identity_key=lambda p: f"{p.get('fn', '')}:{json.dumps(p.get('kwargs', {}), sort_keys=True)}",
+)
+def _apply_input_transform(state: PromptBuildState, params: dict) -> None:
+    """Pre-render input transform (renamed from transform_input).
+
+    Multiple input_transform primitives compose deterministically by func_id sort order.
+    """
+    state.extras.setdefault("input_transforms", []).append({
+        "fn":     params.get("fn", ""),
+        "kwargs": params.get("kwargs", {}),
     })
 
+
+# ── kept handlers (unchanged) ─────────────────────────────────────────
 
 @register("set_format", identity_key=lambda p: p.get("style", ""))
 def _apply_set_format(state: PromptBuildState, params: dict) -> None:
     """Set the format style for prompt rendering."""
-    style = params.get("style", "json")
-    state.format_style = style
+    state.format_style = params.get("style", "json")
 
 
 @register("enable_cot")
@@ -199,62 +291,47 @@ def _apply_enable_cot(state: PromptBuildState, params: dict) -> None:
 
 @register("enable_patch_trace")
 def _apply_enable_patch_trace(state: PromptBuildState, params: dict) -> None:
-    """Enable structured patch trace — model outputs error_analysis + patch_description before final SQL."""
+    """Enable structured patch trace."""
     state.patch_trace = True
 
 
 @register("enable_code")
 def _apply_enable_code(state: PromptBuildState, params: dict) -> None:
-    """Enable code execution output — model writes Python to compute the answer."""
+    """Enable code execution output."""
     state.code_execution = True
 
 
 @register("enable_sql")
 def _apply_enable_sql(state: PromptBuildState, params: dict) -> None:
-    """Enable SQL execution output — model writes SQL to query the table."""
+    """Enable SQL execution output."""
     state.sql_execution = True
 
 
 @register("set_table_format", identity_key=lambda p: p.get("format", "markdown"))
 def _apply_set_table_format(state: PromptBuildState, params: dict) -> None:
-    """Set the table serialization format (markdown, csv, html, json_records)."""
+    """Set the table serialization format."""
     state.table_format = params.get("format", "markdown")
 
 
 @register("enable_column_pruning")
 def _apply_enable_column_pruning(state: PromptBuildState, params: dict) -> None:
-    """Enable column pruning — remove irrelevant columns based on question keywords."""
+    """Enable column pruning."""
     state.column_pruning = True
 
 
 @register("enable_type_annotation")
 def _apply_enable_type_annotation(state: PromptBuildState, params: dict) -> None:
-    """Enable type annotation — add (int)/(float)/(date) to column headers."""
+    """Enable type annotation."""
     state.type_annotation = True
 
 
 @register("enable_column_stats")
 def _apply_enable_column_stats(state: PromptBuildState, params: dict) -> None:
-    """Enable column statistics — prepend cardinality/range/type summary before table."""
+    """Enable column statistics."""
     state.column_stats = True
 
 
-
-
-@register("add_input_field", identity_key=lambda p: p.get("name", ""))
-def _apply_add_input_field(state: PromptBuildState, params: dict) -> None:
-    """Add an input field to the user prompt.
-
-    Example: params={"name": "filtered_schema", "description": "Relevant tables and columns"}
-    The field value comes from the query record at build_prompt time.
-    """
-    name = params.get("name", "")
-    desc = params.get("description", "")
-    if name:
-        state.input_fields[name] = desc
-
-
-@register("add_example", identity_key=lambda p: f"{p.get('example_strategy','random')}:{p.get('k',3)}")
+@register("add_example", identity_key=lambda p: f"{p.get('example_strategy', 'random')}:{p.get('k', 3)}")
 def _apply_add_example(state: PromptBuildState, params: dict) -> None:
     """Configure few-shot example selection strategy."""
     state.extras["example_strategy"] = params.get("example_strategy", "random")
@@ -262,56 +339,43 @@ def _apply_add_example(state: PromptBuildState, params: dict) -> None:
     state.extras["example_seed"] = int(params.get("seed", 42))
 
 
-@register("transform_input", identity_key=lambda p: f"{p.get('fn', '')}:{json.dumps(p.get('kwargs', {}), sort_keys=True)}")
-def _apply_transform_input(state: PromptBuildState, params: dict) -> None:
-    """Register an input preprocess transform (resolved at build_record time).
-
-    Spec/materialization decoupling: this handler stores the spec.
-    The actual Python function lives in core.preprocess.REGISTRY
-    and runs when the task builds the prompt.
-
-    Config example:
-        {"func_type": "transform_input", "params": {"fn": "filter_rows", "kwargs": {"max_rows": 50}}}
-    """
-    state.extras.setdefault("input_transforms", []).append({
-        "fn": params.get("fn", ""),
-        "kwargs": params.get("kwargs", {}),
-    })
-
-
-@register("define_section", identity_key=lambda p: p.get("title", "").strip())
-def _apply_define_section(state: PromptBuildState, params: dict) -> None:
-    """Register a section in the prompt state."""
-    # The func_id IS the section_id — caller passes it via extras
-    section_id = params.get("_func_id", "")
-    state.sections[section_id] = {
-        "title": params.get("title", ""),
-        "ordinal": params.get("ordinal", 0),
-        "is_system": params.get("is_system", False),
-        "min_rules": params.get("min_rules", 0),
-        "max_rules": params.get("max_rules", 10),
-    }
-
-
 # ── func_type ordering ────────────────────────────────────────────────
-# define_section must run before add_rule so sections exist when rules reference them.
+# insert_node(section) must run before insert_node(rule).
+# Ordering is handled inside apply_config via _insert_node_sort_key.
+
+_NODE_TYPE_ORDER: Dict[str, int] = {
+    "section":      0,
+    "input_field":  1,
+    "output_field": 1,
+    "rule":         2,
+    "example":      3,
+}
 
 _TYPE_ORDER: Dict[str, int] = {
-    "define_section": 0,
-    "set_format": 1,
+    "insert_node":    1,   # sub-sorted by node_type below
+    "update_node":    2,
+    "input_transform": 1,
+    "set_format":     1,
     "set_table_format": 1,
-    "enable_cot": 1,
+    "enable_cot":     1,
     "enable_patch_trace": 1,
-    "enable_code": 1,
-    "enable_sql": 1,
-    "transform_input": 1,
-    "add_rule": 2,
-    "add_example": 3,
+    "enable_code":    1,
+    "enable_sql":     1,
+    "enable_column_pruning": 1,
+    "enable_type_annotation": 1,
+    "enable_column_stats": 1,
+    "add_example":    3,
 }
 
 
-def _func_sort_key(func_id: str, func_type: str) -> tuple:
-    return (_TYPE_ORDER.get(func_type, 1), func_id)
+def _func_sort_key(func_id: str, func_type: str, params: dict) -> tuple:
+    """Sort key: (type_priority, node_type_priority, func_id)."""
+    type_prio = _TYPE_ORDER.get(func_type, 1)
+    if func_type == "insert_node":
+        nt = params.get("node_type", "rule")
+        nt_prio = _NODE_TYPE_ORDER.get(nt, 1)
+        return (type_prio, nt_prio, func_id)
+    return (type_prio, 0, func_id)
 
 
 # ── apply config ──────────────────────────────────────────────────────
@@ -320,18 +384,9 @@ def apply_config(
     func_ids: List[str],
     store: CubeStore,
 ) -> PromptBuildState:
-    """Build a PromptBuildState by applying all funcs in a config.
-
-    Args:
-        func_ids: List of func_ids from config.func_ids.
-        store: CubeStore to look up func definitions.
-
-    Returns:
-        PromptBuildState with all functions applied.
-    """
+    """Build a PromptBuildState by applying all funcs in a config."""
     state = PromptBuildState()
 
-    # Load all func rows, then sort by type priority
     func_rows = []
     for func_id in func_ids:
         func_row = store.get_func(func_id)
@@ -340,14 +395,15 @@ def apply_config(
             continue
         func_rows.append((func_id, func_row))
 
-    func_rows.sort(key=lambda pair: _func_sort_key(pair[0], pair[1]["func_type"]))
+    func_rows.sort(key=lambda pair: _func_sort_key(
+        pair[0],
+        pair[1]["func_type"],
+        json.loads(pair[1]["params"]) if isinstance(pair[1]["params"], str) else pair[1]["params"],
+    ))
 
-    # Apply each func in priority order
     for func_id, func_row in func_rows:
         func_type = func_row["func_type"]
         params = json.loads(func_row["params"]) if isinstance(func_row["params"], str) else func_row["params"]
-
-        # Inject func_id so handlers can use it (e.g. define_section uses it as section_id)
         params["_func_id"] = func_id
 
         handler = REGISTRY.get(func_type)

@@ -43,8 +43,9 @@ logger = logging.getLogger(__name__)
 
 class CubeStore:
 
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(self, db_path: str | Path, *, read_only: bool = False) -> None:
         self._db_path = str(db_path)
+        self._read_only = read_only
         self._conn: Optional[sqlite3.Connection] = None
         self._lock = threading.Lock()
         self._ensure_schema()
@@ -72,9 +73,26 @@ class CubeStore:
             self._conn.row_factory = sqlite3.Row
         return self._conn
 
+    def _check_schema_version(self, conn: sqlite3.Connection) -> None:
+        """Raise RuntimeError if cube is at an older schema version and not read_only."""
+        row = conn.execute(
+            "SELECT value FROM _cube_meta WHERE key = 'schema_version'"
+        ).fetchone()
+        if row is None:
+            return  # fresh database — no version yet
+        stored = int(row[0])
+        if stored < SCHEMA_VERSION and not self._read_only:
+            raise RuntimeError(
+                f"cube schema_version={stored} is older than required {SCHEMA_VERSION}. "
+                f"Open with read_only=True for migration scripting, or create a fresh cube. "
+                f"See docs/refactor_phase1.md."
+            )
+
     def _ensure_schema(self) -> None:
         conn = self._get_conn()
         conn.execute(META_TABLE)
+        # Check version before applying any new DDL
+        self._check_schema_version(conn)
         for ddl in TABLES:
             conn.execute(ddl)
         for view in VIEWS:

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 TABLES: list[str] = [
     # ── reference tables ──────────────────────────────────────────────
@@ -123,30 +123,56 @@ TABLES: list[str] = [
 ]
 
 VIEWS: list[str] = [
-    # Convenience view: sections projected from define_section funcs.
+    # Sections projected from insert_node(section) funcs.
     """
     CREATE VIEW IF NOT EXISTS section_view AS
-    SELECT func_id                                       AS section_id,
-           json_extract(params, '$.title')               AS title,
-           json_extract(params, '$.ordinal')             AS ordinal,
-           json_extract(params, '$.is_system')           AS is_system,
-           json_extract(params, '$.min_rules')           AS min_rules,
-           json_extract(params, '$.max_rules')           AS max_rules,
+    SELECT func_id                                               AS section_id,
+           json_extract(params, '$.payload.title')               AS title,
+           json_extract(params, '$.payload.ordinal')             AS ordinal,
+           json_extract(params, '$.payload.is_system')           AS is_system,
+           json_extract(params, '$.payload.min_rules')           AS min_rules,
+           json_extract(params, '$.payload.max_rules')           AS max_rules,
+           json_extract(params, '$.parent_id')                   AS parent_id,
            meta
     FROM func
-    WHERE func_type = 'define_section'
+    WHERE func_type = 'insert_node'
+      AND json_extract(params, '$.node_type') = 'section'
     """,
 
-    # Convenience view: rules projected from add_rule funcs.
+    # Rules projected from insert_node(rule) funcs.
     """
     CREATE VIEW IF NOT EXISTS rule_view AS
-    SELECT func_id                                    AS rule_id,
-           json_extract(params, '$.section_id')       AS section_id,
-           json_extract(params, '$.content')          AS content,
-           json_extract(params, '$.ordinal')          AS ordinal,
+    SELECT func_id                                               AS rule_id,
+           json_extract(params, '$.parent_id')                   AS section_id,
+           json_extract(params, '$.payload.content')             AS content,
            meta
     FROM func
-    WHERE func_type = 'add_rule'
+    WHERE func_type = 'insert_node'
+      AND json_extract(params, '$.node_type') = 'rule'
+    """,
+
+    # Input fields projected from insert_node(input_field) funcs.
+    """
+    CREATE VIEW IF NOT EXISTS input_field_view AS
+    SELECT func_id                                               AS field_id,
+           json_extract(params, '$.payload.name')                AS name,
+           json_extract(params, '$.payload.description')         AS description,
+           meta
+    FROM func
+    WHERE func_type = 'insert_node'
+      AND json_extract(params, '$.node_type') = 'input_field'
+    """,
+
+    # Output fields projected from insert_node(output_field) funcs.
+    """
+    CREATE VIEW IF NOT EXISTS output_field_view AS
+    SELECT func_id                                               AS field_id,
+           json_extract(params, '$.payload.name')                AS name,
+           json_extract(params, '$.payload.description')         AS description,
+           meta
+    FROM func
+    WHERE func_type = 'insert_node'
+      AND json_extract(params, '$.node_type') = 'output_field'
     """,
 ]
 
