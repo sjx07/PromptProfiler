@@ -193,9 +193,10 @@ def test_materialize_basic():
     assert specs[0]["params"]["node_type"] == "rule"
     assert "func_id" in specs[0]
     assert specs[0]["func_id"]  # non-empty
-    # Provenance: simple_rule -> [func_id]
-    assert "simple_rule" in provenance
-    assert provenance["simple_rule"] == [specs[0]["func_id"]]
+    # Provenance is keyed by content-hash feature_id (not canonical_id)
+    simple_rule_fid = reg.feature_id_for("simple_rule")
+    assert simple_rule_fid in provenance
+    assert provenance[simple_rule_fid] == [specs[0]["func_id"]]
     # meta.source_feature no longer present -- meta is empty
     assert specs[0]["meta"] == {}
 
@@ -259,8 +260,9 @@ def test_materialize_deduplicates_shared_sections():
     assert len(specs) == 3
     func_ids = [s["func_id"] for s in specs]
     assert len(set(func_ids)) == 3, "All three must be distinct func_ids"
-    # Section appears only under _section_reasoning in provenance
-    assert provenance["_section_reasoning"] == [section_fid]
+    # Section appears only under _section_reasoning in provenance (keyed by hash)
+    sec_feature_id = reg.feature_id_for("_section_reasoning")
+    assert provenance[sec_feature_id] == [section_fid]
 
 
 def test_materialize_shared_primitive_many_to_many():
@@ -292,9 +294,11 @@ def test_materialize_shared_primitive_many_to_many():
     # Deduped: only one func spec
     assert len(specs) == 1
     assert specs[0]["func_id"] == shared_fid
-    # Both features claim it in provenance (many-to-many)
-    assert shared_fid in provenance["feat_x"]
-    assert shared_fid in provenance["feat_y"]
+    # Both features claim it in provenance (many-to-many); keyed by content-hash feature_id
+    feat_x_fid = reg.feature_id_for("feat_x")
+    feat_y_fid = reg.feature_id_for("feat_y")
+    assert shared_fid in provenance[feat_x_fid]
+    assert shared_fid in provenance[feat_y_fid]
 
 
 # ── disk-based loading ────────────────────────────────────────────────

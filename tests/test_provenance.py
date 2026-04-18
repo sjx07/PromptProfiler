@@ -73,8 +73,10 @@ def test_provenance_maps_feature_to_func_ids():
         }
     ])
     specs, f2f = reg.materialize(["enable_cot"])
-    assert "enable_cot" in f2f
-    assert f2f["enable_cot"] == [expected_fid]
+    # f2f is keyed by content-hash feature_id (not canonical_id)
+    enable_cot_fid = reg.feature_id_for("enable_cot")
+    assert enable_cot_fid in f2f
+    assert f2f[enable_cot_fid] == [expected_fid]
     # func_id in provenance matches the emitted spec
     assert specs[0]["func_id"] == expected_fid
 
@@ -131,9 +133,11 @@ def test_shared_primitive_many_to_many_attribution():
     assert len(specs) == 1
     assert specs[0]["func_id"] == shared_fid
 
-    # But provenance records both
-    assert shared_fid in f2f["feat_x"]
-    assert shared_fid in f2f["feat_y"]
+    # But provenance records both (f2f keyed by content-hash feature_id)
+    feat_x_fid = reg.feature_id_for("feat_x")
+    feat_y_fid = reg.feature_id_for("feat_y")
+    assert shared_fid in f2f[feat_x_fid]
+    assert shared_fid in f2f[feat_y_fid]
 
 
 # ── end-to-end: store provenance in config.meta ───────────────────────
@@ -156,6 +160,7 @@ def test_end_to_end_provenance_in_config_meta():
         }
     ])
     specs, feature_to_funcs = reg.materialize(["enable_cot"])
+    enable_cot_fid = reg.feature_id_for("enable_cot")
 
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
@@ -165,7 +170,8 @@ def test_end_to_end_provenance_in_config_meta():
 
         func_ids = [s["func_id"] for s in specs]
         meta = {
-            "feature_ids": ["enable_cot"],
+            "canonical_ids": ["enable_cot"],
+            "feature_ids": [enable_cot_fid],
             "feature_to_funcs": feature_to_funcs,
         }
         config_id = store.get_or_create_config(func_ids, meta=meta)
@@ -175,8 +181,10 @@ def test_end_to_end_provenance_in_config_meta():
         assert len(configs) == 1
         stored_meta = json.loads(configs[0]["meta"])
         assert "feature_to_funcs" in stored_meta
-        assert stored_meta["feature_to_funcs"]["enable_cot"] == [rule_fid]
-        assert stored_meta["feature_ids"] == ["enable_cot"]
+        # feature_to_funcs is keyed by content-hash feature_id
+        assert stored_meta["feature_to_funcs"][enable_cot_fid] == [rule_fid]
+        assert stored_meta["feature_ids"] == [enable_cot_fid]
+        assert stored_meta["canonical_ids"] == ["enable_cot"]
 
         store.close()
     finally:
@@ -206,6 +214,8 @@ def test_end_to_end_many_to_many_in_config_meta():
         },
     ])
     specs, feature_to_funcs = reg.materialize(["feat_x", "feat_y"])
+    feat_x_fid = reg.feature_id_for("feat_x")
+    feat_y_fid = reg.feature_id_for("feat_y")
 
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
@@ -214,7 +224,8 @@ def test_end_to_end_many_to_many_in_config_meta():
         store.upsert_funcs(specs, on_conflict=OnConflict.SKIP)
         func_ids = [s["func_id"] for s in specs]
         meta = {
-            "feature_ids": ["feat_x", "feat_y"],
+            "canonical_ids": ["feat_x", "feat_y"],
+            "feature_ids": [feat_x_fid, feat_y_fid],
             "feature_to_funcs": feature_to_funcs,
         }
         store.get_or_create_config(func_ids, meta=meta)
@@ -223,9 +234,9 @@ def test_end_to_end_many_to_many_in_config_meta():
         stored_meta = json.loads(configs[0]["meta"])
         f2f = stored_meta["feature_to_funcs"]
 
-        # Both features attribute the shared func
-        assert shared_fid in f2f["feat_x"]
-        assert shared_fid in f2f["feat_y"]
+        # Both features attribute the shared func (keyed by content-hash feature_id)
+        assert shared_fid in f2f[feat_x_fid]
+        assert shared_fid in f2f[feat_y_fid]
 
         store.close()
     finally:
