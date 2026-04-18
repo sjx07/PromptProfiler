@@ -183,14 +183,28 @@ def test_leave_one_out_feature_count(store_and_bundles):
 
 
 def test_leave_one_out_feature_removed_feature_funcs_absent(store_and_bundles):
+    """Func_ids uniquely contributed by the removed feature must not appear.
+
+    Shared primitives (content-addressed dedup across features — e.g.
+    enable_code and enable_sql both emit set_format(code_block) → same
+    func_id) may still be present, because another active feature is
+    supplying them. Only the REMOVED-only primitives must vanish.
+    """
     reg, store, base_ids, bundles, conflicts = store_and_bundles
     configs = generate("leave_one_out_feature", store, base_ids=base_ids, bundles=bundles)
     for _cid, func_ids, meta in configs:
         removed = meta["removed_canonical_id"]
         removed_funcs = set(bundles[removed][1])
-        leakage = removed_funcs & set(func_ids)
+        # Union of everyone else's funcs → funcs that could be contributed
+        # by another active feature.
+        shared_with_others: set = set()
+        for other, (_h, other_funcs) in bundles.items():
+            if other != removed:
+                shared_with_others.update(other_funcs)
+        unique_to_removed = removed_funcs - shared_with_others
+        leakage = unique_to_removed & set(func_ids)
         assert not leakage, (
-            f"leave-one-out of {removed}: removed-feature funcs leaked: {leakage}"
+            f"leave-one-out of {removed}: unique removed-feature funcs leaked: {leakage}"
         )
 
 
@@ -235,28 +249,44 @@ def test_coalition_feature_enumerates_fully_when_n_samples_huge(store_and_bundle
     """With n_samples >= total_possible AND conflict filtering, every valid
     (non-conflicting) non-empty subset should appear exactly once.
 
-    10 features, one conflict pair (enable_code ↔ enable_sql):
-      * total nonempty subsets = 2^10 - 1 = 1023
-      * subsets containing BOTH code and sql = 2^8 = 256
-      * valid subsets = 1023 - 256 = 767
+    Expected count is computed from the conflicts map via brute-force
+    enumeration rather than a closed-form formula, so the test stays
+    correct as more conflict pairs get declared.
     """
+    from itertools import combinations
     reg, store, base_ids, bundles, conflicts = store_and_bundles
     n = len(bundles)
-    total_nonempty = (1 << n) - 1
-    invalid = 1 << (n - 2)  # subsets that fix both sides of the one conflict pair
-    expected = total_nonempty - invalid
+    names = list(bundles.keys())
+
+    def _has_live_conflict(subset):
+        s = set(subset)
+        for cid in s:
+            if s & conflicts.get(cid, frozenset()):
+                return True
+        return False
+
+    all_subsets = [
+        tuple(sorted(c))
+        for k in range(1, n + 1)
+        for c in combinations(names, k)
+    ]
+    expected = sum(1 for s in all_subsets if not _has_live_conflict(s))
 
     configs = generate(
         "coalition_feature", store,
         base_ids=base_ids, bundles=bundles, conflicts=conflicts,
-        n_samples=total_nonempty + 100, seed=3,
+        n_samples=len(all_subsets) + 100, seed=3,
         min_features=1, max_features=n,
     )
     assert len(configs) == expected, (
-        f"expected {expected} valid coalitions (1023 total - 256 with conflict), "
+        f"expected {expected} valid coalitions given declared conflicts, "
         f"got {len(configs)}"
     )
-    subsets = {tuple(sorted(meta["canonical_ids"])) for _, _, meta in configs}
+    # subset_canonical_ids holds the varying part; canonical_ids holds full set.
+    subsets = {
+        tuple(sorted(meta["subset_canonical_ids"]))
+        for _, _, meta in configs
+    }
     assert len(subsets) == expected
 
 

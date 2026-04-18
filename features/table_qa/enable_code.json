@@ -3,7 +3,7 @@
   "canonical_id": "enable_code",
   "task": "table_qa",
   "requires": ["_section_strategy"],
-  "conflicts_with": ["enable_sql"],
+  "conflicts_with": ["enable_sql", "enable_cot"],
   "primitive_edits": [
     {
       "func_type": "insert_node",
@@ -20,6 +20,10 @@
         "parent_id": "__root__",
         "payload": {"name": "code", "description": "Python code that computes the answer."}
       }
+    },
+    {
+      "func_type": "set_format",
+      "params": {"style": "code_block"}
     }
   ]
 }
