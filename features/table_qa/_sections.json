@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "task": "table_qa",
+  "sections": {
+    "role":           {"title": "role",           "ordinal":  0, "is_system": true,  "min_rules": 1, "max_rules":  3},
+    "strategy":       {"title": "strategy",       "ordinal": 10, "is_system": true,  "min_rules": 0, "max_rules": 10},
+    "table_handling": {"title": "table_handling", "ordinal": 20, "is_system": true,  "min_rules": 0, "max_rules": 10},
+    "reasoning":      {"title": "reasoning",      "ordinal": 30, "is_system": true,  "min_rules": 0, "max_rules": 10},
+    "format_fix":     {"title": "format_fix",     "ordinal": 90, "is_system": true,  "min_rules": 0, "max_rules":  5}
+  }
+}
