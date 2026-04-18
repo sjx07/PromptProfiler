@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 TABLES: list[str] = [
     # ── reference tables ──────────────────────────────────────────────
@@ -120,6 +120,31 @@ TABLES: list[str] = [
     )
     """,
 
+    # ── feature = registry of named primitive-edit bundles ────────────
+    # feature_id   = content-addressed hash of primitive_edits (12-char hex)
+    # canonical_id = human-facing label (e.g. "enable_cot"); stable across
+    #                tasks and versions; cross-task aggregation key.
+    # primitive_spec = JSON array of primitive_edit dicts (insert_node, etc.)
+    # source_path  = absolute path to the feature JSON file on disk (NULL for
+    #                in-memory / programmatically constructed features).
+    #
+    # NOTE: only configs created after schema v7 store feature_ids as content
+    # hashes in config.meta.feature_ids.  Pre-v7 configs stored canonical_id
+    # strings and are NOT joinable via the feature_effect view.
+    """
+    CREATE TABLE IF NOT EXISTS feature (
+        feature_id       TEXT PRIMARY KEY,
+        canonical_id     TEXT NOT NULL,
+        task             TEXT NOT NULL,
+        requires_json    TEXT NOT NULL DEFAULT '[]',
+        conflicts_json   TEXT NOT NULL DEFAULT '[]',
+        primitive_spec   TEXT NOT NULL,
+        rationale        TEXT,
+        source_path      TEXT,
+        synced_at        TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+
 ]
 
 VIEWS: list[str] = [
@@ -174,6 +199,33 @@ VIEWS: list[str] = [
     WHERE func_type = 'insert_node'
       AND json_extract(params, '$.node_type') = 'output_field'
     """,
+
+    # Feature effect — joins evaluation scores back to feature metadata.
+    #
+    # NOTE: only configs from schema v7+ store feature_ids as content-hash
+    # strings in config.meta -> $.feature_ids.  Pre-v7 configs stored
+    # canonical_id strings and will NOT join correctly via this view.
+    #
+    # Usage:
+    #   SELECT canonical_id, AVG(score) FROM feature_effect
+    #   WHERE task = 'table_qa' GROUP BY canonical_id ORDER BY AVG(score) DESC;
+    """
+    CREATE VIEW IF NOT EXISTS feature_effect AS
+    SELECT
+        f.feature_id,
+        f.canonical_id,
+        f.task,
+        e.model,
+        q.query_id,
+        ev.score,
+        ev.scorer
+    FROM evaluation ev
+    JOIN execution  e   USING (execution_id)
+    JOIN config     c   USING (config_id)
+    JOIN query      q   ON q.query_id = e.query_id
+    JOIN json_each(json_extract(c.meta, '$.feature_ids')) AS fid
+    JOIN feature    f   ON f.feature_id = fid.value
+    """,
 ]
 
 INDEXES: list[str] = [
@@ -191,6 +243,9 @@ INDEXES: list[str] = [
     "CREATE        INDEX IF NOT EXISTS idx_pred_name     ON predicate(name)",
     # query
     "CREATE        INDEX IF NOT EXISTS idx_query_dataset ON query(dataset)",
+    # feature
+    "CREATE        INDEX IF NOT EXISTS idx_feature_canonical ON feature(canonical_id)",
+    "CREATE        INDEX IF NOT EXISTS idx_feature_task      ON feature(task)",
 ]
 
 META_TABLE = """
