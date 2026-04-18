@@ -67,23 +67,42 @@ def _execute_code(code: str, table_data: dict) -> Any:
         "any": any, "all": all, "round": round,
         "isinstance": isinstance, "type": type,
     }
+    def _stringify(r: Any) -> Any:
+        if isinstance(r, (list, set, tuple)):
+            return ", ".join(str(v) for v in r)
+        return r
+
+    # 1. Try eval — for single-expression code.
     try:
-        result = eval(code, safe_globals)
-        if isinstance(result, (list, set, tuple)):
-            return ", ".join(str(v) for v in result)
-        return result
+        return _stringify(eval(code, safe_globals))
     except Exception:
-        try:
-            # Try exec for multi-line code
-            local_vars = {}
+        pass
+
+    # 2. Fall back to exec for multi-statement code.
+    #    Capture stdout so `print(answer)` (what the prompt instructs) is
+    #    observable; also honor an explicit `answer = ...` assignment.
+    import io as _io
+    import contextlib as _contextlib
+    local_vars: dict = {}
+    stdout_buf = _io.StringIO()
+    try:
+        with _contextlib.redirect_stdout(stdout_buf):
             exec(code, safe_globals, local_vars)
-            if "answer" in local_vars:
-                result = local_vars["answer"]
-                if isinstance(result, (list, set, tuple)):
-                    return ", ".join(str(v) for v in result)
-                return result
-        except Exception:
-            pass
+    except Exception:
+        return None
+
+    # Prefer explicit `answer = ...` if the model set one.
+    if "answer" in local_vars:
+        return _stringify(local_vars["answer"])
+
+    # Otherwise use the captured stdout (last non-empty line), since the
+    # prompt tells the model to print the final answer as the last statement.
+    captured = stdout_buf.getvalue().strip()
+    if captured:
+        last_line = captured.splitlines()[-1].strip()
+        if last_line:
+            return last_line
+
     return None
 
 

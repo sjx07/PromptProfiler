@@ -80,6 +80,54 @@ def test_execute_code_model_redefining_data_still_has_access():
     assert result == "Sergio Perez"
 
 
+# ── stdout-capture contract (Finding F) ───────────────────────────────
+
+def test_execute_code_captures_print_output_when_no_answer_var():
+    """Model emits `print(...)` with no `answer = ...` assignment — the
+    executor must capture stdout so the score pipeline gets a non-empty
+    prediction. Before the fix this returned None → empty prediction → score=0.
+    """
+    code = (
+        "count = df['Driver'].count()\n"
+        "print(count)"
+    )
+    result = _execute_code(code, TABLE)
+    assert result == "3"
+
+
+def test_execute_code_uses_last_stdout_line():
+    """Models often print debug then the answer — we take the LAST line."""
+    code = (
+        "print('debug:', len(df))\n"
+        "winner = df.iloc[0]['Driver']\n"
+        "print(winner)"
+    )
+    result = _execute_code(code, TABLE)
+    assert result == "Sergio Perez"
+
+
+def test_execute_code_answer_variable_takes_priority():
+    """If both `answer = ...` and print() are present, prefer the variable."""
+    code = (
+        "print('some scratch work')\n"
+        "answer = 'canonical answer'"
+    )
+    result = _execute_code(code, TABLE)
+    assert result == "canonical answer"
+
+
+def test_execute_code_returns_none_on_exec_error():
+    """A truly broken program still returns None (signals failure to score)."""
+    code = "this is not valid python"
+    assert _execute_code(code, TABLE) is None
+
+
+def test_execute_code_single_expression_eval_path():
+    """Pure expressions still round-trip via eval()."""
+    code = "df.iloc[0]['Driver']"
+    assert _execute_code(code, TABLE) == "Sergio Perez"
+
+
 # ── _execute_sql scope contract ───────────────────────────────────────
 
 def test_execute_sql_canonical_t():
