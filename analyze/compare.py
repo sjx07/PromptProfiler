@@ -7,6 +7,7 @@ Every function is pure over the cube — no writes.
 """
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List, Optional
 
 from prompt_profiler.core.store import CubeStore
@@ -238,3 +239,107 @@ def add_one_deltas(
             "flipped_down": len(d["flipped_down"]),
         })
     return pd.DataFrame(records).sort_values("avg_delta", ascending=False).reset_index(drop=True)
+
+
+# ── per-query flip inspector ──────────────────────────────────────────
+
+def flip_rows(
+    store: CubeStore,
+    *,
+    base_config: int,
+    target_config: int,
+    model: str,
+    scorer: str,
+    direction: str = "both",
+) -> List[Dict[str, Any]]:
+    """Return rich per-query rows for cases where base and target disagreed.
+
+    Use this to eyeball *why* a feature helped or hurt.
+
+    Args:
+        base_config:    Config without the feature (usually the base cid).
+        target_config:  Config with the feature added.
+        model / scorer: Pin the evaluation.
+        direction:
+          - ``"down"`` → base was right, target wrong  (feature HURT).
+          - ``"up"``   → base was wrong, target right  (feature HELPED).
+          - ``"both"`` (default) → all disagreements.
+
+    Returns:
+        List of dicts sorted by query_id, each with:
+            query_id, question, direction ('up' | 'down'),
+            base_score, target_score,
+            base_prediction, target_prediction,
+            base_raw, target_raw,
+            gold (list, from query.meta._raw.answers if present).
+    """
+    if direction not in ("up", "down", "both"):
+        raise ValueError(f"direction must be 'up' | 'down' | 'both'; got {direction!r}")
+
+    def _index(config_id: int) -> Dict[str, Dict[str, Any]]:
+        rows = (ExecutionQuery(store)
+                .config(config_id).model(model).scorer(scorer)
+                .columns(["query_id", "raw_response", "prediction", "score"])
+                .rows())
+        return {r["query_id"]: r for r in rows if r.get("score") is not None}
+
+    a = _index(base_config)
+    b = _index(target_config)
+    shared = set(a) & set(b)
+    if not shared:
+        return []
+
+    # Pull question text + gold answers from the query table for shared queries.
+    placeholders = ",".join("?" * len(shared))
+    q_rows = store._get_conn().execute(
+        f"SELECT query_id, content, meta FROM query WHERE query_id IN ({placeholders})",
+        tuple(shared),
+    ).fetchall()
+    q_map: Dict[str, Dict[str, Any]] = {}
+    for qr in q_rows:
+        try:
+            meta = json.loads(qr["meta"] or "{}")
+        except json.JSONDecodeError:
+            meta = {}
+        gold = (meta.get("_raw") or {}).get("answers") or meta.get("gold_answers") or []
+        q_map[qr["query_id"]] = {"question": qr["content"], "gold": gold}
+
+    out: List[Dict[str, Any]] = []
+    for qid in sorted(shared):
+        sa = a[qid]["score"]
+        sb = b[qid]["score"]
+        if sa == sb:
+            continue
+        dir_tag = "up" if sb > sa else "down"
+        if direction != "both" and direction != dir_tag:
+            continue
+        q = q_map.get(qid, {})
+        out.append({
+            "query_id":          qid,
+            "question":          q.get("question", ""),
+            "direction":         dir_tag,
+            "base_score":        sa,
+            "target_score":      sb,
+            "base_prediction":   a[qid].get("prediction", ""),
+            "target_prediction": b[qid].get("prediction", ""),
+            "base_raw":          a[qid].get("raw_response", ""),
+            "target_raw":        b[qid].get("raw_response", ""),
+            "gold":              q.get("gold", []),
+        })
+    return out
+
+
+def harm_cases(store: CubeStore, **kwargs) -> List[Dict[str, Any]]:
+    """Convenience alias for ``flip_rows(direction='down')`` —
+    'base right, feature wrong' cases.  Kwargs: base_config, target_config,
+    model, scorer.
+    """
+    return flip_rows(store, direction="down", **kwargs)
+
+
+def help_cases(store: CubeStore, **kwargs) -> List[Dict[str, Any]]:
+    """Convenience alias for ``flip_rows(direction='up')`` —
+    'base wrong, feature right' cases.  Kwargs: base_config, target_config,
+    model, scorer.
+    """
+    return flip_rows(store, direction="up", **kwargs)

@@ -34,6 +34,9 @@ from prompt_profiler.analyze.compare import (
     feature_effect_ranking,
     predicate_slice,
     add_one_deltas,
+    flip_rows,
+    harm_cases,
+    help_cases,
 )
 
 # ── monitor ───────────────────────────────────────────────────────────
@@ -59,6 +62,9 @@ __all__ = [
     "feature_effect_ranking",
     "predicate_slice",
     "add_one_deltas",
+    "flip_rows",
+    "harm_cases",
+    "help_cases",
     # monitor
     "ProgressMonitor",
 ]
