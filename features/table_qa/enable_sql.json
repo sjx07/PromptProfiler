@@ -1,0 +1,25 @@
+{
+  "feature_id": "enable_sql",
+  "canonical_id": "enable_sql",
+  "task": "table_qa",
+  "requires": ["_section_strategy"],
+  "conflicts_with": ["enable_code"],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d1ca7abe1430",
+        "payload": {"content": "Write a SQL query against table t to answer the question."}
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {"name": "sql", "description": "SQL query that answers the question."}
+      }
+    }
+  ]
+}

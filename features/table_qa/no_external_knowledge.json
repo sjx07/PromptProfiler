@@ -1,0 +1,17 @@
+{
+  "feature_id": "no_external_knowledge",
+  "canonical_id": "no_external_knowledge",
+  "task": "table_qa",
+  "requires": ["_section_strategy"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d1ca7abe1430",
+        "payload": {"content": "Use only the data provided in the table. Do not rely on external knowledge or assumptions."}
+      }
+    }
+  ]
+}

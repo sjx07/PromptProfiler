@@ -1,0 +1,16 @@
+{
+  "feature_id": "enable_column_stats",
+  "canonical_id": "enable_column_stats",
+  "task": "table_qa",
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "input_transform",
+      "params": {
+        "fn": "prepend_stats",
+        "kwargs": {}
+      }
+    }
+  ]
+}

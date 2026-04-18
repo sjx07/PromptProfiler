@@ -1,0 +1,17 @@
+{
+  "feature_id": "answer_type_check",
+  "canonical_id": "answer_type_check",
+  "task": "table_qa",
+  "requires": ["_section_format_fix"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "74d04a9c3a4d",
+        "payload": {"content": "Verify that the answer type (number, string, boolean, list) matches what the question asks for."}
+      }
+    }
+  ]
+}
