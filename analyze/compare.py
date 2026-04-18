@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from prompt_profiler.core.store import CubeStore
-from prompt_profiler.analyze.query import ExecutionQuery
+from core.store import CubeStore
+from analyze.query import ExecutionQuery
 
 
 # ── config A vs config B on shared queries ────────────────────────────

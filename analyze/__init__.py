@@ -12,7 +12,7 @@ See ``docs/analysis.md`` for the full taxonomy and recipes.
 from __future__ import annotations
 
 # ── meta (describe) ───────────────────────────────────────────────────
-from prompt_profiler.analyze.meta import (
+from analyze.meta import (
     list_configs,
     list_configs_with_features,
     list_configs_with_func_types,
@@ -26,10 +26,10 @@ from prompt_profiler.analyze.meta import (
 )
 
 # ── query (filter + project + aggregate) ──────────────────────────────
-from prompt_profiler.analyze.query import ExecutionQuery
+from analyze.query import ExecutionQuery
 
 # ── compare (compose) ─────────────────────────────────────────────────
-from prompt_profiler.analyze.compare import (
+from analyze.compare import (
     score_diff,
     feature_effect_ranking,
     predicate_slice,
@@ -37,7 +37,7 @@ from prompt_profiler.analyze.compare import (
 )
 
 # ── monitor ───────────────────────────────────────────────────────────
-from prompt_profiler.analyze.monitor import ProgressMonitor
+from analyze.monitor import ProgressMonitor
 
 
 __all__ = [

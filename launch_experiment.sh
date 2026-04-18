@@ -6,8 +6,6 @@
 #       prompt_profiler/runs/exp_wtq_7b_code.json
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$REPO_ROOT"
 
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <config.json> [--cli-overrides ...]" >&2
@@ -67,8 +65,7 @@ METAEOF
 # ── launch ───────────────────────────────────────────────────────
 nohup bash -c "
     set -euo pipefail
-    cd '$REPO_ROOT'
-    python3 -m prompt_profiler.run_experiment \
+    python3 -m run_experiment \
         '$CONFIG' $CLI_OVERRIDES
     echo '=== Done ==='
 " > "$RUN_DIR/nohup.log" 2>&1 &

@@ -15,7 +15,7 @@ import json
 from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional
 
-from prompt_profiler.core.store import CubeStore
+from core.store import CubeStore
 
 
 # ── configs ───────────────────────────────────────────────────────────

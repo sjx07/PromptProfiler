@@ -26,10 +26,10 @@ Config shape (example: prompt_profiler/runs/example_add_one.json):
     }
 
 Run:
-    python3 -m prompt_profiler.run_experiment prompt_profiler/runs/example_add_one.json
+    python3 -m run_experiment prompt_profiler/runs/example_add_one.json
 
     # CLI overrides (only for top-level scalars):
-    python3 -m prompt_profiler.run_experiment config.json --model ... --ports 8000 8001
+    python3 -m run_experiment config.json --model ... --ports 8000 8001
 """
 from __future__ import annotations
 
@@ -43,14 +43,14 @@ from typing import Any, Dict, List, Tuple
 
 from autovllm.store import TrajectoryStore as VLLMStore
 
-from prompt_profiler.common import seed_funcs
-from prompt_profiler.core.feature_registry import FeatureRegistry
-from prompt_profiler.core.store import CubeStore, OnConflict
-from prompt_profiler.execution.pooled_llm import PooledLLMCall
-from prompt_profiler.experiment.config_generators import generate, REGISTRY as GEN_REGISTRY
-from prompt_profiler.experiment.loop import _run_and_eval_plan
-from prompt_profiler.experiment.planner import RunEntry
-from prompt_profiler.task_registry import get_registry
+from common import seed_funcs
+from core.feature_registry import FeatureRegistry
+from core.store import CubeStore, OnConflict
+from execution.pooled_llm import PooledLLMCall
+from experiment.config_generators import generate, REGISTRY as GEN_REGISTRY
+from experiment.loop import _run_and_eval_plan
+from experiment.planner import RunEntry
+from task_registry import get_registry
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -63,9 +63,9 @@ logger = logging.getLogger(__name__)
 def _import_predicate_extractors(task_name: str) -> None:
     """Import task-specific predicate modules (registers extractors on import)."""
     if task_name == "table_qa":
-        import prompt_profiler.tasks.wtq.predicates  # noqa: F401
+        import tasks.wtq.predicates  # noqa: F401
     elif task_name == "fact_verification":
-        import prompt_profiler.tasks.tabfact.predicates  # noqa: F401
+        import tasks.tabfact.predicates  # noqa: F401
     else:
         logger.warning("No predicate extractors for task %s", task_name)
 
@@ -343,11 +343,11 @@ def _run_iterative(
     seed: int,
 ) -> None:
     """Iterative loop: treats each feature bundle as a single PrimitiveSpec."""
-    from prompt_profiler.experiment.analysis import (
+    from experiment.analysis import (
         PrimitiveSpec, make_predicate_aware_analyzer, make_seed_plan,
     )
-    from prompt_profiler.experiment.loop import run_experiment as run_loop
-    from prompt_profiler.experiment.query_cohorts import seed_predicates
+    from experiment.loop import run_experiment as run_loop
+    from experiment.query_cohorts import seed_predicates
 
     conn = store._get_conn()
     pred_count = conn.execute("SELECT COUNT(*) FROM predicate").fetchone()[0]

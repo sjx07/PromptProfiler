@@ -29,10 +29,10 @@ _TOOL_DIR = str(Path(__file__).parent.parent.parent.parent)
 if _TOOL_DIR not in sys.path:
     sys.path.insert(0, _TOOL_DIR)
 
-from prompt_profiler.core.feature_registry import FeatureRegistry, compute_feature_id
-from prompt_profiler.core.func_registry import ROOT_ID, make_func_id
-from prompt_profiler.core.schema import make_query_id
-from prompt_profiler.core.store import CubeStore, OnConflict
+from core.feature_registry import FeatureRegistry, compute_feature_id
+from core.func_registry import ROOT_ID, make_func_id
+from core.schema import make_query_id
+from core.store import CubeStore, OnConflict
 
 
 # ── helpers ───────────────────────────────────────────────────────────

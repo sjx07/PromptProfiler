@@ -28,10 +28,10 @@ _TOOL_DIR = str(Path(__file__).parent.parent.parent.parent)
 if _TOOL_DIR not in sys.path:
     sys.path.insert(0, _TOOL_DIR)
 
-from prompt_profiler.core.feature_registry import FeatureRegistry
-from prompt_profiler.core.func_registry import ROOT_ID, apply_config, make_func_id
-from prompt_profiler.core.store import CubeStore, OnConflict
-from prompt_profiler.tasks.wtq.table_qa import TableQA
+from core.feature_registry import FeatureRegistry
+from core.func_registry import ROOT_ID, apply_config, make_func_id
+from core.store import CubeStore, OnConflict
+from tasks.wtq.table_qa import TableQA
 
 
 # ── feature definitions ───────────────────────────────────────────────

@@ -5,7 +5,7 @@ import json
 import re
 from typing import Dict
 
-from prompt_profiler.task import BaseTask
+from task import BaseTask
 
 
 # Default table format when not explicitly set — follows output format style
@@ -21,7 +21,7 @@ class FactVerification(BaseTask):
     name = "fact_verification"
     scorer = "fv_acc"
     # Parser module for output_field dispatch (code / verdict)
-    _parser_module_path = "prompt_profiler.tasks.tabfact.parsers"
+    _parser_module_path = "tasks.tabfact.parsers"
     default_input_fields: Dict[str, str] = {
         "table": "The table data to verify the statement against",
         "statement": "The statement to verify as True or False",
@@ -48,8 +48,8 @@ class FactVerification(BaseTask):
         return {"verdict": "True" if int(gold) == 1 else "False"}
 
     def build_record(self, query: dict, meta: dict, raw: dict) -> dict:
-        from prompt_profiler.tasks.tabfact.loaders import parse_table_text
-        from prompt_profiler.tasks.wtq.table_formats import get_table_formatter
+        from tasks.tabfact.loaders import parse_table_text
+        from tasks.wtq.table_formats import get_table_formatter
 
         table_text = raw.get("table_text", "")
         caption = meta.get("table_caption", "")
@@ -139,7 +139,7 @@ def _execute_verdict_code(code: str, raw: dict) -> bool | None:
         return None
 
     try:
-        from prompt_profiler.tasks.tabfact.loaders import parse_table_text
+        from tasks.tabfact.loaders import parse_table_text
         parsed = parse_table_text(table_text)
         header = list(parsed["headers"])
         rows = [list(r) for r in parsed["rows"]]

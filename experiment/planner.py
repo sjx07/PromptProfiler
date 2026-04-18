@@ -22,8 +22,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from prompt_profiler.experiment.config_generators import ConfigEntry
-from prompt_profiler.experiment.query_cohorts import Cohorts
+from experiment.config_generators import ConfigEntry
+from experiment.query_cohorts import Cohorts
 
 logger = logging.getLogger(__name__)
 

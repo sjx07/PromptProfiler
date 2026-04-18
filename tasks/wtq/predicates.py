@@ -4,8 +4,8 @@ from __future__ import annotations
 import json
 from typing import Dict
 
-from prompt_profiler.experiment.query_cohorts import register_extractor
-from prompt_profiler.tasks.predicates import compute_base_predicates
+from experiment.query_cohorts import register_extractor
+from tasks.predicates import compute_base_predicates
 
 
 def compute_predicates(meta: dict) -> Dict[str, str]:

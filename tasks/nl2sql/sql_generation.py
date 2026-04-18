@@ -9,15 +9,15 @@ import json
 import re
 from typing import Optional
 
-from prompt_profiler.task import BaseTask
-from prompt_profiler.tasks.nl2sql.evaluate_sql import evaluate_execution_wrapper
+from task import BaseTask
+from tasks.nl2sql.evaluate_sql import evaluate_execution_wrapper
 
 
 class SqlGeneration(BaseTask):
     name = "sql_generation"
     scorer = "ex_acc"
     # Parser module for output_field dispatch (sql_query)
-    _parser_module_path = "prompt_profiler.tasks.nl2sql.parsers"
+    _parser_module_path = "tasks.nl2sql.parsers"
     default_input_fields = {
         "question": "The natural language question to answer",
         "schema": "Database schema (DDL)",

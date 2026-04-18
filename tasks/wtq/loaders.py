@@ -4,8 +4,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
-from prompt_profiler.core.schema import make_query_id
-from prompt_profiler.core.store import CubeStore, OnConflict
+from core.schema import make_query_id
+from core.store import CubeStore, OnConflict
 
 logger = logging.getLogger(__name__)
 

@@ -39,9 +39,9 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import pandas as pd
 
-from prompt_profiler.core.store import CubeStore
-from prompt_profiler.experiment.loop import AnalysisResult
-from prompt_profiler.experiment.planner import RunEntry
+from core.store import CubeStore
+from experiment.loop import AnalysisResult
+from experiment.planner import RunEntry
 
 logger = logging.getLogger(__name__)
 

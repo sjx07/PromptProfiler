@@ -14,7 +14,7 @@ Kept unchanged:
   set_format, set_table_format, add_example
 
 Usage:
-    from prompt_profiler.core.func_registry import apply_config, make_func_id
+    from core.func_registry import apply_config, make_func_id
 
     state = apply_config(func_ids, store)
     system_prompt = state.to_prompt_state()._build_system_content()
@@ -27,7 +27,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-from prompt_profiler.core.store import CubeStore
+from core.store import CubeStore
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +94,9 @@ class PromptBuildState:
 
     def to_prompt_state(self) -> "PromptState":
         """Convert to a feature_pipeline PromptState for rendering."""
-        from prompt_profiler.prompt.prompt_state import PromptState
-        from prompt_profiler.prompt.semantic_content import SemanticContent
-        from prompt_profiler.prompt.rules import RuleSection, RuleItem, RuleTree
+        from prompt.prompt_state import PromptState
+        from prompt.semantic_content import SemanticContent
+        from prompt.rules import RuleSection, RuleItem, RuleTree
 
         # Build RuleSections sorted by section ordinal
         sorted_section_ids = sorted(

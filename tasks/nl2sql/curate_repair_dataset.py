@@ -4,7 +4,7 @@ Reads wrong SQL predictions from multiple experiment DBs, deduplicates,
 recovers metadata, and seeds into a new CubeStore for the repair task.
 
 Usage:
-    python -m prompt_profiler.tasks.nl2sql.curate_repair_dataset \
+    python -m tasks.nl2sql.curate_repair_dataset \
         --source_dbs /path/to/db1.db /path/to/db2.db \
         --output_db /path/to/sql_repair.db \
         --scorer ex_acc
@@ -228,7 +228,7 @@ def _build_repair_query(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     norm = _normalize_sql(wrong_sql)
     wrong_sql_hash = hashlib.sha256(norm.encode()).hexdigest()[:8]
 
-    from prompt_profiler.core.schema import make_query_id
+    from core.schema import make_query_id
 
     repair_query_id = make_query_id(
         "sql_repair",
@@ -366,7 +366,7 @@ def main() -> None:
     logger.info("Repair queries built: %d", len(repair_queries))
 
     # Write to output CubeStore
-    from prompt_profiler.core.store import CubeStore, OnConflict
+    from core.store import CubeStore, OnConflict
 
     store = CubeStore(args.output_db)
     n_inserted = store.upsert_queries(repair_queries, on_conflict=OnConflict.REPLACE)

@@ -15,17 +15,17 @@ class TaskEntry:
 # ── Seeders ──────────────────────────────────────────────────────────
 
 def _seed_table_qa(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from prompt_profiler.tasks.wtq.loaders import seed_queries_wtq
+    from tasks.wtq.loaders import seed_queries_wtq
     seed_queries_wtq(store, split)
 
 
 def _seed_tabfact(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from prompt_profiler.tasks.tabfact.loaders import seed_queries_tabfact
+    from tasks.tabfact.loaders import seed_queries_tabfact
     seed_queries_tabfact(store, split)
 
 
 def _seed_sql_generation(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from prompt_profiler.tasks.nl2sql.loaders import seed_queries_bird, seed_queries_spider
+    from tasks.nl2sql.loaders import seed_queries_bird, seed_queries_spider
     dataset = cfg.get("dataset", "bird")
     data_dir = cfg.get("data_dir", "")
     if dataset == "bird":
@@ -48,10 +48,10 @@ def _seed_sql_repair(store: Any, cfg: Dict[str, Any], split: str) -> None:
 # ── Registry ─────────────────────────────────────────────────────────
 
 def _build_registry() -> Dict[str, TaskEntry]:
-    from prompt_profiler.tasks.wtq.table_qa import TableQA
-    from prompt_profiler.tasks.tabfact.fact_verification import FactVerification
-    from prompt_profiler.tasks.nl2sql.sql_generation import SqlGeneration
-    from prompt_profiler.tasks.nl2sql.sql_repair import SqlRepair
+    from tasks.wtq.table_qa import TableQA
+    from tasks.tabfact.fact_verification import FactVerification
+    from tasks.nl2sql.sql_generation import SqlGeneration
+    from tasks.nl2sql.sql_repair import SqlRepair
 
     return {
         "table_qa": TaskEntry(

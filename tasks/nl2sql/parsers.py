@@ -27,7 +27,7 @@ def register_parser(field_name: str) -> Callable:
 @register_parser("sql_query")
 def parse_sql_query_field(response_text: str, task: Any) -> str:
     """Extract SQL from LLM response for NL2SQL tasks (generation + repair)."""
-    from prompt_profiler.tasks.nl2sql.sql_generation import _extract_sql
+    from tasks.nl2sql.sql_generation import _extract_sql
 
     if task._prompt_state is not None:
         parsed = task._prompt_state.parse_output(response_text)

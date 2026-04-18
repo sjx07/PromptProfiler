@@ -10,7 +10,7 @@ Intended usage
 
 .. code-block:: python
 
-    from prompt_profiler.analyze import ProgressMonitor
+    from analyze import ProgressMonitor
     mon = ProgressMonitor(store, model="meta-llama/Llama-3.1-8B-Instruct")
     print(mon.overall())
     for row in mon.by_config(total_queries_expected=200):
@@ -27,8 +27,8 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Optional
 
-from prompt_profiler.core.store import CubeStore
-from prompt_profiler.analyze.query import ExecutionQuery
+from core.store import CubeStore
+from analyze.query import ExecutionQuery
 
 
 class ProgressMonitor:

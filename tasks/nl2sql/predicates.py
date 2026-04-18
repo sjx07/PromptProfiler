@@ -24,7 +24,7 @@ import sqlglot
 import sqlglot.expressions  # noqa: F401 — ensures sqlglot.exp alias is populated
 
 
-from prompt_profiler.experiment.query_cohorts import register_extractor
+from experiment.query_cohorts import register_extractor
 
 logger = logging.getLogger(__name__)
 

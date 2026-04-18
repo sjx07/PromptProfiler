@@ -24,8 +24,8 @@ _TOOL_DIR = str(Path(__file__).parent.parent.parent.parent)
 if _TOOL_DIR not in sys.path:
     sys.path.insert(0, _TOOL_DIR)
 
-from prompt_profiler.core.feature_registry import FeatureRegistry, compute_feature_id
-from prompt_profiler.core.func_registry import ROOT_ID
+from core.feature_registry import FeatureRegistry, compute_feature_id
+from core.func_registry import ROOT_ID
 
 
 # ── helpers ───────────────────────────────────────────────────────────

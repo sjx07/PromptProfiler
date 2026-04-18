@@ -1,10 +1,10 @@
 # Analysis & monitoring
 
 Primitives for interrogating a `CubeStore` without opening a SQL REPL.
-Everything lives in the `prompt_profiler.analyze` package.
+Everything lives in the `analyze` package.
 
 ```python
-from prompt_profiler.analyze import (
+from analyze import (
     # meta
     summary, list_configs_with_features, list_models, list_scorers,
     list_phases, list_datasets, list_predicates, list_features_in_cube,
@@ -203,14 +203,14 @@ passed to the constructor. Leave any of them `None` for a broader view.
 **"What's in this cube?"**
 
 ```python
-from prompt_profiler.analyze import summary
+from analyze import summary
 pprint(summary(store))
 ```
 
 **"Which features help on aggregation queries?"**
 
 ```python
-from prompt_profiler.analyze import predicate_slice
+from analyze import predicate_slice
 df = predicate_slice(store,
                      model=MODEL, scorer=SCORER,
                      predicate_name="has_aggregation")
@@ -233,7 +233,7 @@ df_agg = df[df["predicate_value"] == "true"].sort_values("mean_score", ascending
 **"Did enable_code help or hurt?"**
 
 ```python
-from prompt_profiler.analyze import score_diff
+from analyze import score_diff
 score_diff(store,
            config_a=BASE_CID, config_b=CODE_CID,
            model=MODEL, scorer=SCORER)
@@ -244,7 +244,7 @@ score_diff(store,
 
 ```python
 import time
-from prompt_profiler.analyze import ProgressMonitor
+from analyze import ProgressMonitor
 mon = ProgressMonitor(store, model=MODEL, scorer=SCORER, phase=CURRENT_PHASE)
 while True:
     ov = mon.overall()

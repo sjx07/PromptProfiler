@@ -28,7 +28,7 @@ from pathlib import Path
 _PKG_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(_PKG_DIR))
 
-from prompt_profiler.core.func_registry import make_func_id
+from core.func_registry import make_func_id
 
 TASKS = ["table_qa", "sql_repair"]
 FEATURES_BASE = Path(__file__).parent.parent / "features"

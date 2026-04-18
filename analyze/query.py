@@ -10,7 +10,7 @@ Quick example
 
 .. code-block:: python
 
-    from prompt_profiler.analyze.query import ExecutionQuery
+    from analyze.query import ExecutionQuery
 
     q = (ExecutionQuery(store)
          .model("meta-llama/Llama-3.1-8B-Instruct")
@@ -38,7 +38,7 @@ import json
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from prompt_profiler.core.store import CubeStore
+from core.store import CubeStore
 
 
 # Columns available from the default SELECT without a scorer join.

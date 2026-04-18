@@ -19,7 +19,7 @@ import logging
 import random
 from typing import Any, Callable, Dict, List, Tuple
 
-from prompt_profiler.core.store import CubeStore
+from core.store import CubeStore
 
 logger = logging.getLogger(__name__)
 

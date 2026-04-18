@@ -15,8 +15,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from prompt_profiler.core.func_registry import make_func_id
-from prompt_profiler.core.store import CubeStore, OnConflict
+from core.func_registry import make_func_id
+from core.store import CubeStore, OnConflict
 
 logger = logging.getLogger(__name__)
 

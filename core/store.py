@@ -30,7 +30,7 @@ _SQL_CLAUSE = {
     OnConflict.WARN: "OR IGNORE",     # skip in SQL, warn in Python
 }
 
-from prompt_profiler.core.schema import (
+from core.schema import (
     INDEXES,
     META_TABLE,
     SCHEMA_VERSION,

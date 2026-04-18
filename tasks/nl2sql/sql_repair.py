@@ -4,14 +4,14 @@ from __future__ import annotations
 import json
 from typing import Dict
 
-from prompt_profiler.task import BaseTask
+from task import BaseTask
 
 
 class SqlRepair(BaseTask):
     name = "sql_repair"
     scorer = "ex_acc"
     # Parser module for output_field dispatch (sql_query)
-    _parser_module_path = "prompt_profiler.tasks.nl2sql.parsers"
+    _parser_module_path = "tasks.nl2sql.parsers"
     # Fallback only — new configs should use base_field_specs() explicitly.
     default_input_fields: Dict[str, str] = {
         "question": "The natural language question",
@@ -52,7 +52,7 @@ class SqlRepair(BaseTask):
         return super().parse_response(raw_response)
 
     def score(self, prediction: str, query_meta: dict) -> tuple[float, dict]:
-        from prompt_profiler.tasks.nl2sql.evaluate_sql import evaluate_execution_wrapper
+        from tasks.nl2sql.evaluate_sql import evaluate_execution_wrapper
 
         if isinstance(query_meta, str):
             query_meta = json.loads(query_meta)

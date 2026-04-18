@@ -197,7 +197,7 @@ def prepend_stats(
     it needs the formatted table string. This transform just computes.
     """
     # Stats computation delegated to existing function
-    from prompt_profiler.tasks.wtq.table_transforms import compute_column_stats
+    from tasks.wtq.table_transforms import compute_column_stats
     stats_str = compute_column_stats(header, rows)
     if stats_str:
         kwargs["_stats_out"] = stats_str

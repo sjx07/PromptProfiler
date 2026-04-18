@@ -14,8 +14,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
 import logging
 
-from prompt_profiler.prompt.semantic_content import Context, SemanticContent
-from prompt_profiler.prompt.rules import RuleItem, RuleGroup, RuleSection, RuleTree, _get_node_id
+from prompt.semantic_content import Context, SemanticContent
+from prompt.rules import RuleItem, RuleGroup, RuleSection, RuleTree, _get_node_id
 
 logger = logging.getLogger(__name__)
 

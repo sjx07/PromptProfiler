@@ -20,9 +20,9 @@ _TOOL_DIR = str(Path(__file__).parent.parent.parent.parent)
 if _TOOL_DIR not in sys.path:
     sys.path.insert(0, _TOOL_DIR)
 
-from prompt_profiler.core.store import CubeStore, OnConflict
-from prompt_profiler.core.func_registry import make_func_id
-from prompt_profiler.analyze import (
+from core.store import CubeStore, OnConflict
+from core.func_registry import make_func_id
+from analyze import (
     ExecutionQuery,
     ProgressMonitor,
     add_one_deltas,

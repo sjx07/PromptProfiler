@@ -27,9 +27,9 @@ _TOOL_DIR = str(Path(__file__).parent.parent.parent.parent)
 if _TOOL_DIR not in sys.path:
     sys.path.insert(0, _TOOL_DIR)
 
-from prompt_profiler.core.feature_registry import FeatureRegistry
-from prompt_profiler.core.store import CubeStore, OnConflict
-from prompt_profiler.experiment.config_generators import generate
+from core.feature_registry import FeatureRegistry
+from core.store import CubeStore, OnConflict
+from experiment.config_generators import generate
 
 
 # ── fixture ────────────────────────────────────────────────────────────

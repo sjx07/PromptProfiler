@@ -5,7 +5,7 @@ import json
 import re
 from typing import Any, Dict, List
 
-from prompt_profiler.task import BaseTask
+from task import BaseTask
 
 
 def _execute_code(code: str, table_data: dict) -> Any:
@@ -148,7 +148,7 @@ class TableQA(BaseTask):
     name = "table_qa"
     scorer = "denotation_acc"
     # Parser module for output_field dispatch (code / sql / answer)
-    _parser_module_path = "prompt_profiler.tasks.wtq.parsers"
+    _parser_module_path = "tasks.wtq.parsers"
     default_input_fields: Dict[str, str] = {
         "table": "The table data to answer the question about",
         "question": "The question to answer using the table",
@@ -162,7 +162,7 @@ class TableQA(BaseTask):
         return {"answer": ", ".join(answers)}
 
     def build_record(self, query: dict, meta: dict, raw: dict) -> dict:
-        from prompt_profiler.tasks.wtq.table_formats import get_table_formatter
+        from tasks.wtq.table_formats import get_table_formatter
 
         table_data = raw.get("table", {})
         header = list(table_data.get("header", []))

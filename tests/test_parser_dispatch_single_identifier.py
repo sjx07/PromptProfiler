@@ -20,9 +20,9 @@ _TOOL_DIR = str(Path(__file__).parent.parent.parent.parent)
 if _TOOL_DIR not in sys.path:
     sys.path.insert(0, _TOOL_DIR)
 
-from prompt_profiler.core.func_registry import ROOT_ID, PromptBuildState, make_func_id
-from prompt_profiler.core.store import CubeStore, OnConflict
-from prompt_profiler.task import BaseTask
+from core.func_registry import ROOT_ID, PromptBuildState, make_func_id
+from core.store import CubeStore, OnConflict
+from task import BaseTask
 
 
 # ── helpers ───────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ class _TableQALike(BaseTask):
     """Stub that points at the WTQ parsers (dispatch fields: code, sql, answer)."""
     name = "table_qa_stub"
     scorer = "denotation_acc"
-    _parser_module_path = "prompt_profiler.tasks.wtq.parsers"
+    _parser_module_path = "tasks.wtq.parsers"
     default_input_fields = {"question": "The question", "table": "The table"}
     default_output_fields = {"answer": "The answer"}
 
@@ -83,7 +83,7 @@ class _NoAnswerDefaults(BaseTask):
     """Stub whose defaults ALSO have no registered dispatch field."""
     name = "no_answer_defaults"
     scorer = "acc"
-    _parser_module_path = "prompt_profiler.tasks.wtq.parsers"
+    _parser_module_path = "tasks.wtq.parsers"
     default_input_fields = {"question": "q"}
     default_output_fields = {"summary": "Some summary"}  # not registered
 

@@ -16,8 +16,8 @@ import json
 import logging
 from typing import Dict, Optional
 
-from prompt_profiler.core.func_registry import PromptBuildState
-from prompt_profiler.prompt.prompt_state import PromptState
+from core.func_registry import PromptBuildState
+from prompt.prompt_state import PromptState
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ class BaseTask:
 
         example_strategy = state.extras.get("example_strategy")
         if example_strategy and example_pool:
-            from prompt_profiler.prompt.example_sampler import build_sampler
+            from prompt.example_sampler import build_sampler
 
             pool, pool_texts = self._build_example_pool(example_pool)
             self._prompt_state.demo_selector = build_sampler(
@@ -108,7 +108,7 @@ class BaseTask:
         for test isolation / unusual import orders.
         """
         module_path = getattr(self, "_parser_module_path", None)
-        from prompt_profiler.core.parser_registry import get_parser_registry
+        from core.parser_registry import get_parser_registry
         return get_parser_registry(module_path)
 
     def _validate_dispatch_field(self) -> None:
@@ -189,7 +189,7 @@ class BaseTask:
         Returns (header, rows). Column stats string stored in self._pending_stats
         for the caller to prepend after table formatting.
         """
-        from prompt_profiler.core.preprocess import apply_transforms
+        from core.preprocess import apply_transforms
 
         self._pending_stats = ""
         if self._prompt_state is None:
@@ -213,7 +213,7 @@ class BaseTask:
 
         # Compute stats separately (needs the post-transform header/rows)
         if compute_stats:
-            from prompt_profiler.tasks.wtq.table_transforms import compute_column_stats
+            from tasks.wtq.table_transforms import compute_column_stats
             stats_str = compute_column_stats(header, rows)
             if stats_str:
                 self._pending_stats = stats_str
@@ -233,7 +233,7 @@ class BaseTask:
         transforms = ps_meta.get("input_transforms", [])
         if not transforms:
             return record
-        from prompt_profiler.core.preprocess import apply_record_transforms
+        from core.preprocess import apply_record_transforms
         return apply_record_transforms(record, transforms)
 
     def build_record(self, query: dict, meta: dict, raw: dict) -> dict:

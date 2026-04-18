@@ -44,7 +44,7 @@ def parse_code_field(response_text: str, task: Any) -> str:
 @register_parser("verdict")
 def parse_verdict_field(response_text: str, task: Any) -> str:
     """Extract True/False verdict from LLM response."""
-    from prompt_profiler.tasks.tabfact.fact_verification import _extract_verdict
+    from tasks.tabfact.fact_verification import _extract_verdict
     if task._prompt_state is not None:
         parsed = task._prompt_state.parse_output(response_text)
         if parsed:

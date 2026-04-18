@@ -31,11 +31,11 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Type
 
-from prompt_profiler.execution.evaluate import evaluate_config
-from prompt_profiler.experiment.planner import RunEntry
-from prompt_profiler.core.func_registry import apply_config
-from prompt_profiler.execution.runner import run_config
-from prompt_profiler.core.store import CubeStore, OnConflict
+from execution.evaluate import evaluate_config
+from experiment.planner import RunEntry
+from core.func_registry import apply_config
+from execution.runner import run_config
+from core.store import CubeStore, OnConflict
 
 logger = logging.getLogger(__name__)
 

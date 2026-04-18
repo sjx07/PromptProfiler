@@ -5,8 +5,8 @@ import json
 import re
 from typing import Dict
 
-from prompt_profiler.experiment.query_cohorts import register_extractor
-from prompt_profiler.tasks.predicates import compute_base_predicates
+from experiment.query_cohorts import register_extractor
+from tasks.predicates import compute_base_predicates
 
 
 def compute_predicates(meta: dict) -> Dict[str, str]:
@@ -15,7 +15,7 @@ def compute_predicates(meta: dict) -> Dict[str, str]:
     table_text = raw.get("table_text", "")
     statement = raw.get("statement", "")
 
-    from prompt_profiler.tasks.tabfact.loaders import parse_table_text
+    from tasks.tabfact.loaders import parse_table_text
     parsed = parse_table_text(table_text)
     header = parsed.get("headers", [])
     rows = parsed.get("rows", [])

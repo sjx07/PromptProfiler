@@ -25,7 +25,7 @@ parent_ids (because the sections live in different tasks) produce different
 feature_ids.  Both share the same canonical_id.
 
 Usage:
-    from prompt_profiler.core.feature_registry import FeatureRegistry
+    from core.feature_registry import FeatureRegistry
 
     reg = FeatureRegistry.load(task="table_qa")
     specs, provenance = reg.materialize(["_section_reasoning", "enable_cot"])
@@ -41,7 +41,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from prompt_profiler.core.func_registry import make_func_id, _canonicalize_insert_node
+from core.func_registry import make_func_id, _canonicalize_insert_node
 
 logger = logging.getLogger(__name__)
 

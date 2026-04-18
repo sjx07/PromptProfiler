@@ -12,7 +12,7 @@ Semantic content represents the meaning/content that goes into prompts:
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from prompt_profiler.prompt.rules import RuleSection, RuleTree
+from prompt.rules import RuleSection, RuleTree
 
 
 @dataclass

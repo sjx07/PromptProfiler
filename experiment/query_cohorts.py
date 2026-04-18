@@ -15,7 +15,7 @@ import logging
 from collections import defaultdict
 from typing import Callable, Dict, List, Optional
 
-from prompt_profiler.core.store import CubeStore
+from core.store import CubeStore
 
 logger = logging.getLogger(__name__)
 
