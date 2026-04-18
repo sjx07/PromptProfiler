@@ -7,56 +7,74 @@ annotated with dependency metadata:
 
 Cross-task requires are disallowed (error).
 
+Sections are ordinary features (feature_id="_section_<name>") with a single
+insert_node(section) primitive_edit. No special-casing or $ref resolution.
+
 Usage:
     from prompt_profiler.core.feature_registry import FeatureRegistry
 
     reg = FeatureRegistry.load(task="table_qa")
-    func_specs = reg.materialize(["enable_cot"])
+    specs, provenance = reg.materialize(["_section_reasoning", "enable_cot"])
 """
 from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from prompt_profiler.core.func_registry import ROOT_ID, make_func_id
+from prompt_profiler.core.func_registry import make_func_id
 
 logger = logging.getLogger(__name__)
 
-# Base path for feature files: features/<task>/<feature>.json
+# Package-default base path for feature files: features/<task>/<feature>.json
+# Override via FeatureRegistry.load(features_base=...) or env PROMPTPROFILER_FEATURES_BASE.
 _FEATURES_BASE = Path(__file__).parent.parent / "features"
+
+
+def _resolve_features_base(features_base: Optional[Path]) -> Path:
+    """Resolve the features base directory.
+
+    Resolution order:
+      1. Explicit ``features_base`` argument (if not None)
+      2. Environment variable ``PROMPTPROFILER_FEATURES_BASE``
+      3. Package-default ``_FEATURES_BASE``
+    """
+    if features_base is not None:
+        return Path(features_base)
+    env_val = os.environ.get("PROMPTPROFILER_FEATURES_BASE")
+    if env_val:
+        return Path(env_val)
+    return _FEATURES_BASE
 
 
 class FeatureRegistry:
     """Loads feature specs for a task and enforces dependency rules."""
 
-    def __init__(self, task: str, features: Dict[str, dict], sections: Dict[str, dict]) -> None:
+    def __init__(self, task: str, features: Dict[str, dict]) -> None:
         self.task = task
         self._features = features        # feature_id -> feature spec
-        self._sections = sections        # section key -> section params
 
     # ── loading ───────────────────────────────────────────────────────
 
     @classmethod
-    def load(cls, task: str) -> "FeatureRegistry":
-        """Load all feature specs for a task from features/<task>/*.json."""
-        task_dir = _FEATURES_BASE / task
+    def load(cls, task: str, features_base: Optional[Path] = None) -> "FeatureRegistry":
+        """Load all feature specs for a task from features/<task>/*.json.
+
+        Args:
+            task: Task name (subdirectory under features_base).
+            features_base: Override base directory. If None, resolution falls
+                through env PROMPTPROFILER_FEATURES_BASE then the package default.
+        """
+        base = _resolve_features_base(features_base)
+        task_dir = base / task
         if not task_dir.exists():
             raise FileNotFoundError(f"Feature directory not found: {task_dir}")
 
-        # Load _sections.json catalog first
-        sections_path = task_dir / "_sections.json"
-        sections: Dict[str, dict] = {}
-        if sections_path.exists():
-            raw = json.loads(sections_path.read_text())
-            sections = raw.get("sections", {})
-
-        # Load all feature files (skip _sections.json)
+        # Load all feature files
         features: Dict[str, dict] = {}
         for path in sorted(task_dir.glob("*.json")):
-            if path.name == "_sections.json":
-                continue
             try:
                 spec = json.loads(path.read_text())
                 fid = spec.get("feature_id")
@@ -67,9 +85,8 @@ class FeatureRegistry:
             except json.JSONDecodeError as e:
                 logger.warning("Failed to parse %s: %s", path, e)
 
-        logger.info("FeatureRegistry loaded task=%s: %d features, %d sections",
-                    task, len(features), len(sections))
-        return cls(task=task, features=features, sections=sections)
+        logger.info("FeatureRegistry loaded task=%s: %d features", task, len(features))
+        return cls(task=task, features=features)
 
     # ── dependency enforcement ────────────────────────────────────────
 
@@ -124,85 +141,52 @@ class FeatureRegistry:
                         f"Remove one from the config."
                     )
 
-    # ── $ref resolution ───────────────────────────────────────────────
-
-    def _resolve_parent_ref(self, params: dict) -> dict:
-        """Resolve {"$ref": "_sections.X"} parent refs via _sections.json.
-
-        Replaces params["parent"] = {"$ref": "_sections.reasoning"}
-        with params["parent_id"] = <computed func_id for that section>.
-        """
-        parent_ref = params.get("parent")
-        if not isinstance(parent_ref, dict):
-            return params
-
-        ref = parent_ref.get("$ref", "")
-        if not ref.startswith("_sections."):
-            return params
-
-        section_key = ref[len("_sections."):]
-        section_def = self._sections.get(section_key)
-        if section_def is None:
-            raise ValueError(
-                f"$ref '{ref}' not found in _sections.json for task='{self.task}'. "
-                f"Available section keys: {sorted(self._sections)}"
-            )
-
-        # Build the canonical section params to compute its func_id
-        section_params = {
-            "node_type": "section",
-            "parent_id": ROOT_ID,
-            "payload": {
-                "title":     section_def.get("title", section_key),
-                "ordinal":   int(section_def.get("ordinal", 0)),
-                "is_system": bool(section_def.get("is_system", False)),
-                "min_rules": int(section_def.get("min_rules", 0)),
-                "max_rules": int(section_def.get("max_rules", 10)),
-            },
-        }
-        section_func_id = make_func_id("insert_node", section_params)
-
-        new_params = {k: v for k, v in params.items() if k != "parent"}
-        new_params["parent_id"] = section_func_id
-        return new_params
-
     # ── materialization ───────────────────────────────────────────────
 
-    def materialize(self, feature_ids: List[str]) -> List[Dict[str, Any]]:
-        """Validate features and expand to a list of primitive func specs.
+    def materialize(
+        self, feature_ids: List[str]
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, List[str]]]:
+        """Validate features and expand to primitive func specs.
 
-        Returns list of {"func_type": ..., "params": ..., "func_id": ...} dicts
-        ready for seed_funcs / apply_config.
+        Returns:
+            specs: list of {"func_id", "func_type", "params", "meta"} dicts
+                ready for seed_funcs / apply_config.
+            feature_to_funcs: dict mapping feature_id -> [func_id, ...] for
+                provenance tracking. A func_id shared by multiple features
+                appears in each feature's list (many-to-many attribution).
 
         Raises ValueError on dependency violations.
         """
         self.validate_feature_set(feature_ids)
 
         func_specs: List[Dict[str, Any]] = []
-        seen_func_ids: set = set()
+        seen_func_ids: Dict[str, int] = {}   # func_id -> index in func_specs
+        feature_to_funcs: Dict[str, List[str]] = {}
 
         for fid in feature_ids:
             spec = self._features[fid]
+            fid_funcs: List[str] = []
+
             for edit in spec.get("primitive_edits", []):
                 func_type = edit.get("func_type", "")
                 params = dict(edit.get("params", {}))
 
-                # Resolve $ref parent references
-                params = self._resolve_parent_ref(params)
-
                 func_id = make_func_id(func_type, params)
-                if func_id in seen_func_ids:
-                    continue  # dedup (multiple features can reference same section)
-                seen_func_ids.add(func_id)
 
-                func_specs.append({
-                    "func_id":   func_id,
-                    "func_type": func_type,
-                    "params":    params,
-                    "meta":      {"source_feature": fid},
-                })
+                if func_id not in seen_func_ids:
+                    seen_func_ids[func_id] = len(func_specs)
+                    func_specs.append({
+                        "func_id":   func_id,
+                        "func_type": func_type,
+                        "params":    params,
+                        "meta":      {},
+                    })
 
-        return func_specs
+                fid_funcs.append(func_id)
+
+            feature_to_funcs[fid] = fid_funcs
+
+        return func_specs, feature_to_funcs
 
     def list_features(self) -> List[str]:
         """Return sorted list of all loaded feature_ids."""
