@@ -50,6 +50,8 @@ def generate(
     rule_ids: List[str] | None = None,
     bundles: FeatureBundles | None = None,
     conflicts: ConflictsMap | None = None,
+    base_canonical_ids: List[str] | None = None,
+    base_feature_ids: List[str] | None = None,
     **params,
 ) -> List[ConfigEntry]:
     """Dispatch to a registered config generator by name.
@@ -61,6 +63,13 @@ def generate(
     mapping of declared conflicts_with relations.  Feature-aware generators
     (``leave_one_out_feature``, ``coalition_feature``) use it to avoid
     emitting configs that activate both sides of a conflict.
+
+    ``base_canonical_ids`` / ``base_feature_ids`` (feature-level only):
+    the canonical_ids / feature_id hashes that compose the base config.
+    Feature-aware generators write ``meta.feature_ids`` / ``meta.canonical_ids``
+    as the UNION of base + config-specific, so that downstream joins
+    (e.g. ``feature_effect`` view, ``has_feature`` filter) reach every
+    feature that actually influenced the prompt — not just the delta.
     """
     fn = REGISTRY.get(name)
     if fn is None:
@@ -70,6 +79,8 @@ def generate(
         store,
         base_ids=base_ids, rule_ids=rule_ids,
         bundles=bundles, conflicts=conflicts,
+        base_canonical_ids=base_canonical_ids or [],
+        base_feature_ids=base_feature_ids or [],
         **params,
     )
 
@@ -264,17 +275,24 @@ def add_one_feature(
     *,
     base_ids: List[str],
     bundles: FeatureBundles,
+    base_canonical_ids: List[str] | None = None,
+    base_feature_ids: List[str] | None = None,
     **_,
 ) -> List[ConfigEntry]:
     """Base + one feature bundle each.
 
     For each canonical feature in ``bundles``, produce one config whose
     func_ids are ``base_ids + incremental_funcs_of_that_feature``.
-    The feature's own ``feature_id`` (content hash) and ``canonical_id`` are
-    recorded in meta for downstream analysis.
+    ``meta.feature_ids`` / ``meta.canonical_ids`` hold the FULL active
+    feature set for the config (base + added), so downstream filters and
+    joins (``has_feature``, ``feature_effect`` view) see every feature
+    that influenced the prompt.
     """
     if bundles is None or not bundles:
         raise ValueError("add_one_feature: 'bundles' is required and non-empty")
+    base_canonical_ids = base_canonical_ids or []
+    base_feature_ids = base_feature_ids or []
+
     configs: List[ConfigEntry] = []
     for canonical_id, (feature_hash, add_funcs) in bundles.items():
         if not add_funcs:
@@ -284,19 +302,25 @@ def add_one_feature(
             )
             continue
         func_ids = base_ids + add_funcs
+        all_canonical_ids = list(base_canonical_ids) + [canonical_id]
+        all_feature_ids   = list(base_feature_ids)   + [feature_hash]
         cid = store.get_or_create_config(
             func_ids,
             meta={
-                "kind": "add_one_feature",
-                "canonical_id": canonical_id,
-                "feature_id": feature_hash,
-                "added_funcs": add_funcs,
+                "kind":          "add_one_feature",
+                "canonical_id":  canonical_id,     # the single feature added
+                "feature_id":    feature_hash,
+                "canonical_ids": all_canonical_ids,  # FULL active set
+                "feature_ids":   all_feature_ids,
+                "added_funcs":   add_funcs,
             },
         )
         configs.append((cid, func_ids, {
-            "experiment": "add_one_feature",
-            "canonical_id": canonical_id,
-            "feature_id": feature_hash,
+            "experiment":     "add_one_feature",
+            "canonical_id":   canonical_id,
+            "feature_id":     feature_hash,
+            "canonical_ids":  all_canonical_ids,
+            "feature_ids":    all_feature_ids,
         }))
     logger.info("add_one_feature: %d configs generated", len(configs))
     return configs
@@ -309,6 +333,8 @@ def leave_one_out_feature(
     base_ids: List[str],
     bundles: FeatureBundles,
     conflicts: ConflictsMap | None = None,
+    base_canonical_ids: List[str] | None = None,
+    base_feature_ids: List[str] | None = None,
     **_,
 ) -> List[ConfigEntry]:
     """All feature bundles minus one each.
@@ -319,6 +345,8 @@ def leave_one_out_feature(
     """
     if bundles is None or not bundles:
         raise ValueError("leave_one_out_feature: 'bundles' is required and non-empty")
+    base_canonical_ids = base_canonical_ids or []
+    base_feature_ids = base_feature_ids or []
 
     all_feature_cids = list(bundles.keys())
 
@@ -336,11 +364,16 @@ def leave_one_out_feature(
                     seen.add(f)
                     func_ids.append(f)
 
+        all_canonical_ids = list(base_canonical_ids) + list(kept_cids)
+        all_feature_ids = list(base_feature_ids) + [bundles[k][0] for k in kept_cids]
+
         meta_common = {
-            "kind": "leave_one_out_feature",
-            "removed_canonical_id": canonical_id,
-            "removed_feature_id": feature_hash,
-            "active_canonical_ids": kept_cids,
+            "kind":                  "leave_one_out_feature",
+            "removed_canonical_id":  canonical_id,
+            "removed_feature_id":    feature_hash,
+            "active_canonical_ids":  kept_cids,
+            "canonical_ids":         all_canonical_ids,  # FULL active set
+            "feature_ids":           all_feature_ids,
         }
         if dropped_pairs:
             meta_common["conflict_resolutions"] = [
@@ -350,11 +383,13 @@ def leave_one_out_feature(
 
         cid = store.get_or_create_config(func_ids, meta=meta_common)
         configs.append((cid, func_ids, {
-            "experiment": "leave_one_out_feature",
-            "removed_canonical_id": canonical_id,
-            "removed_feature_id": feature_hash,
-            "active_canonical_ids": kept_cids,
-            "conflict_resolutions": meta_common.get("conflict_resolutions", []),
+            "experiment":            "leave_one_out_feature",
+            "removed_canonical_id":  canonical_id,
+            "removed_feature_id":    feature_hash,
+            "active_canonical_ids":  kept_cids,
+            "canonical_ids":         all_canonical_ids,
+            "feature_ids":           all_feature_ids,
+            "conflict_resolutions":  meta_common.get("conflict_resolutions", []),
         }))
     logger.info("leave_one_out_feature: %d configs generated%s",
                 len(configs),
@@ -369,6 +404,8 @@ def coalition_feature(
     base_ids: List[str],
     bundles: FeatureBundles,
     conflicts: ConflictsMap | None = None,
+    base_canonical_ids: List[str] | None = None,
+    base_feature_ids: List[str] | None = None,
     n_samples: int = 500,
     seed: int = 42,
     min_features: int = 1,
@@ -387,6 +424,9 @@ def coalition_feature(
     """
     if bundles is None or not bundles:
         raise ValueError("coalition_feature: 'bundles' is required and non-empty")
+    base_canonical_ids = base_canonical_ids or []
+    base_feature_ids = base_feature_ids or []
+
     rng = random.Random(seed)
     names = list(bundles.keys())
     n_features = len(names)
@@ -409,19 +449,27 @@ def coalition_feature(
                     if f not in seen_fids:
                         seen_fids.add(f)
                         func_ids.append(f)
+
+            all_canonical_ids = list(base_canonical_ids) + list(subset)
+            all_feature_ids = list(base_feature_ids) + [bundles[n][0] for n in subset]
+
             cid = store.get_or_create_config(
                 func_ids,
                 meta={
-                    "kind": "coalition_feature",
-                    "canonical_ids": list(subset),
-                    "feature_ids": [bundles[n][0] for n in subset],
+                    "kind":            "coalition_feature",
+                    "subset_canonical_ids": list(subset),  # the varying part
+                    "subset_feature_ids":   [bundles[n][0] for n in subset],
+                    "canonical_ids":   all_canonical_ids,  # FULL active set
+                    "feature_ids":     all_feature_ids,
                 },
             )
             out.append((cid, func_ids, {
-                "experiment": "coalition_feature",
-                "n_features": len(subset),
-                "canonical_ids": list(subset),
-                "feature_ids": [bundles[n][0] for n in subset],
+                "experiment":      "coalition_feature",
+                "n_features":      len(subset),
+                "subset_canonical_ids": list(subset),
+                "subset_feature_ids":   [bundles[n][0] for n in subset],
+                "canonical_ids":   all_canonical_ids,
+                "feature_ids":     all_feature_ids,
             }))
         return out
 
