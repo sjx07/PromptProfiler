@@ -140,7 +140,9 @@ def test_render_parity_c2_strategy_format():
     )
 
 
-# ── canonical config 3: reasoning section + rule + input_field + CoT ──
+# ── canonical config 3: reasoning section + rule + input_field + output_field ──
+# Previously used enable_cot to inject reasoning; now uses insert_node(output_field)
+# directly. Rendered output is byte-for-byte identical — baseline unchanged.
 
 def test_render_parity_c3_reasoning_cot():
     sec_params = _sec_params("reasoning", 30, is_system=True, min_rules=0, max_rules=10)
@@ -158,7 +160,11 @@ def test_render_parity_c3_reasoning_cot():
             "parent_id": ROOT_ID,
             "payload":   {"name": "schema", "description": "Relevant tables and columns"},
         }},
-        {"func_type": "enable_cot", "params": {}},
+        {"func_type": "insert_node", "params": {
+            "node_type": "output_field",
+            "parent_id": ROOT_ID,
+            "payload":   {"name": "reasoning", "description": "Step-by-step reasoning and thought process"},
+        }},
     ]
     rendered = _build_store_and_apply(specs)
     baseline = _load_baseline("c3_reasoning_cot")

@@ -179,15 +179,7 @@ class BaseTask:
         ps_meta = self._prompt_state.metadata
         compute_stats = False
 
-        # Legacy flags → convert to transform specs
-        if ps_meta.get("column_pruning"):
-            transforms.append({"fn": "prune_columns", "kwargs": {}})
-        if ps_meta.get("type_annotation"):
-            transforms.append({"fn": "annotate_types", "kwargs": {}})
-        if ps_meta.get("column_stats"):
-            compute_stats = True
-
-        # New generic transforms from transform_input func_type
+        # Generic transforms from input_transform func_type
         if ps_meta.get("input_transforms"):
             for t in ps_meta["input_transforms"]:
                 if t["fn"] == "prepend_stats":

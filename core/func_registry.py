@@ -6,12 +6,12 @@ Phase 1 refactor: three paper-aligned primitives replace ad-hoc handlers.
   input_transform — single pre-render input transform (renamed from transform_input)
 
 Removed (hard break, no aliases):
-  add_rule, define_section, add_input_field, transform_input
+  add_rule, define_section, add_input_field, transform_input,
+  enable_cot, enable_patch_trace, enable_code, enable_sql,
+  enable_column_pruning, enable_type_annotation, enable_column_stats
 
 Kept unchanged:
-  set_format, set_table_format, enable_cot, enable_patch_trace,
-  enable_code, enable_sql, enable_column_pruning, enable_type_annotation,
-  enable_column_stats, add_example
+  set_format, set_table_format, add_example
 
 Usage:
     from prompt_profiler.core.func_registry import apply_config, make_func_id
@@ -82,25 +82,8 @@ class PromptBuildState:
     # Format style name (set by set_format)
     format_style: str = "json"
 
-    # Chain of thought (set by enable_cot)
-    chain_of_thought: bool = False
-
-    # Patch trace (set by enable_patch_trace)
-    patch_trace: bool = False
-
-    # Code execution (set by enable_code)
-    code_execution: bool = False
-
-    # SQL execution (set by enable_sql)
-    sql_execution: bool = False
-
     # Table serialization format (set by set_table_format, None = follow output format)
     table_format: Optional[str] = None
-
-    # Table input transforms
-    column_pruning: bool = False
-    type_annotation: bool = False
-    column_stats: bool = False
 
     # I/O fields for user prompt
     input_fields: Dict[str, str] = field(default_factory=dict)
@@ -147,21 +130,11 @@ class PromptBuildState:
         meta = {}
         if self.table_format is not None:
             meta["table_format"] = self.table_format
-        if self.column_pruning:
-            meta["column_pruning"] = True
-        if self.type_annotation:
-            meta["type_annotation"] = True
-        if self.column_stats:
-            meta["column_stats"] = True
         if self.extras.get("input_transforms"):
             meta["input_transforms"] = self.extras["input_transforms"]
         return PromptState(
             semantic=semantic,
             format_style_name=self.format_style,
-            chain_of_thought=self.chain_of_thought,
-            patch_trace=self.patch_trace,
-            code_execution=self.code_execution,
-            sql_execution=self.sql_execution,
             metadata=meta,
         )
 
@@ -283,52 +256,10 @@ def _apply_set_format(state: PromptBuildState, params: dict) -> None:
     state.format_style = params.get("style", "json")
 
 
-@register("enable_cot")
-def _apply_enable_cot(state: PromptBuildState, params: dict) -> None:
-    """Enable chain-of-thought reasoning."""
-    state.chain_of_thought = True
-
-
-@register("enable_patch_trace")
-def _apply_enable_patch_trace(state: PromptBuildState, params: dict) -> None:
-    """Enable structured patch trace."""
-    state.patch_trace = True
-
-
-@register("enable_code")
-def _apply_enable_code(state: PromptBuildState, params: dict) -> None:
-    """Enable code execution output."""
-    state.code_execution = True
-
-
-@register("enable_sql")
-def _apply_enable_sql(state: PromptBuildState, params: dict) -> None:
-    """Enable SQL execution output."""
-    state.sql_execution = True
-
-
 @register("set_table_format", identity_key=lambda p: p.get("format", "markdown"))
 def _apply_set_table_format(state: PromptBuildState, params: dict) -> None:
     """Set the table serialization format."""
     state.table_format = params.get("format", "markdown")
-
-
-@register("enable_column_pruning")
-def _apply_enable_column_pruning(state: PromptBuildState, params: dict) -> None:
-    """Enable column pruning."""
-    state.column_pruning = True
-
-
-@register("enable_type_annotation")
-def _apply_enable_type_annotation(state: PromptBuildState, params: dict) -> None:
-    """Enable type annotation."""
-    state.type_annotation = True
-
-
-@register("enable_column_stats")
-def _apply_enable_column_stats(state: PromptBuildState, params: dict) -> None:
-    """Enable column statistics."""
-    state.column_stats = True
 
 
 @register("add_example", identity_key=lambda p: f"{p.get('example_strategy', 'random')}:{p.get('k', 3)}")
@@ -357,13 +288,6 @@ _TYPE_ORDER: Dict[str, int] = {
     "input_transform": 1,
     "set_format":     1,
     "set_table_format": 1,
-    "enable_cot":     1,
-    "enable_patch_trace": 1,
-    "enable_code":    1,
-    "enable_sql":     1,
-    "enable_column_pruning": 1,
-    "enable_type_annotation": 1,
-    "enable_column_stats": 1,
     "add_example":    3,
 }
 

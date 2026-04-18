@@ -39,12 +39,6 @@ class PromptState:
     demo_selector: Optional[Callable[[Dict[str, Any], List[Dict[str, Any]]], List[Dict[str, Any]]]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-    # ========== Internal Properties ==========
-    chain_of_thought: bool = False
-    patch_trace: bool = False
-    code_execution: bool = False
-    sql_execution: bool = False
-
     @property
     def format_style(self) -> FormatStyle:
         """Get the format style instance."""
@@ -54,62 +48,20 @@ class PromptState:
 
     @property
     def effective_output_fields(self) -> Dict[str, str]:
-        """Get output fields with reasoning added if chain_of_thought is enabled."""
-        output_fields = self.semantic.output_fields.copy()
-
-        if self.chain_of_thought and "reasoning" not in output_fields:
-            # Add reasoning as the first field when CoT is enabled
-            output_fields = {"reasoning": "Step-by-step reasoning and thought process", **output_fields}
-
-        if self.patch_trace and "error_analysis" not in output_fields:
-            # Add structured repair trace before the final SQL
-            output_fields = {
-                "error_analysis": "What is wrong with the SQL and why (specific clause/column/table)",
-                "patch_description": "What minimal change fixes the error",
-                **output_fields,
-            }
-
-        if self.code_execution and "code" not in output_fields:
-            # Replace primary output field with code — model writes Python, executor produces the answer
-            # Remove the first non-reasoning field (answer, verdict, etc.)
-            primary = next((k for k in output_fields if k != "reasoning"), None)
-            output_fields = {
-                k: v for k, v in output_fields.items() if k != primary
-            }
-            output_fields["code"] = "Python expression using `df` (pandas DataFrame with typed columns) that computes the answer. Must evaluate to a single value."
-
-        if self.sql_execution and "sql" not in output_fields:
-            # Replace primary output field with sql — model writes SQL, executor runs against table
-            primary = next((k for k in output_fields if k != "reasoning"), None)
-            output_fields = {
-                k: v for k, v in output_fields.items() if k != primary
-            }
-            output_fields["sql"] = "SQL query against table `t` with columns matching the table header that returns the answer"
-
-        return output_fields
+        """Get output fields as declared in the config (no boolean injection)."""
+        return self.semantic.output_fields
 
     @property
     def effective_semantic(self) -> SemanticContent:
-        """Get semantic content with extra fields added if CoT or code_execution is enabled."""
-        if self.effective_output_fields == self.semantic.output_fields:
-            return self.semantic
-
-        # Create a new semantic content with reasoning field added
-        from dataclasses import replace as dataclass_replace
-        return dataclass_replace(
-            self.semantic,
-            output_fields=self.effective_output_fields
-        )
+        """Get semantic content as declared in the config."""
+        return self.semantic
 
     def clone(self, **updates: Any) -> PromptState:
         """Create a copy with specified updates."""
         return replace(self, **updates)
 
     def build_messages(self, record: Dict[str, Any]) -> List[Dict[str, str]]:
-        """Build chat messages for this record.
-
-        Uses effective_semantic to include reasoning field when chain_of_thought is enabled.
-        """
+        """Build chat messages for this record."""
         messages = []
 
         # System message
@@ -132,7 +84,6 @@ class PromptState:
     def parse_output(self, response_text: str) -> Dict[str, Any]:
         """Parse model response text into output fields.
 
-        Uses effective_output_fields to include reasoning field when chain_of_thought is enabled.
         Strips <think>...</think> blocks from thinking models (e.g. Qwen3-Coder-Next).
         """
         response_text = re.sub(r"<think>.*?</think>\s*", "", response_text, flags=re.DOTALL)
@@ -142,7 +93,6 @@ class PromptState:
         """Build system message using format style.
 
         The format style handles ALL formatting - no hardcoded markers here!
-        Uses effective_semantic to include reasoning field when chain_of_thought is enabled.
         """
         if self.custom_system_template:
             return self.custom_system_template

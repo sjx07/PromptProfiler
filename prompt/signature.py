@@ -172,12 +172,6 @@ class FeatureSignature:
         new_state._format_style = None  # Reset cached style
         return FeatureSignature(name=self.name, prompt_state=new_state)
 
-    def with_chain_of_thought(self, enabled: bool = True) -> "FeatureSignature":
-        """Return a new signature with chain-of-thought enabled/disabled."""
-        new_state = deepcopy(self.prompt_state)
-        new_state.chain_of_thought = enabled
-        return FeatureSignature(name=self.name, prompt_state=new_state)
-
     # ----- Class methods for convenient creation -----
 
     @classmethod
@@ -192,7 +186,6 @@ class FeatureSignature:
         examples: Optional[List[Example]] = None,
         contexts: Optional[List[Context]] = None,
         format_style: str = "plain",
-        chain_of_thought: bool = False,
     ) -> "FeatureSignature":
         """Convenience constructor to create a signature from components.
 
@@ -206,7 +199,6 @@ class FeatureSignature:
             examples: Optional few-shot examples
             contexts: Optional context blocks
             format_style: Format style name (plain, yaml, markdown, json)
-            chain_of_thought: Whether to enable chain-of-thought reasoning
 
         Returns:
             A new FeatureSignature
@@ -223,7 +215,6 @@ class FeatureSignature:
         prompt_state = PromptState(
             semantic=semantic,
             format_style_name=format_style,
-            chain_of_thought=chain_of_thought,
         )
         return cls(name=name, prompt_state=prompt_state)
 
@@ -236,7 +227,6 @@ class FeatureSignature:
         output_fields: Dict[str, str],
         rules_json_path: str,
         format_style: str = "plain",
-        chain_of_thought: bool = False,
         load_kwargs: Optional[Dict[str, Any]] = None,
     ) -> "FeatureSignature":
         """Create a signature with rules loaded from a JSON file.
@@ -251,7 +241,6 @@ class FeatureSignature:
             output_fields: Output field definitions
             rules_json_path: Path to rules JSON file (classification results)
             format_style: Format style name
-            chain_of_thought: Whether to enable chain-of-thought
 
         Returns:
             FeatureSignature with rules and tree_index loaded
@@ -269,20 +258,9 @@ class FeatureSignature:
             rule_sections=tree.roots,
             tree=tree,
             format_style=format_style,
-            chain_of_thought=chain_of_thought,
         )
-
-
-# Alias for chain-of-thought signature
-def ChainOfThought(sig: FeatureSignature) -> FeatureSignature:
-    """Wrap a signature with chain-of-thought reasoning enabled.
-
-    Similar to dspy.ChainOfThought(Signature).
-    """
-    return sig.with_chain_of_thought(enabled=True)
 
 
 __all__ = [
     "FeatureSignature",
-    "ChainOfThought",
 ]
