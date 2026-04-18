@@ -1,0 +1,17 @@
+{
+  "feature_id": "_section_strategy",
+  "canonical_id": "_section_strategy",
+  "task": "sql_repair",
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "section",
+        "parent_id": "__root__",
+        "payload": {"title": "strategy", "ordinal": 10, "is_system": true, "min_rules": 0, "max_rules": 10}
+      }
+    }
+  ]
+}

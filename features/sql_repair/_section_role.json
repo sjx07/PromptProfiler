@@ -1,0 +1,17 @@
+{
+  "feature_id": "_section_role",
+  "canonical_id": "_section_role",
+  "task": "sql_repair",
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "section",
+        "parent_id": "__root__",
+        "payload": {"title": "role", "ordinal": 0, "is_system": true, "min_rules": 0, "max_rules": 1}
+      }
+    }
+  ]
+}

@@ -4,11 +4,14 @@ Tests that the materializer (FeatureRegistry) correctly:
   - Rejects missing requires
   - Rejects conflicting feature pairs
   - Rejects cross-task requires
+  - Materializes and deduplicates correctly (no $ref machinery)
+  - Supports features_base injectable path (Phase A)
+  - Sections are ordinary features loaded from _section_*.json files
 """
 from __future__ import annotations
 
-import sys
 import json
+import sys
 import tempfile
 from pathlib import Path
 
@@ -18,17 +21,16 @@ _TOOL_DIR = str(Path(__file__).parent.parent.parent.parent)
 if _TOOL_DIR not in sys.path:
     sys.path.insert(0, _TOOL_DIR)
 
-from prompt_profiler.core.feature_registry import FeatureRegistry
-from prompt_profiler.core.func_registry import ROOT_ID
+from prompt_profiler.core.feature_registry import FeatureRegistry, _FEATURES_BASE
+from prompt_profiler.core.func_registry import ROOT_ID, make_func_id
 
 
 # ── helpers ────────────────────────────────────────────────────────────
 
-def _make_registry(task: str, features: list, sections: dict = None) -> FeatureRegistry:
+def _make_registry(task: str, features: list) -> FeatureRegistry:
     """Build a FeatureRegistry directly from in-memory specs (no disk I/O)."""
     features_dict = {f["feature_id"]: f for f in features}
-    sections_dict = sections or {}
-    return FeatureRegistry(task=task, features=features_dict, sections=sections_dict)
+    return FeatureRegistry(task=task, features=features_dict)
 
 
 # ── missing requires ──────────────────────────────────────────────────
@@ -166,7 +168,7 @@ def test_unknown_feature_raises():
 # ── materialize produces correct func specs ───────────────────────────
 
 def test_materialize_basic():
-    """materialize() expands primitive_edits and assigns func_ids."""
+    """materialize() returns (specs, provenance) and assigns func_ids."""
     reg = _make_registry("table_qa", [
         {
             "feature_id": "simple_rule",
@@ -185,34 +187,50 @@ def test_materialize_basic():
             ],
         },
     ])
-    specs = reg.materialize(["simple_rule"])
+    specs, provenance = reg.materialize(["simple_rule"])
     assert len(specs) == 1
     assert specs[0]["func_type"] == "insert_node"
     assert specs[0]["params"]["node_type"] == "rule"
     assert "func_id" in specs[0]
     assert specs[0]["func_id"]  # non-empty
+    # Provenance: simple_rule -> [func_id]
+    assert "simple_rule" in provenance
+    assert provenance["simple_rule"] == [specs[0]["func_id"]]
+    # meta.source_feature no longer present -- meta is empty
+    assert specs[0]["meta"] == {}
 
 
 def test_materialize_deduplicates_shared_sections():
-    """Two features sharing the same section $ref produce only one section func."""
-    sections = {
-        "reasoning": {
-            "title": "reasoning", "ordinal": 30,
-            "is_system": True, "min_rules": 0, "max_rules": 10,
-        }
+    """Two features sharing the same section emit only ONE section func (dedup by content hash)."""
+    section_params = {
+        "node_type": "section",
+        "parent_id": ROOT_ID,
+        "payload": {"title": "reasoning", "ordinal": 30,
+                    "is_system": True, "min_rules": 0, "max_rules": 10},
     }
+    section_fid = make_func_id("insert_node", section_params)
+
     reg = _make_registry("table_qa", [
+        {
+            "feature_id": "_section_reasoning",
+            "task": "table_qa",
+            "requires": [],
+            "conflicts_with": [],
+            "primitive_edits": [
+                {"func_type": "insert_node", "params": section_params},
+            ],
+        },
         {
             "feature_id": "feat_a",
             "task": "table_qa",
-            "requires": [],
+            "requires": ["_section_reasoning"],
             "conflicts_with": [],
             "primitive_edits": [
                 {
                     "func_type": "insert_node",
                     "params": {
                         "node_type": "rule",
-                        "parent": {"$ref": "_sections.reasoning"},
+                        "parent_id": section_fid,
                         "payload": {"content": "Rule from feat_a."},
                     },
                 }
@@ -221,83 +239,158 @@ def test_materialize_deduplicates_shared_sections():
         {
             "feature_id": "feat_b",
             "task": "table_qa",
-            "requires": [],
+            "requires": ["_section_reasoning"],
             "conflicts_with": [],
             "primitive_edits": [
                 {
                     "func_type": "insert_node",
                     "params": {
                         "node_type": "rule",
-                        "parent": {"$ref": "_sections.reasoning"},
+                        "parent_id": section_fid,
                         "payload": {"content": "Rule from feat_b."},
                     },
                 }
             ],
         },
-    ], sections=sections)
+    ])
 
-    specs = reg.materialize(["feat_a", "feat_b"])
-    # Both rules have the same resolved parent_id — 2 rules total, no dedup of distinct rules
-    assert len(specs) == 2
+    specs, provenance = reg.materialize(["_section_reasoning", "feat_a", "feat_b"])
+    # 1 section + 2 distinct rules = 3 specs
+    assert len(specs) == 3
     func_ids = [s["func_id"] for s in specs]
-    assert len(set(func_ids)) == 2, "Distinct rules should not be deduped"
+    assert len(set(func_ids)) == 3, "All three must be distinct func_ids"
+    # Section appears only under _section_reasoning in provenance
+    assert provenance["_section_reasoning"] == [section_fid]
 
 
-def test_materialize_ref_resolution():
-    """$ref in parent is resolved to a func_id, not left as a dict."""
-    sections = {
-        "strategy": {
-            "title": "strategy", "ordinal": 10,
-            "is_system": True, "min_rules": 0, "max_rules": 10,
-        }
+def test_materialize_shared_primitive_many_to_many():
+    """A primitive shared by two features appears in both provenance lists (many-to-many)."""
+    shared_params = {
+        "node_type": "rule",
+        "parent_id": ROOT_ID,
+        "payload": {"content": "Shared rule."},
     }
+    shared_fid = make_func_id("insert_node", shared_params)
+
     reg = _make_registry("table_qa", [
         {
-            "feature_id": "some_feature",
+            "feature_id": "feat_x",
             "task": "table_qa",
             "requires": [],
             "conflicts_with": [],
-            "primitive_edits": [
-                {
-                    "func_type": "insert_node",
-                    "params": {
-                        "node_type": "rule",
-                        "parent": {"$ref": "_sections.strategy"},
-                        "payload": {"content": "Use correct joins."},
-                    },
-                }
-            ],
-        }
-    ], sections=sections)
-
-    specs = reg.materialize(["some_feature"])
+            "primitive_edits": [{"func_type": "insert_node", "params": shared_params}],
+        },
+        {
+            "feature_id": "feat_y",
+            "task": "table_qa",
+            "requires": [],
+            "conflicts_with": [],
+            "primitive_edits": [{"func_type": "insert_node", "params": shared_params}],
+        },
+    ])
+    specs, provenance = reg.materialize(["feat_x", "feat_y"])
+    # Deduped: only one func spec
     assert len(specs) == 1
-    params = specs[0]["params"]
-    assert "parent_id" in params, "parent_id must be resolved"
-    assert "parent" not in params, "$ref dict must be removed"
-    assert isinstance(params["parent_id"], str), "parent_id must be a string func_id"
+    assert specs[0]["func_id"] == shared_fid
+    # Both features claim it in provenance (many-to-many)
+    assert shared_fid in provenance["feat_x"]
+    assert shared_fid in provenance["feat_y"]
 
 
 # ── disk-based loading ────────────────────────────────────────────────
 
 def test_load_from_disk_table_qa():
-    """FeatureRegistry.load() should find the table_qa _sections.json."""
+    """FeatureRegistry.load() finds _section_*.json for table_qa."""
     reg = FeatureRegistry.load("table_qa")
     assert reg.task == "table_qa"
-    assert "role" in reg._sections
-    assert "reasoning" in reg._sections
-    assert "strategy" in reg._sections
+    features = reg.list_features()
+    assert "_section_role" in features
+    assert "_section_reasoning" in features
+    assert "_section_strategy" in features
+    assert "_section_table_handling" in features
+    assert "_section_format_fix" in features
 
 
 def test_load_from_disk_sql_repair():
-    """FeatureRegistry.load() should find the sql_repair _sections.json."""
+    """FeatureRegistry.load() finds _section_*.json for sql_repair."""
     reg = FeatureRegistry.load("sql_repair")
     assert reg.task == "sql_repair"
-    assert "role" in reg._sections
-    assert "sql_rules" in reg._sections
+    features = reg.list_features()
+    assert "_section_role" in features
+    assert "_section_sql_rules" in features
+    assert "_section_error_analysis" in features
 
 
 def test_load_unknown_task_raises():
     """Loading an unknown task raises FileNotFoundError."""
     with pytest.raises(FileNotFoundError):
         FeatureRegistry.load("nonexistent_task_xyz")
+
+
+# ── features_base injectable (Phase A) ───────────────────────────────
+
+def test_features_base_explicit_path():
+    """Passing features_base explicitly overrides the package default."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        task_dir = base / "my_task"
+        task_dir.mkdir()
+        (task_dir / "feat_hello.json").write_text(json.dumps({
+            "feature_id": "feat_hello",
+            "task": "my_task",
+            "requires": [],
+            "conflicts_with": [],
+            "primitive_edits": [
+                {"func_type": "insert_node",
+                 "params": {"node_type": "rule", "parent_id": "__root__",
+                            "payload": {"content": "Hello from fixture."}}}
+            ],
+        }))
+
+        reg = FeatureRegistry.load("my_task", features_base=base)
+        assert "feat_hello" in reg.list_features()
+        # Default package features are NOT loaded
+        assert "_section_role" not in reg.list_features()
+
+
+def test_features_base_env_var(monkeypatch):
+    """PROMPTPROFILER_FEATURES_BASE env var overrides package default."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        task_dir = base / "env_task"
+        task_dir.mkdir()
+        (task_dir / "env_feat.json").write_text(json.dumps({
+            "feature_id": "env_feat",
+            "task": "env_task",
+            "requires": [],
+            "conflicts_with": [],
+            "primitive_edits": [],
+        }))
+
+        monkeypatch.setenv("PROMPTPROFILER_FEATURES_BASE", str(base))
+        reg = FeatureRegistry.load("env_task")
+        assert "env_feat" in reg.list_features()
+
+
+def test_features_base_explicit_overrides_env(monkeypatch):
+    """Explicit features_base arg takes priority over env var."""
+    with tempfile.TemporaryDirectory() as tmpdir_arg, \
+         tempfile.TemporaryDirectory() as tmpdir_env:
+        arg_base = Path(tmpdir_arg)
+        env_base = Path(tmpdir_env)
+
+        (arg_base / "tsk").mkdir()
+        (arg_base / "tsk" / "arg_feat.json").write_text(json.dumps({
+            "feature_id": "arg_feat", "task": "tsk",
+            "requires": [], "conflicts_with": [], "primitive_edits": [],
+        }))
+        (env_base / "tsk").mkdir()
+        (env_base / "tsk" / "env_feat.json").write_text(json.dumps({
+            "feature_id": "env_feat", "task": "tsk",
+            "requires": [], "conflicts_with": [], "primitive_edits": [],
+        }))
+
+        monkeypatch.setenv("PROMPTPROFILER_FEATURES_BASE", str(env_base))
+        reg = FeatureRegistry.load("tsk", features_base=arg_base)
+        assert "arg_feat" in reg.list_features()
+        assert "env_feat" not in reg.list_features()
