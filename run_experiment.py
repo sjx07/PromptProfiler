@@ -131,6 +131,15 @@ def main():
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     store = CubeStore(db_path)
 
+    # ── Sync feature registry to cube (idempotent) ────────────────────
+    try:
+        from prompt_profiler.core.feature_registry import FeatureRegistry
+        feat_reg = FeatureRegistry.load(task=task_name)
+        sync_result = feat_reg.sync_to_cube(store)
+        logger.info("Feature registry synced: %s", sync_result)
+    except FileNotFoundError:
+        logger.warning("No feature directory for task=%s; skipping feature sync", task_name)
+
     # ── Seed ──────────────────────────────────────────────────────────
     if pool_path:
         seed_pool(store, pool_path)

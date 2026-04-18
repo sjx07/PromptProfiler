@@ -305,3 +305,35 @@ class FeatureRegistry:
     def all_specs(self) -> List[dict]:
         """Return all feature specs (with feature_id and canonical_id populated)."""
         return list(self._by_feature_id.values())
+
+    # ── cube sync ─────────────────────────────────────────────────────
+
+    def sync_to_cube(self, store: Any) -> Dict[str, int]:
+        """Upsert all features in this registry into the cube's feature table.
+
+        Pure upsert (INSERT OR REPLACE): re-syncing unchanged features is a
+        no-op because feature_id is a content hash (same content → same PK).
+
+        Args:
+            store: A CubeStore instance.
+
+        Returns:
+            {"synced": <count>}
+        """
+        import json as _json
+
+        rows = []
+        for canonical_id, spec in self._by_canonical.items():
+            feature_id = self._cid_to_fid[canonical_id]
+            rows.append({
+                "feature_id":     feature_id,
+                "canonical_id":   canonical_id,
+                "task":           spec.get("task", self.task),
+                "requires_json":  _json.dumps(spec.get("requires", [])),
+                "conflicts_json": _json.dumps(spec.get("conflicts_with", [])),
+                "primitive_spec": _json.dumps(spec.get("primitive_edits", [])),
+                "rationale":      spec.get("rationale"),
+                "source_path":    spec.get("_source_path"),
+            })
+
+        return store.sync_features(rows)

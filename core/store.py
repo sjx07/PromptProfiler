@@ -414,8 +414,76 @@ class CubeStore:
 
     def stats(self) -> Dict[str, int]:
         conn = self._get_conn()
-        tables = ["func", "query", "config", "execution", "evaluation"]
+        tables = ["func", "query", "config", "execution", "evaluation", "feature"]
         return {
             t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
             for t in tables
         }
+
+    # ── feature registry sync ──────────────────────────────────────────
+
+    def sync_features(self, feature_rows: List[Dict[str, Any]]) -> Dict[str, int]:
+        """Upsert feature rows into the feature table.
+
+        Uses INSERT OR REPLACE so re-syncing identical content is a no-op at
+        the DB level (same primary key, same columns).
+
+        Args:
+            feature_rows: List of dicts with keys:
+                feature_id, canonical_id, task, requires_json, conflicts_json,
+                primitive_spec, rationale (optional), source_path (optional).
+
+        Returns:
+            {"synced": <count of rows processed>}
+        """
+        with self._cursor() as cur:
+            cur.executemany(
+                """INSERT OR REPLACE INTO feature
+                   (feature_id, canonical_id, task,
+                    requires_json, conflicts_json, primitive_spec,
+                    rationale, source_path, synced_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+                [
+                    (
+                        r["feature_id"],
+                        r["canonical_id"],
+                        r["task"],
+                        r.get("requires_json", "[]"),
+                        r.get("conflicts_json", "[]"),
+                        r["primitive_spec"],
+                        r.get("rationale"),
+                        r.get("source_path"),
+                    )
+                    for r in feature_rows
+                ],
+            )
+        return {"synced": len(feature_rows)}
+
+    def feature_effect_df(self):
+        """Query the feature_effect view and return a pandas DataFrame.
+
+        NOTE: Only configs created after schema v7 (with content-hash feature_ids
+        stored in config.meta.feature_ids) are joinable via this view.
+        Pre-v7 configs stored canonical_id strings and will not match.
+
+        Returns:
+            pd.DataFrame with columns: feature_id, canonical_id, task, model,
+            query_id, score, scorer.  Empty DataFrame if no joined rows exist.
+        """
+        try:
+            import pandas as pd
+        except ImportError as exc:
+            raise ImportError(
+                "pandas is required for feature_effect_df(). "
+                "Install it with: pip install pandas"
+            ) from exc
+
+        rows = self._get_conn().execute(
+            "SELECT * FROM feature_effect"
+        ).fetchall()
+        if not rows:
+            return pd.DataFrame(columns=[
+                "feature_id", "canonical_id", "task", "model",
+                "query_id", "score", "scorer",
+            ])
+        return pd.DataFrame([dict(r) for r in rows])
