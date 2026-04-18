@@ -51,13 +51,35 @@ class BaseTask:
             example_pool: Train-split query dicts for few-shot selection.
                           Only used when state has example_strategy configured.
                           Caller is responsible for train/eval separation.
+
+        Output-field merge rule (output_fields ONLY):
+          Task defaults are merged into feature-declared output_fields ONLY
+          when none of those declared fields is a parser-registered dispatch
+          field. This lets:
+            * enable_cot (declares `reasoning`, no parser) → merges in default
+              `answer` so dispatch picks `answer`, `reasoning` becomes companion.
+            * enable_code (declares `code`, registered) → NO merge; `code`
+              takes over as the single dispatch field.
+            * enable_cot + enable_code → `{reasoning, code}`, dispatch=code.
+          This is the "fallback-unless-replaced" contract for output_fields.
+
+        Input fields follow the simpler "replace when present, else default"
+        contract: feature-declared inputs are authoritative.
         """
-        # If config declared explicit field funcs, use them as authoritative.
-        # Fall back to task class defaults only when config has no field funcs.
         if not state.input_fields:
             state.input_fields = self.default_input_fields.copy()
-        if not state.output_fields:
-            state.output_fields = self.default_output_fields.copy()
+
+        # Output-field "fallback-unless-replaced": merge defaults only when
+        # no declared output_field is a registered dispatch field.
+        registry = self._get_parser_registry()
+        registered_fields = set(registry.keys()) if registry else set()
+        declared_fields = set(state.output_fields)
+        has_dispatch_field = bool(declared_fields & registered_fields)
+        if not has_dispatch_field:
+            # Merge task defaults, without clobbering any feature-added field.
+            for key, desc in self.default_output_fields.items():
+                state.output_fields.setdefault(key, desc)
+
         self._prompt_state = state.to_prompt_state()
 
         # Validate dispatch field (exactly one parser-registered output_field).

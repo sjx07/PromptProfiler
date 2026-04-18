@@ -1,7 +1,9 @@
 """test_parser_dispatch_single_identifier.py
 
 Validates BaseTask._validate_dispatch_field() enforcement:
-  - Zero registered output_fields → ValueError
+  - Zero registered output_fields → bind() merges in task defaults as a
+    fallback. If the merged set still has zero dispatch fields → ValueError.
+    (The merge is the "fallback-unless-replaced" output-field contract.)
   - Two+ registered output_fields → ValueError (ambiguous dispatch)
   - Exactly one registered output_field → bind() succeeds
   - No _parser_module_path → bind() succeeds (no registry, no validation)
@@ -61,10 +63,39 @@ class _NoRegistryTask(BaseTask):
 
 # ── zero registered fields ────────────────────────────────────────────
 
-def test_zero_registered_fields_raises():
-    """bind() raises ValueError when no output_field matches a registered parser."""
+def test_zero_registered_declared_fields_fallback_injects_default_dispatch():
+    """When a config declares only non-registered output_fields, bind() merges
+    the task's default_output_fields in as a fallback. If the defaults include
+    a registered field (`answer` for TableQA), bind succeeds with that field
+    as the dispatch target and the declared field kept as auxiliary.
+    """
     task = _TableQALike()
-    # "summary" is not in WTQ DISPATCH_FIELDS {code, sql, answer}
+    # "summary" is not in WTQ DISPATCH_FIELDS; only `answer` from defaults is.
+    state = _make_state_with_output_fields("summary")
+    task.bind(state)  # should not raise
+    assert task._dispatch_field() == "answer"
+    assert "summary" in task._prompt_state.semantic.output_fields, (
+        "auxiliary feature-added field should be preserved after fallback merge"
+    )
+
+
+class _NoAnswerDefaults(BaseTask):
+    """Stub whose defaults ALSO have no registered dispatch field."""
+    name = "no_answer_defaults"
+    scorer = "acc"
+    _parser_module_path = "prompt_profiler.tasks.wtq.parsers"
+    default_input_fields = {"question": "q"}
+    default_output_fields = {"summary": "Some summary"}  # not registered
+
+    def score(self, prediction, query_meta):
+        raise NotImplementedError
+
+
+def test_zero_registered_fields_even_after_fallback_raises():
+    """When NEITHER the declared fields NOR the task defaults have a
+    registered dispatch field, bind() raises `no dispatch parser`.
+    """
+    task = _NoAnswerDefaults()
     state = _make_state_with_output_fields("summary")
     with pytest.raises(ValueError, match="no dispatch parser"):
         task.bind(state)

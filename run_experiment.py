@@ -1,13 +1,35 @@
-"""Experiment runner — config-first with CLI overrides.
+"""Experiment runner — feature-first config composition.
 
-Usage:
-    python3 -m prompt_profiler.run_experiment \
-        prompt_profiler/runs/exp_wtq_7b_code.json
+Config shape (example: prompt_profiler/runs/example_add_one.json):
 
-    # CLI overrides:
-    python3 -m prompt_profiler.run_experiment \
-        prompt_profiler/runs/exp_wtq_7b_code.json \
-        --model Qwen/Qwen2.5-7B-Instruct --ports 8000 --num_workers 64
+    {
+      "task":                "table_qa",                 // required
+      "experiment_type":     "add_one_feature",          // add_one_feature | leave_one_out_feature | coalition_feature | base_only
+      "db_path":             "runs/wtq_mvp.db",          // required
+
+      "base_features":       ["_section_role", ...],     // canonical_ids that form the base config
+      "experiment_features": ["enable_cot", ...],        // canonical_ids, one bundle per config in add_one
+
+      "model":               "meta-llama/Llama-3.1-8B-Instruct",
+      "ports":               [8000],
+      "num_workers":         32,
+      "base_url":            null,                       // optional vLLM override
+      "api_key_env":         null,                       // optional
+
+      "split":               "dev",
+      "example_split":       "train",                    // required iff any feature uses add_example
+      "max_queries":         200,
+      "seed":                42,
+      "phase":               "wtq_mvp",                  // optional; timestamp auto-appended
+
+      "vllm_db":             "/data/.../autovllm/trajectory.db"
+    }
+
+Run:
+    python3 -m prompt_profiler.run_experiment prompt_profiler/runs/example_add_one.json
+
+    # CLI overrides (only for top-level scalars):
+    python3 -m prompt_profiler.run_experiment config.json --model ... --ports 8000 8001
 """
 from __future__ import annotations
 
@@ -15,26 +37,28 @@ import argparse
 import json
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 from autovllm.store import TrajectoryStore as VLLMStore
 
 from prompt_profiler.common import seed_funcs
+from prompt_profiler.core.feature_registry import FeatureRegistry
+from prompt_profiler.core.store import CubeStore, OnConflict
+from prompt_profiler.execution.pooled_llm import PooledLLMCall
 from prompt_profiler.experiment.config_generators import generate, REGISTRY as GEN_REGISTRY
 from prompt_profiler.experiment.loop import _run_and_eval_plan
 from prompt_profiler.experiment.planner import RunEntry
-from prompt_profiler.core.func_registry import make_func_id
-from prompt_profiler.core.store import CubeStore, OnConflict
-from prompt_profiler.execution.pooled_llm import PooledLLMCall
 from prompt_profiler.task_registry import get_registry
-from prompt_profiler.common import seed_pool, resolve_node_ids
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+
+# ── predicate extractor import (for iterative runs) ──────────────────
 
 def _import_predicate_extractors(task_name: str) -> None:
     """Import task-specific predicate modules (registers extractors on import)."""
@@ -46,28 +70,83 @@ def _import_predicate_extractors(task_name: str) -> None:
         logger.warning("No predicate extractors for task %s", task_name)
 
 
+# ── config loader ─────────────────────────────────────────────────────
+
 def _load_config(config_path: str, cli_overrides: Dict[str, Any]) -> Dict[str, Any]:
-    """Load experiment config JSON, then apply CLI overrides."""
+    """Load experiment config JSON, then apply CLI overrides (non-None only)."""
     with open(config_path) as f:
         cfg = json.load(f)
-    # Resolve pool path relative to config file
-    if "pool" in cfg:
-        pool_rel = Path(config_path).parent / cfg["pool"]
-        if pool_rel.exists():
-            cfg["pool"] = str(pool_rel)
-    # CLI overrides win (only for non-None values)
     for k, v in cli_overrides.items():
         if v is not None:
             cfg[k] = v
     return cfg
 
 
-def main():
-    registry = get_registry()
+# ── feature materialization ───────────────────────────────────────────
 
-    parser = argparse.ArgumentParser(description="Unified cube experiment runner")
+def _build_feature_bundles(
+    feat_reg: FeatureRegistry,
+    base_features: List[str],
+    experiment_features: List[str],
+) -> Tuple[
+    List[dict],
+    List[str],
+    Dict[str, Tuple[str, List[str]]],
+    Dict[str, str],
+    Dict[str, frozenset],
+]:
+    """Materialize base + experiment features through the FeatureRegistry.
+
+    Each experiment feature is materialized *independently* alongside the
+    base set, so that mutually-conflicting experiment features (e.g.
+    ``enable_code`` vs ``enable_sql``) can coexist as separate add-one
+    bundles.  Conflict enforcement happens at config-composition time
+    inside the generator.
+
+    Returns:
+        full_specs:    deduped list of all func specs to seed into the store.
+        base_ids:      func_ids that compose the base config.
+        bundles:       canonical_id -> (feature_id_hash, incremental func_ids).
+        base_feature_hashes: canonical_id -> feature_id_hash for base features.
+        conflicts:     canonical_id -> frozenset[canonical_id] of declared
+                       conflicts_with relations for experiment features,
+                       for feature-aware generators to consult.
+    """
+    base_specs, _base_f2f = feat_reg.materialize(base_features)
+    base_ids = [s["func_id"] for s in base_specs]
+    base_set = set(base_ids)
+
+    all_specs_by_fid: Dict[str, dict] = {s["func_id"]: s for s in base_specs}
+    bundles: Dict[str, Tuple[str, List[str]]] = {}
+    conflicts: Dict[str, frozenset] = {}
+
+    for cid in experiment_features:
+        # Materialize this feature with base; validates requires against base,
+        # and skips cross-sibling conflict validation.
+        feat_specs, feat_f2f = feat_reg.materialize(base_features + [cid])
+        for s in feat_specs:
+            all_specs_by_fid[s["func_id"]] = s
+        feat_hash = feat_reg.feature_id_for(cid)
+        feat_fids = feat_f2f[feat_hash]
+        add_funcs = [f for f in feat_fids if f not in base_set]
+        bundles[cid] = (feat_hash, add_funcs)
+
+        spec = feat_reg._by_canonical[cid]
+        conflicts[cid] = frozenset(spec.get("conflicts_with", []))
+
+    full_specs = list(all_specs_by_fid.values())
+    base_feature_hashes = {cid: feat_reg.feature_id_for(cid) for cid in base_features}
+    return full_specs, base_ids, bundles, base_feature_hashes, conflicts
+
+
+# ── main ──────────────────────────────────────────────────────────────
+
+def main():
+    task_registry = get_registry()
+
+    parser = argparse.ArgumentParser(description="Feature-first cube experiment runner")
     parser.add_argument("config", help="Experiment config JSON path")
-    parser.add_argument("--task", default=None, choices=list(registry.keys()))
+    parser.add_argument("--task", default=None, choices=list(task_registry.keys()))
     parser.add_argument("--experiment_type", default=None,
                         choices=list(GEN_REGISTRY.keys()) + ["iterative"])
     parser.add_argument("--db_path", default=None)
@@ -75,123 +154,95 @@ def main():
     parser.add_argument("--ports", type=int, nargs="+", default=None)
     parser.add_argument("--num_workers", type=int, default=None)
     parser.add_argument("--max_queries", type=int, default=None)
-    parser.add_argument("--max_rules", type=int, default=None)
     parser.add_argument("--n_samples", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--split", default=None)
     parser.add_argument("--example_split", default=None)
+    parser.add_argument("--phase", default=None)
     parser.add_argument("--vllm_db", default=None)
     args = parser.parse_args()
 
-    # Build overrides dict (only explicitly provided CLI args)
     cli_overrides = {k: v for k, v in vars(args).items()
                      if k != "config" and v is not None}
     cfg = _load_config(args.config, cli_overrides)
 
-    # ── Resolve required fields (config + defaults) ───────────────────
+    # ── required fields ──────────────────────────────────────────────
     task_name = cfg.get("task")
     if not task_name:
         parser.error("'task' must be in config or --task")
-    if task_name not in registry:
-        parser.error(f"Unknown task: {task_name}. Choose from: {list(registry.keys())}")
-    entry = registry[task_name]
-    task_cls = entry.task_cls
+    if task_name not in task_registry:
+        parser.error(f"Unknown task: {task_name}. Choose from: {list(task_registry.keys())}")
+    task_entry = task_registry[task_name]
+    task_cls = task_entry.task_cls
 
-    experiment_type = cfg.get("experiment_type")
-    if not experiment_type:
-        parser.error("'experiment_type' must be in config or --experiment_type")
-
+    experiment_type = cfg.get("experiment_type", "add_one_feature")
     db_path = cfg.get("db_path")
     if not db_path:
         parser.error("'db_path' must be in config or --db_path")
 
-    model = cfg.get("model", "Qwen/Qwen2.5-Coder-32B-Instruct")
-    ports = cfg.get("ports", [8000, 8001])
-    num_workers = cfg.get("num_workers", 48)
-    base_url = cfg.get("base_url", None)
-    api_key = os.environ.get(cfg["api_key_env"], "") if "api_key_env" in cfg else None
+    base_features: List[str] = cfg.get("base_features", [])
+    experiment_features: List[str] = cfg.get("experiment_features", [])
+    if not base_features:
+        parser.error("'base_features' required (list of canonical_ids forming the base config)")
+
+    # ── scalar params with defaults ──────────────────────────────────
+    model = cfg.get("model", "meta-llama/Llama-3.1-8B-Instruct")
+    ports = cfg.get("ports", [8000])
+    num_workers = cfg.get("num_workers", 32)
+    base_url = cfg.get("base_url")
+    api_key = os.environ.get(cfg["api_key_env"], "") if cfg.get("api_key_env") else None
     max_queries = cfg.get("max_queries", 0)
-    max_rules = cfg.get("max_rules", 0)
     n_samples = cfg.get("n_samples", 200)
     seed = cfg.get("seed", 42)
     split = cfg.get("split", "dev")
     example_split = cfg.get("example_split")
     vllm_db = cfg.get("vllm_db", "/data/users/jsu323/autovllm/trajectory.db")
-    pool_path = cfg.get("pool", "")
-    phase_base = cfg.get("phase")
-    if phase_base:
-        from datetime import datetime
-        phase = f"{phase_base}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    else:
-        phase = None
 
-    # ── Setup ─────────────────────────────────────────────────────────
+    phase_base = cfg.get("phase")
+    phase = f"{phase_base}_{datetime.now().strftime('%Y%m%d_%H%M%S')}" if phase_base else None
+
+    # ── store + feature registry ─────────────────────────────────────
     if phase:
         logger.info("Phase: %s", phase)
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     store = CubeStore(db_path)
 
-    # ── Sync feature registry to cube (idempotent) ────────────────────
     try:
-        from prompt_profiler.core.feature_registry import FeatureRegistry
         feat_reg = FeatureRegistry.load(task=task_name)
-        sync_result = feat_reg.sync_to_cube(store)
-        logger.info("Feature registry synced: %s", sync_result)
-    except FileNotFoundError:
-        logger.warning("No feature directory for task=%s; skipping feature sync", task_name)
+    except FileNotFoundError as e:
+        raise SystemExit(
+            f"No feature directory for task={task_name!r}: {e}\n"
+            f"Expected: {Path(__file__).parent / 'features' / task_name}"
+        )
 
-    # ── Seed ──────────────────────────────────────────────────────────
-    if pool_path:
-        seed_pool(store, pool_path)
+    sync_result = feat_reg.sync_to_cube(store)
+    logger.info("Feature registry synced: %s", sync_result)
 
-    entry.seeder_fn(store, cfg, split)
+    # ── seed dataset queries ─────────────────────────────────────────
+    task_entry.seeder_fn(store, cfg, split)
 
-    # Base funcs — resolve node_id refs to full pool params (no-op if no node_ids)
-    base_specs = cfg.get("base", [])
-    if base_specs and pool_path:
-        base_specs = resolve_node_ids(base_specs, pool_path)
-    if base_specs:
-        seed_funcs(store, base_specs)
+    # ── materialize features → func specs ────────────────────────────
+    full_specs, base_ids, bundles, base_feature_hashes, conflicts = _build_feature_bundles(
+        feat_reg, base_features, experiment_features,
+    )
+    seed_funcs(store, full_specs)
+    logger.info("Seeded %d func specs (base_features=%d, experiment_features=%d)",
+                len(full_specs), len(base_features), len(experiment_features))
 
-    # Experiment funcs (the "experiment" key in config is the func list)
-    exp_specs = cfg.get("experiment", [])
-    if exp_specs and pool_path:
-        exp_specs = resolve_node_ids(exp_specs, pool_path)
-    if exp_specs:
-        seed_funcs(store, exp_specs)
+    # ── base config ──────────────────────────────────────────────────
+    base_cid = store.get_or_create_config(
+        base_ids,
+        meta={
+            "kind": "base",
+            "canonical_ids": list(base_features),
+            "feature_ids": [base_feature_hashes[c] for c in base_features],
+        },
+    )
+    logger.info("Base config: id=%d, %d funcs, %d features",
+                base_cid, len(base_ids), len(base_features))
 
-    # ── Build base config ─────────────────────────────────────────────
-    all_funcs = store.list_funcs()
-    section_ids = [f["func_id"] for f in all_funcs if f["func_type"] == "define_section"]
-    base_ids = list(section_ids)
-    for spec in base_specs:
-        base_ids.append(make_func_id(spec["func_type"], spec.get("params", {})))
-
-    base_cid = store.get_or_create_config(base_ids)
-    logger.info("Base config: id=%d, %d funcs", base_cid, len(base_ids))
-
-    # Experiment pool: from pool.json + experiment specs
-    base_set = set(base_ids)
-    pool_func_ids = set()
-    if pool_path:
-        with open(pool_path) as _f:
-            pool_data = json.load(_f)
-        for section in pool_data.get("sections", []):
-            for child in section.get("children", []):
-                if child.get("node_type") == "rule":
-                    fid = make_func_id("add_rule", {"content": child["content"]})
-                    if fid not in base_set:
-                        pool_func_ids.add(fid)
-    exp_func_ids = [make_func_id(s["func_type"], s.get("params", {})) for s in exp_specs]
-    if exp_func_ids:
-        rule_ids = exp_func_ids  # experiment specs override pool
-    else:
-        rule_ids = sorted(pool_func_ids)  # no experiment specs → use full pool
-    logger.info("Experiment pool: %d funcs (%d pool rules, %d experiment)",
-                len(rule_ids), len(pool_func_ids), len(exp_func_ids))
-
-    # ── Load queries ──────────────────────────────────────────────────
-    dataset_key = entry.dataset_key_fn(cfg)
+    # ── queries ──────────────────────────────────────────────────────
+    dataset_key = task_entry.dataset_key_fn(cfg)
     conn = store._get_conn()
     rows = conn.execute(
         "SELECT * FROM query WHERE dataset = ? AND json_extract(meta, '$.split') = ?",
@@ -201,11 +252,25 @@ def main():
     if max_queries > 0:
         queries = queries[:max_queries]
     query_ids = [q["query_id"] for q in queries]
-    logger.info("Queries: %d", len(queries))
+    logger.info("Queries: %d (dataset=%s split=%s)", len(queries), dataset_key, split)
+
+    # ── example pool ─────────────────────────────────────────────────
+    has_examples = any(s["func_type"] == "add_example" for s in full_specs)
+    example_pool = None
+    if has_examples:
+        if not example_split:
+            raise ValueError("'example_split' required when any feature uses add_example")
+        if example_split == split:
+            raise ValueError(f"example_split must differ from split (both are {example_split!r})")
+        pool_rows = conn.execute(
+            "SELECT * FROM query WHERE dataset = ? AND json_extract(meta, '$.split') = ?",
+            (dataset_key, example_split),
+        ).fetchall()
+        example_pool = [dict(r) for r in pool_rows]
+        logger.info("Example pool: %d queries (split=%s)", len(example_pool), example_split)
 
     # ── LLM call setup ───────────────────────────────────────────────
     slots_per_port = max(1, num_workers // len(ports))
-
     llm_call = PooledLLMCall(
         model, ports, slots_per_port=slots_per_port,
         labels={"task": task_name, "experiment_type": experiment_type,
@@ -215,107 +280,30 @@ def main():
         base_url=base_url,
         api_key=api_key,
     )
-    logger.info("Port pool: %s, %d workers, %d slots/port",
-                ports, num_workers, slots_per_port)
-
-    # ── Example pool ──────────────────────────────────────────────────
-    all_specs = base_specs + exp_specs
-    has_examples = any(s.get("func_type") == "add_example" for s in all_specs)
-    example_pool = None
-    if has_examples:
-        if not example_split:
-            raise ValueError("'example_split' required when using add_example funcs")
-        if example_split == split:
-            raise ValueError(f"example_split must differ from split (both are '{example_split}')")
-        pool_rows = conn.execute(
-            "SELECT * FROM query WHERE dataset = ? AND json_extract(meta, '$.split') = ?",
-            (dataset_key, example_split),
-        ).fetchall()
-        example_pool = [dict(r) for r in pool_rows]
-        logger.info("Example pool: %d queries (split=%s)", len(example_pool), example_split)
+    logger.info("Port pool: %s, %d workers, %d slots/port", ports, num_workers, slots_per_port)
 
     # ══════════════════════════════════════════════════════════════════
-    # Iterative experiment: seed → analyze → target → repeat
+    # Iterative experiment (unchanged from pre-refactor; rule_ids path).
     # ══════════════════════════════════════════════════════════════════
     if experiment_type == "iterative":
-        from prompt_profiler.experiment.analysis import (
-            PrimitiveSpec, make_predicate_aware_analyzer, make_seed_plan,
+        _run_iterative(
+            cfg, store, task_cls, model, llm_call,
+            base_cid=base_cid, base_ids=base_ids, bundles=bundles,
+            query_ids=query_ids, dataset_key=dataset_key,
+            num_workers=num_workers, example_pool=example_pool, seed=seed,
         )
-        from prompt_profiler.experiment.loop import run_experiment as run_loop
-        from prompt_profiler.experiment.query_cohorts import seed_predicates
-
-        # Seed predicates if empty
-        pred_count = conn.execute("SELECT COUNT(*) FROM predicate").fetchone()[0]
-        if pred_count == 0:
-            # Import task-specific extractors (registers them on import)
-            _import_predicate_extractors(task_name)
-            n_seeded = seed_predicates(store, dataset=dataset_key)
-            logger.info("Seeded %d predicate rows", n_seeded)
-        else:
-            logger.info("Predicates already seeded: %d rows", pred_count)
-
-        # Config from JSON
-        predicate_names = cfg.get("predicate_names", [
-            "operation_type", "is_count", "has_aggregation", "has_superlative",
-        ])
-        seed_n_primitives = cfg.get("seed_n_primitives", 3)
-        seed_n_queries = cfg.get("seed_n_queries", 200)
-        seed_predicate = cfg.get("seed_predicate", None)
-        max_iterations = cfg.get("max_iterations", 5)
-        iter_top_k = cfg.get("top_k", 10)
-        iter_budget = cfg.get("query_budget_per_cell", 50)
-        iter_max_new = cfg.get("max_new_queries", 500)
-
-        # Wrap rule_ids as single-func PrimitiveSpecs
-        prim_specs = [PrimitiveSpec(name=rid, func_ids=[rid]) for rid in rule_ids]
-
-        initial_plan = make_seed_plan(
-            store, base_ids, prim_specs, query_ids,
-            n_primitives=seed_n_primitives,
-            n_queries=seed_n_queries,
-            seed=seed,
-            predicate_name=seed_predicate,
-        )
-
-        analyze_fn = make_predicate_aware_analyzer(
-            base_cid=base_cid, base_ids=base_ids,
-            primitive_specs=prim_specs,
-            predicate_names=predicate_names,
-            top_k=iter_top_k,
-            query_budget_per_cell=iter_budget,
-            max_new_queries=iter_max_new,
-        )
-
-        all_insights = run_loop(
-            store, initial_plan, task_cls, model, llm_call, analyze_fn,
-            num_workers=num_workers, max_iterations=max_iterations,
-            on_conflict=OnConflict.SKIP, example_pool=example_pool,
-        )
-
-        # ── Print iterative summary ──────────────────────────────
-        scorer = task_cls.scorer
-        scores = store.scores_by_config(model, scorer)
-        base_avg = next((s["avg_score"] for s in scores if s["config_id"] == base_cid), 0.0)
-
-        print(f"\n=== Iterative Results ({len(all_insights)} iterations, base avg={base_avg:.3f}) ===")
-        for i, ins in enumerate(all_insights, 1):
-            n_q = ins.get("n_queries", 0)
-            n_p = ins.get("n_primitives", 0)
-            cov = ins.get("coverage", 0)
-            print(f"  Iter {i}: {n_q} queries, {n_p} primitives, coverage={cov:.2f}")
-            print(f"    always_on:  {ins.get('always_on', [])}")
-            print(f"    always_off: {ins.get('always_off', [])}")
-            print(f"    gated:      {ins.get('gated', [])}")
-
         llm_call.close()
         store.close()
         return
 
     # ══════════════════════════════════════════════════════════════════
-    # Single-pass experiment: generate all configs, run once
+    # Single-pass feature experiment.
     # ══════════════════════════════════════════════════════════════════
-    configs = generate(experiment_type, store, base_ids, rule_ids,
-                       max_rules=max_rules, n_samples=n_samples, seed=seed)
+    configs = generate(
+        experiment_type, store,
+        base_ids=base_ids, bundles=bundles, conflicts=conflicts,
+        n_samples=n_samples, seed=seed,
+    )
     logger.info("Generated %d configs (%s)", len(configs), experiment_type)
 
     plan = [RunEntry(config_id=base_cid, func_ids=base_ids, query_ids=query_ids)]
@@ -329,7 +317,107 @@ def main():
                        num_workers=num_workers, on_conflict=OnConflict.SKIP,
                        example_pool=example_pool, phase=phase)
 
-    # ── Results ───────────────────────────────────────────────────────
+    # ── print summary ────────────────────────────────────────────────
+    _print_results(store, task_cls, model, base_cid, configs, experiment_type, task_name)
+
+    llm_call.close()
+    store.close()
+
+
+# ── iterative branch (kept for advanced usage; converts bundles → rule_ids) ──
+
+def _run_iterative(
+    cfg: Dict[str, Any],
+    store: CubeStore,
+    task_cls: type,
+    model: str,
+    llm_call: PooledLLMCall,
+    *,
+    base_cid: int,
+    base_ids: List[str],
+    bundles: Dict[str, Tuple[str, List[str]]],
+    query_ids: List[str],
+    dataset_key: str,
+    num_workers: int,
+    example_pool: Any,
+    seed: int,
+) -> None:
+    """Iterative loop: treats each feature bundle as a single PrimitiveSpec."""
+    from prompt_profiler.experiment.analysis import (
+        PrimitiveSpec, make_predicate_aware_analyzer, make_seed_plan,
+    )
+    from prompt_profiler.experiment.loop import run_experiment as run_loop
+    from prompt_profiler.experiment.query_cohorts import seed_predicates
+
+    conn = store._get_conn()
+    pred_count = conn.execute("SELECT COUNT(*) FROM predicate").fetchone()[0]
+    if pred_count == 0:
+        _import_predicate_extractors(cfg.get("task"))
+        n_seeded = seed_predicates(store, dataset=dataset_key)
+        logger.info("Seeded %d predicate rows", n_seeded)
+    else:
+        logger.info("Predicates already seeded: %d rows", pred_count)
+
+    predicate_names = cfg.get("predicate_names", [
+        "operation_type", "is_count", "has_aggregation", "has_superlative",
+    ])
+    seed_n_primitives = cfg.get("seed_n_primitives", 3)
+    seed_n_queries = cfg.get("seed_n_queries", 200)
+    seed_predicate = cfg.get("seed_predicate")
+    max_iterations = cfg.get("max_iterations", 5)
+    iter_top_k = cfg.get("top_k", 10)
+    iter_budget = cfg.get("query_budget_per_cell", 50)
+    iter_max_new = cfg.get("max_new_queries", 500)
+
+    prim_specs = [
+        PrimitiveSpec(name=cid, func_ids=add_funcs)
+        for cid, (_fid, add_funcs) in bundles.items()
+    ]
+
+    initial_plan = make_seed_plan(
+        store, base_ids, prim_specs, query_ids,
+        n_primitives=seed_n_primitives, n_queries=seed_n_queries,
+        seed=seed, predicate_name=seed_predicate,
+    )
+    analyze_fn = make_predicate_aware_analyzer(
+        base_cid=base_cid, base_ids=base_ids,
+        primitive_specs=prim_specs,
+        predicate_names=predicate_names,
+        top_k=iter_top_k,
+        query_budget_per_cell=iter_budget,
+        max_new_queries=iter_max_new,
+    )
+    all_insights = run_loop(
+        store, initial_plan, task_cls, model, llm_call, analyze_fn,
+        num_workers=num_workers, max_iterations=max_iterations,
+        on_conflict=OnConflict.SKIP, example_pool=example_pool,
+    )
+
+    scorer = task_cls.scorer
+    scores = store.scores_by_config(model, scorer)
+    base_avg = next((s["avg_score"] for s in scores if s["config_id"] == base_cid), 0.0)
+    print(f"\n=== Iterative Results ({len(all_insights)} iterations, base avg={base_avg:.3f}) ===")
+    for i, ins in enumerate(all_insights, 1):
+        n_q = ins.get("n_queries", 0)
+        n_p = ins.get("n_primitives", 0)
+        cov = ins.get("coverage", 0)
+        print(f"  Iter {i}: {n_q} queries, {n_p} primitives, coverage={cov:.2f}")
+        print(f"    always_on:  {ins.get('always_on', [])}")
+        print(f"    always_off: {ins.get('always_off', [])}")
+        print(f"    gated:      {ins.get('gated', [])}")
+
+
+# ── results printer ─────────────────────────────────────────────────
+
+def _print_results(
+    store: CubeStore,
+    task_cls: type,
+    model: str,
+    base_cid: int,
+    configs: List[tuple],
+    experiment_type: str,
+    task_name: str,
+) -> None:
     scorer = task_cls.scorer
     scores = store.scores_by_config(model, scorer)
     base_avg = next((s["avg_score"] for s in scores if s["config_id"] == base_cid), 0.0)
@@ -337,30 +425,27 @@ def main():
     experiment_cids = {cid for cid, _, _ in configs}
     config_meta = {cid: m for cid, _, m in configs}
 
-    print(f"\n=== {experiment_type} Results (base avg={base_avg:.3f}) ===")
+    print(f"\n=== {experiment_type} Results on {task_name} (base avg={base_avg:.3f}) ===")
     results = []
     for s in scores:
         if s["config_id"] == base_cid:
-            results.append((-999, f"  BASE:           avg={s['avg_score']:.3f}  n={s['n']}"))
+            results.append((-999, f"  BASE:                    avg={s['avg_score']:.3f}  n={s['n']}"))
         elif s["config_id"] in experiment_cids:
             meta = config_meta[s["config_id"]]
             delta = s["avg_score"] - base_avg
             sign = "+" if delta >= 0 else ""
-            if "added_rule" in meta:
-                label = meta["added_rule"][:12]
-            elif "removed_rule" in meta:
-                label = f"-{meta['removed_rule'][:11]}"
-            elif "n_rules" in meta:
-                label = f"{meta['n_rules']}rules"
-            else:
-                label = f"c{s['config_id']}"
-            results.append((delta, f"  {label:14s}  avg={s['avg_score']:.3f}  delta={sign}{delta:.3f}  n={s['n']}"))
-
+            label = (
+                meta.get("canonical_id")
+                or (f"-{meta['removed_canonical_id']}" if "removed_canonical_id" in meta else None)
+                or (f"{meta['n_features']}feats" if "n_features" in meta else None)
+                or f"c{s['config_id']}"
+            )
+            results.append((
+                delta,
+                f"  {label:24s} avg={s['avg_score']:.3f}  delta={sign}{delta:.3f}  n={s['n']}",
+            ))
     for _, line in sorted(results, key=lambda x: -x[0]):
         print(line)
-
-    llm_call.close()
-    store.close()
 
 
 if __name__ == "__main__":
