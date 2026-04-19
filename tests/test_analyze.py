@@ -755,3 +755,128 @@ def test_fpt_output_schema(seeded_store):
     assert expected_cols <= set(df.columns)
     # No `did` column when metric="lift".
     assert "did" not in df.columns
+    # `_ref` is an internal helper column and must not leak.
+    assert "_ref" not in df.columns
+
+
+def test_fpt_drops_unmatched_features_by_default(seeded_store):
+    """Features declared in the registry but with no matching config
+    (n_with == 0) should not appear in the default output.
+
+    Inject a "phantom" feature into the feature table — no config in the
+    cube contains its primitive — and assert it's dropped.
+    """
+    import hashlib
+    store, ctx = seeded_store
+
+    phantom_params = {
+        "node_type": "rule", "parent_id": "__root__",
+        "payload": {"content": "phantom rule never used in any config"},
+    }
+    phantom_edits = [{"func_type": "insert_node", "params": phantom_params}]
+    def _hash(edits):
+        canon = json.dumps(
+            sorted(f"insert_node:{json.dumps(e['params'], sort_keys=True)}" for e in edits),
+            sort_keys=True,
+        )
+        return hashlib.sha256(canon.encode()).hexdigest()[:12]
+    phantom_fid = _hash(phantom_edits)
+    store.sync_features([{
+        "feature_id": phantom_fid,
+        "canonical_id": "phantom",
+        "task": "table_qa",
+        "requires_json": "[]", "conflicts_json": "[]",
+        "primitive_spec": json.dumps(phantom_edits),
+        "rationale": "never in any config",
+    }])
+
+    # Default: unmatched features dropped.
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+    )
+    assert "phantom" not in set(df["canonical_id"])
+
+    # Audit mode: include them.
+    df_all = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        include_unmatched=True,
+    )
+    assert "phantom" in set(df_all["canonical_id"])
+    phantom_rows = df_all[df_all["canonical_id"] == "phantom"]
+    # The phantom has zero matches → n_with==0 and lift is NaN.
+    assert (phantom_rows["n_with"] == 0).all()
+    assert phantom_rows["lift"].isna().all()
+
+
+def test_fpt_skips_base_features(seeded_store):
+    """Features whose primitives are entirely in base (e.g. section features
+    under add-one design) must NOT appear in the output. They have no
+    meaningful 'simple effect' (nothing to turn off) and no meaningful
+    marginal effect (they're in every config).
+
+    Setup: register a new feature ``section_like`` whose primitive_spec
+    maps to a func_id that is already present in the base config — so
+    it's a "base-like" feature by definition and should be filtered.
+    """
+    import json as _json
+    import hashlib
+    from core.func_registry import make_func_id
+
+    store, ctx = seeded_store
+
+    # Define a new primitive that we'll put into BOTH the base config and
+    # as the sole primitive of a new feature.
+    section_params = {
+        "node_type": "section", "parent_id": "__root__",
+        "payload": {"title": "test_section", "ordinal": 0,
+                    "is_system": True, "min_rules": 0, "max_rules": 10},
+    }
+    section_fid = make_func_id("insert_node", section_params)
+
+    # Register the func.
+    store.upsert_funcs(
+        [{"func_id": section_fid, "func_type": "insert_node",
+          "params": section_params, "meta": {}}],
+        on_conflict=OnConflict.SKIP,
+    )
+
+    # Rebuild base config to INCLUDE this func (was empty list).
+    with store._cursor() as cur:
+        cur.execute(
+            "UPDATE config SET func_ids = ? WHERE config_id = ?",
+            (_json.dumps(sorted([section_fid])), ctx["base_cid"]),
+        )
+
+    # Register a feature whose sole primitive is section_params — so its
+    # complete primitive set == {section_fid} ⊆ base.
+    section_edits = [{"func_type": "insert_node", "params": section_params}]
+    def _hash(edits):
+        canon = json.dumps(
+            sorted(f"insert_node:{json.dumps(e['params'], sort_keys=True)}" for e in edits),
+            sort_keys=True,
+        )
+        return hashlib.sha256(canon.encode()).hexdigest()[:12]
+    section_feature_id = _hash(section_edits)
+    store.sync_features([{
+        "feature_id": section_feature_id,
+        "canonical_id": "section_like",
+        "task": "table_qa",
+        "requires_json": "[]", "conflicts_json": "[]",
+        "primitive_spec": json.dumps(section_edits),
+        "rationale": "base-like feature for test",
+    }])
+
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+    )
+    # The new "base-like" feature must NOT appear — all its primitives
+    # live in base, so its simple effect is undefined.
+    assert "section_like" not in set(df["canonical_id"])
+    # feat_a and feat_b still appear (their funcs aren't in base).
+    assert {"feat_a", "feat_b"} <= set(df["canonical_id"])

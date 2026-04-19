@@ -526,6 +526,7 @@ def feature_predicate_table(
     base_config_id: Optional[int] = None,      # required for method="simple"
     reference_values: Optional[Dict[str, str]] = None,
     task: Optional[str] = None,                # optional feature filter
+    include_unmatched: bool = False,
 ):
     """Feature × Predicate analysis — long-format DataFrame.
 
@@ -592,6 +593,34 @@ def feature_predicate_table(
             "canonical_id", "predicate_name", "predicate_value",
             "n_with", "mean_with", "n_without", "mean_without", "lift",
         ])
+
+    # Drop "base features" — features whose primitives are entirely
+    # contained in the base config. Under add-one semantics they have
+    # no separable "with" config; under marginal semantics they're in
+    # every config. Either way the lift is undefined. For `method=simple`
+    # this needs a base_config_id; for `method=marginal` we peek at any
+    # config and derive "is this feature in every config" instead.
+    import json as _json
+    base_fids_for_filter: set = set()
+    if base_config_id is not None:
+        br = conn.execute(
+            "SELECT func_ids FROM config WHERE config_id = ?", (base_config_id,),
+        ).fetchone()
+        if br is not None:
+            base_fids_for_filter = set(_json.loads(br["func_ids"]))
+
+    # Each feature's COMPLETE primitive-id set (no base subtraction).
+    feat_full_funcs = _feature_add_funcs_from_spec(store, base_fids=set())
+
+    def _is_meaningful(canonical: str) -> bool:
+        fids = feat_full_funcs.get(canonical)
+        if not fids:
+            return False  # feature has no primitives at all — skip
+        if base_fids_for_filter and fids.issubset(base_fids_for_filter):
+            return False  # all its primitives already live in base
+        return True
+
+    all_features = [c for c in all_features if _is_meaningful(c)]
 
     # ── predicate universe ──────────────────────────────────────────
     if predicate_names is None:
@@ -687,6 +716,17 @@ def feature_predicate_table(
     if df.empty:
         return df
 
+    # ── drop unmatched rows (default) ───────────────────────────────
+    # A row with n_with == 0 OR n_without == 0 has no observations on
+    # one side of the comparison, so its lift is undefined. These are
+    # typically features that exist in the feature table but never ran
+    # on this (model, scorer) — pure noise in analysis output.
+    # Set include_unmatched=True to see them (useful for audit).
+    if not include_unmatched:
+        df = df[(df["n_with"] > 0) & (df["n_without"] > 0)].reset_index(drop=True)
+        if df.empty:
+            return df
+
     # ── attach DiD if requested ─────────────────────────────────────
     if metric == "did":
         df["did"] = float("nan")
@@ -708,7 +748,7 @@ def feature_predicate_table(
                     if pd.notna(lv):
                         df.at[idx, "did"] = lv - ref_lift
 
-    df = df.drop(columns=["_ref"])
+    df = df.drop(columns=["_ref"], errors="ignore")
     return df.sort_values(
         ["canonical_id", "predicate_name", "predicate_value"]
     ).reset_index(drop=True)
