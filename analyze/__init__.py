@@ -37,6 +37,7 @@ from analyze.compare import (
     flip_rows,
     harm_cases,
     help_cases,
+    feature_predicate_table,
 )
 
 # ── monitor ───────────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ __all__ = [
     "flip_rows",
     "harm_cases",
     "help_cases",
+    "feature_predicate_table",
     # monitor
     "ProgressMonitor",
 ]

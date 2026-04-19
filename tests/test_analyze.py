@@ -27,6 +27,7 @@ from analyze import (
     ProgressMonitor,
     add_one_deltas,
     feature_effect_ranking,
+    feature_predicate_table,
     flip_rows,
     harm_cases,
     help_cases,
@@ -548,3 +549,209 @@ def test_flip_rows_bad_direction_raises(seeded_store):
         flip_rows(store, base_config=ctx["base_cid"],
                   target_config=ctx["a_cid"],
                   model=MODEL, scorer=SCORER, direction="sideways")
+
+
+# ══════════════════════════════════════════════════════════════════════
+# feature_predicate_table
+# ══════════════════════════════════════════════════════════════════════
+#
+# Fixture recap (has_agg predicate):
+#   q1=true  q2=true  q3=false q4=false
+#
+# Per-config × slice mean scores:
+#                     has_agg=true    has_agg=false
+#   base_cid            0.0             1.0
+#   a_cid (feat_a)      1.0             1.0
+#   b_cid (feat_b)      0.0             0.0
+
+
+def test_fpt_simple_lift(seeded_store):
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store,
+        model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+    )
+    # Rows: 2 features × 2 predicate values = 4 (for has_agg).
+    idx = {(r["canonical_id"], r["predicate_value"]): r
+           for _, r in df.iterrows()}
+
+    # feat_a at has_agg=true:  lift = 1.0 - 0.0 = 1.0
+    # feat_a at has_agg=false: lift = 1.0 - 1.0 = 0.0
+    assert idx[("feat_a", "true")]["lift"] == pytest.approx(1.0)
+    assert idx[("feat_a", "false")]["lift"] == pytest.approx(0.0)
+
+    # feat_b at has_agg=true:  lift = 0.0 - 0.0 =  0.0
+    # feat_b at has_agg=false: lift = 0.0 - 1.0 = -1.0
+    assert idx[("feat_b", "true")]["lift"] == pytest.approx(0.0)
+    assert idx[("feat_b", "false")]["lift"] == pytest.approx(-1.0)
+
+
+def test_fpt_simple_did_binary_auto_reference(seeded_store):
+    """For a binary predicate, DiD's reference defaults to alphabetically
+    first value ('false'), so did = lift[value] - lift[false]."""
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store,
+        model=MODEL, scorer=SCORER,
+        method="simple", metric="did",
+        base_config_id=ctx["base_cid"],
+    )
+    idx = {(r["canonical_id"], r["predicate_value"]): r
+           for _, r in df.iterrows()}
+
+    # Reference is "false"; did at ref is 0.0 by convention.
+    assert idx[("feat_a", "false")]["did"] == pytest.approx(0.0)
+    assert idx[("feat_b", "false")]["did"] == pytest.approx(0.0)
+    # did_true = lift_true - lift_false
+    assert idx[("feat_a", "true")]["did"] == pytest.approx(1.0 - 0.0)
+    assert idx[("feat_b", "true")]["did"] == pytest.approx(0.0 - (-1.0))
+
+
+def test_fpt_marginal_lift_per_config_pooling(seeded_store):
+    """Marginal pooling = average per-config means.
+
+    configs_containing(feat_a): {a_cid}
+    configs_NOT_containing(feat_a): {base_cid, b_cid}
+
+    has_agg=true:
+      with:    mean_over_configs({a_cid→1.0}) = 1.0
+      without: mean_over_configs({base→0.0, b_cid→0.0}) = 0.0
+      lift = 1.0
+
+    has_agg=false:
+      with:    mean_over_configs({a_cid→1.0}) = 1.0
+      without: mean_over_configs({base→1.0, b_cid→0.0}) = 0.5
+      lift = 0.5
+    """
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store,
+        model=MODEL, scorer=SCORER,
+        method="marginal", metric="lift",
+    )
+    idx = {(r["canonical_id"], r["predicate_value"]): r
+           for _, r in df.iterrows()}
+
+    assert idx[("feat_a", "true")]["lift"] == pytest.approx(1.0)
+    assert idx[("feat_a", "false")]["lift"] == pytest.approx(0.5)
+    # feat_b: with={b_cid→0.0}, without={base→..., a→...}
+    # has_agg=true:  without_mean = mean(0.0, 1.0) = 0.5  → lift = 0.0 - 0.5 = -0.5
+    # has_agg=false: without_mean = mean(1.0, 1.0) = 1.0  → lift = 0.0 - 1.0 = -1.0
+    assert idx[("feat_b", "true")]["lift"] == pytest.approx(-0.5)
+    assert idx[("feat_b", "false")]["lift"] == pytest.approx(-1.0)
+
+
+def test_fpt_marginal_did(seeded_store):
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store,
+        model=MODEL, scorer=SCORER,
+        method="marginal", metric="did",
+    )
+    idx = {(r["canonical_id"], r["predicate_value"]): r
+           for _, r in df.iterrows()}
+    # DiD for feat_a: lift_true (1.0) - lift_false (0.5) = 0.5 at value=true.
+    assert idx[("feat_a", "true")]["did"] == pytest.approx(0.5)
+    assert idx[("feat_b", "true")]["did"] == pytest.approx(-0.5 - (-1.0))
+
+
+def test_fpt_simple_requires_base_config(seeded_store):
+    store, _ = seeded_store
+    with pytest.raises(ValueError, match="base_config_id"):
+        feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="lift",
+        )
+
+
+def test_fpt_bad_method_raises(seeded_store):
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="method"):
+        feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="fancy", metric="lift",
+            base_config_id=ctx["base_cid"],
+        )
+
+
+def test_fpt_predicate_names_filter(seeded_store):
+    store, ctx = seeded_store
+    # Only one predicate seeded — filter to an empty list means empty output.
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        predicate_names=[],
+    )
+    assert df.empty
+
+    # Filter to the present predicate — non-empty.
+    df2 = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        predicate_names=["has_agg"],
+    )
+    assert not df2.empty
+    assert set(df2["predicate_name"].unique()) == {"has_agg"}
+
+
+def test_fpt_multi_value_predicate_did_needs_reference(seeded_store):
+    """Add a multi-value predicate (3 values); without reference_values
+    the ``did`` column is all NaN. With it supplied, DiD computed.
+    """
+    import pandas as pd
+    store, ctx = seeded_store
+
+    # Seed a 3-value predicate.
+    with store._cursor() as cur:
+        for qid, val in [("q1", "easy"), ("q2", "med"),
+                         ("q3", "hard"), ("q4", "hard")]:
+            cur.execute(
+                "INSERT OR IGNORE INTO predicate (query_id, name, value) VALUES (?, ?, ?)",
+                (qid, "difficulty", val),
+            )
+
+    # Without reference_values: `did` column exists but all NaN for difficulty.
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="did",
+        base_config_id=ctx["base_cid"],
+        predicate_names=["difficulty"],
+    )
+    assert "did" in df.columns
+    assert df["did"].isna().all()
+
+    # With reference_values={"difficulty": "easy"}: did populated relative
+    # to the "easy" slice.
+    df2 = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="did",
+        base_config_id=ctx["base_cid"],
+        predicate_names=["difficulty"],
+        reference_values={"difficulty": "easy"},
+    )
+    # At the reference value, did = 0.0 by convention.
+    easy_rows = df2[df2["predicate_value"] == "easy"]
+    assert (easy_rows["did"] == 0.0).all()
+    # Non-reference rows have a non-NaN did (or NaN where lift itself is NaN).
+    non_easy = df2[df2["predicate_value"] != "easy"]
+    assert not non_easy.empty
+
+
+def test_fpt_output_schema(seeded_store):
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+    )
+    expected_cols = {
+        "canonical_id", "predicate_name", "predicate_value",
+        "n_with", "mean_with", "n_without", "mean_without", "lift",
+    }
+    assert expected_cols <= set(df.columns)
+    # No `did` column when metric="lift".
+    assert "did" not in df.columns

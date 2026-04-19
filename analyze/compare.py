@@ -343,3 +343,372 @@ def help_cases(store: CubeStore, **kwargs) -> List[Dict[str, Any]]:
     model, scorer.
     """
     return flip_rows(store, direction="up", **kwargs)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Feature × Predicate analysis (round 5)
+# ══════════════════════════════════════════════════════════════════════
+#
+# DESIGN CHOICES (per round 5 prompt):
+#
+#   * method="simple" — identify the "feature's config" by func_ids delta,
+#     NOT by config.meta lookup. Tolerant to cubes that don't carry
+#     add_one_feature meta. A feature f matches config c when
+#     (set(c.func_ids) − base_ids) equals the set of func_ids produced by
+#     materializing f.primitive_spec alone.
+#
+#   * method="marginal" — per-config pooling: for each config we compute
+#     the mean score on each predicate slice first, then average across
+#     the set of configs containing (or not containing) the feature.
+#     This is robust to imbalanced per-config run sizes.
+#
+#   * metric="did" — reference value defaults to the alphabetically-first
+#     predicate value when the predicate is binary. For multi-value
+#     predicates, reference_values[predicate_name] must be supplied; if
+#     omitted, DiD is undefined and the ``did`` column is NaN.
+#
+#   * Scope of predicates: list_predicates(store) used when
+#     predicate_names=None; the user can restrict to a subset.
+#
+#   * Unobserved features: features declared in the `feature` table but
+#     never matching any config in the cube appear in the output with NaN
+#     metrics.
+#
+#   * Output shape: long-format DataFrame, one row per
+#     (canonical_id, predicate_name, predicate_value). Caller pivots for
+#     wide-format as needed.
+
+def _canonicalize_edit(edit: dict) -> str:
+    """Same canonicalization as feature_registry._canonical_edit."""
+    from core.feature_registry import _canonical_edit
+    return _canonical_edit(edit)
+
+
+def _feature_add_funcs_from_spec(store: CubeStore,
+                                 base_fids: set) -> Dict[str, set]:
+    """For every feature in the cube, compute the set of func_ids it would
+    contribute AFTER de-duping against base_fids.
+
+    Uses content-addressed make_func_id to translate primitive_edits →
+    func_ids, identical to what the runner does at materialize time.
+    """
+    import json as _json
+    from core.func_registry import make_func_id
+
+    out: Dict[str, set] = {}
+    rows = store._get_conn().execute(
+        "SELECT canonical_id, primitive_spec FROM feature"
+    ).fetchall()
+    for r in rows:
+        try:
+            edits = _json.loads(r["primitive_spec"])
+        except _json.JSONDecodeError:
+            continue
+        fids = {make_func_id(e["func_type"], e.get("params", {})) for e in edits}
+        add_funcs = fids - base_fids
+        out[r["canonical_id"]] = add_funcs
+    return out
+
+
+def _simple_effect_configs(store: CubeStore,
+                           base_config_id: int) -> Dict[str, int]:
+    """canonical_id → config_id map for configs that match "base + exactly
+    one feature's primitives."
+
+    Identified by func_ids delta (choice 1b): find a config c whose
+    set(func_ids) − base equals the feature's own add_funcs.
+    """
+    import json as _json
+
+    conn = store._get_conn()
+    base_row = conn.execute(
+        "SELECT func_ids FROM config WHERE config_id = ?", (base_config_id,),
+    ).fetchone()
+    if base_row is None:
+        raise ValueError(f"base_config_id {base_config_id} not found")
+    base_fids = set(_json.loads(base_row["func_ids"]))
+
+    feat_add = _feature_add_funcs_from_spec(store, base_fids)
+    # Drop features whose add_funcs is empty (pure section features etc.)
+    feat_add = {cid: f for cid, f in feat_add.items() if f}
+
+    out: Dict[str, int] = {}
+    rows = conn.execute(
+        "SELECT config_id, func_ids FROM config WHERE config_id != ?",
+        (base_config_id,),
+    ).fetchall()
+    for r in rows:
+        cid = r["config_id"]
+        c_fids = set(_json.loads(r["func_ids"]))
+        delta = c_fids - base_fids
+        for canonical, expected in feat_add.items():
+            if delta == expected:
+                out[canonical] = cid
+                break
+    return out
+
+
+def _configs_containing_feature(store: CubeStore) -> Dict[str, set]:
+    """canonical_id → set of config_ids whose func_ids is a superset of
+    the feature's add_funcs. Used for the marginal method.
+    """
+    import json as _json
+
+    conn = store._get_conn()
+    # Build full func-set per config.
+    cfg_fids: Dict[int, set] = {}
+    for r in conn.execute("SELECT config_id, func_ids FROM config").fetchall():
+        cfg_fids[r["config_id"]] = set(_json.loads(r["func_ids"]))
+
+    # For each feature, the primitives it produces.
+    from core.func_registry import make_func_id
+    feat_fids: Dict[str, set] = {}
+    for r in conn.execute(
+        "SELECT canonical_id, primitive_spec FROM feature"
+    ).fetchall():
+        try:
+            edits = _json.loads(r["primitive_spec"])
+        except _json.JSONDecodeError:
+            continue
+        feat_fids[r["canonical_id"]] = {
+            make_func_id(e["func_type"], e.get("params", {})) for e in edits
+        }
+
+    # containment map
+    out: Dict[str, set] = {}
+    for canonical, fids in feat_fids.items():
+        if not fids:
+            out[canonical] = set()
+            continue
+        out[canonical] = {cid for cid, cfids in cfg_fids.items() if fids.issubset(cfids)}
+    return out
+
+
+def _per_config_predicate_means(
+    store: CubeStore, *, model: str, scorer: str, predicate_name: str,
+) -> "pd.DataFrame":
+    """(config_id, predicate_value) → mean score. Used by both methods."""
+    import pandas as pd
+    sql = """
+        SELECT e.config_id      AS config_id,
+               p.value           AS predicate_value,
+               AVG(ev.score)     AS mean_score,
+               COUNT(*)          AS n
+        FROM execution e
+        JOIN evaluation ev ON ev.execution_id = e.execution_id
+        JOIN predicate  p  ON p.query_id = e.query_id
+        WHERE e.model = ? AND ev.scorer = ? AND p.name = ?
+          AND (e.error IS NULL OR e.error = '')
+        GROUP BY e.config_id, p.value
+    """
+    return pd.read_sql_query(sql, store._get_conn(),
+                             params=(model, scorer, predicate_name))
+
+
+def _default_reference_value(predicate_values: List[str]) -> Optional[str]:
+    """For binary predicates, return the alphabetically-first value.
+    For multi-value, return None (caller must supply).
+    """
+    uniq = sorted(set(predicate_values))
+    if len(uniq) == 2:
+        return uniq[0]
+    return None
+
+
+def feature_predicate_table(
+    store: CubeStore,
+    *,
+    model: str,
+    scorer: str,
+    method: str = "simple",                    # "simple" | "marginal"
+    metric: str = "lift",                      # "lift" | "did"
+    predicate_names: Optional[List[str]] = None,
+    base_config_id: Optional[int] = None,      # required for method="simple"
+    reference_values: Optional[Dict[str, str]] = None,
+    task: Optional[str] = None,                # optional feature filter
+):
+    """Feature × Predicate analysis — long-format DataFrame.
+
+    For every (feature, predicate, predicate_value) triple in scope,
+    reports the mean score + chosen effect metric (lift or DiD).
+
+    Args:
+        method:
+            "simple"   — effect = score(feature-only config, slice)
+                         − score(base config, slice).
+                         Identifies the feature's config via func_ids delta
+                         against ``base_config_id`` (required).
+            "marginal" — effect = mean over configs-containing-feature
+                         − mean over configs-not-containing-feature,
+                         per predicate slice, per-config pooling.
+        metric:
+            "lift" — column ``lift`` (score_with − score_without)
+            "did"  — column ``did`` = lift_value − lift_reference
+                     (for each non-reference predicate_value). Reference
+                     is auto-detected for binary predicates; otherwise
+                     must be supplied via ``reference_values``.
+        predicate_names: restrict to these names. None → all predicates
+                         present in the cube.
+        base_config_id: required when method="simple".
+        reference_values: {predicate_name: reference_value} overrides for
+                          non-binary predicates under metric="did".
+        task: optional filter on feature.task (only relevant when
+              multiple tasks share the cube).
+
+    Returns:
+        pandas.DataFrame with columns:
+            canonical_id, predicate_name, predicate_value,
+            n_with, mean_with, n_without, mean_without, lift,
+            (and ``did`` when metric="did")
+        Features present in the `feature` table but never observed in any
+        matching config appear as rows with NaN metrics.
+    """
+    try:
+        import pandas as pd
+    except ImportError as e:
+        raise ImportError("pandas required for feature_predicate_table") from e
+
+    if method not in ("simple", "marginal"):
+        raise ValueError(f"method must be 'simple' | 'marginal'; got {method!r}")
+    if metric not in ("lift", "did"):
+        raise ValueError(f"metric must be 'lift' | 'did'; got {metric!r}")
+    if method == "simple" and base_config_id is None:
+        raise ValueError("method='simple' requires base_config_id")
+
+    reference_values = reference_values or {}
+
+    # ── feature universe ─────────────────────────────────────────────
+    conn = store._get_conn()
+    feat_sql = "SELECT canonical_id, feature_id, task FROM feature"
+    params: List[Any] = []
+    if task is not None:
+        feat_sql += " WHERE task = ?"
+        params.append(task)
+    feat_sql += " ORDER BY canonical_id"
+    feature_rows = conn.execute(feat_sql, tuple(params)).fetchall()
+    all_features = [r["canonical_id"] for r in feature_rows]
+    if not all_features:
+        return pd.DataFrame(columns=[
+            "canonical_id", "predicate_name", "predicate_value",
+            "n_with", "mean_with", "n_without", "mean_without", "lift",
+        ])
+
+    # ── predicate universe ──────────────────────────────────────────
+    if predicate_names is None:
+        rows = conn.execute(
+            "SELECT DISTINCT name FROM predicate ORDER BY name"
+        ).fetchall()
+        predicate_names = [r["name"] for r in rows]
+    if not predicate_names:
+        return pd.DataFrame(columns=[
+            "canonical_id", "predicate_name", "predicate_value",
+            "n_with", "mean_with", "n_without", "mean_without", "lift",
+        ])
+
+    # ── precompute per-config × predicate_value means ───────────────
+    records: List[Dict[str, Any]] = []
+    all_configs: List[int] = [
+        r["config_id"] for r in conn.execute("SELECT config_id FROM config").fetchall()
+    ]
+
+    if method == "simple":
+        simple_map = _simple_effect_configs(store, base_config_id)
+    else:
+        contain_map = _configs_containing_feature(store)
+
+    for pname in predicate_names:
+        pc = _per_config_predicate_means(
+            store, model=model, scorer=scorer, predicate_name=pname,
+        )
+        # pc columns: config_id, predicate_value, mean_score, n
+        predicate_values = sorted(pc["predicate_value"].unique().tolist()) \
+            if not pc.empty else []
+        # Resolve reference value for DiD.
+        ref_value = reference_values.get(pname) or _default_reference_value(predicate_values)
+
+        # Pivot (config_id, predicate_value) → score.
+        pivot_score = pc.pivot(index="config_id", columns="predicate_value",
+                               values="mean_score") if not pc.empty else \
+                      pd.DataFrame(index=pd.Index([], name="config_id"))
+        pivot_n = pc.pivot(index="config_id", columns="predicate_value",
+                           values="n") if not pc.empty else \
+                  pd.DataFrame(index=pd.Index([], name="config_id"))
+
+        for canonical in all_features:
+            for pv in predicate_values:
+                if method == "simple":
+                    target_cfg = simple_map.get(canonical)
+                    s_with = (pivot_score.loc[target_cfg, pv]
+                              if target_cfg is not None and target_cfg in pivot_score.index
+                                 and pv in pivot_score.columns
+                              else float("nan"))
+                    n_with = (int(pivot_n.loc[target_cfg, pv])
+                              if target_cfg is not None and target_cfg in pivot_n.index
+                                 and pv in pivot_n.columns and pd.notna(pivot_n.loc[target_cfg, pv])
+                              else 0)
+                    s_without = (pivot_score.loc[base_config_id, pv]
+                                 if base_config_id in pivot_score.index
+                                    and pv in pivot_score.columns
+                                 else float("nan"))
+                    n_without = (int(pivot_n.loc[base_config_id, pv])
+                                 if base_config_id in pivot_n.index
+                                    and pv in pivot_n.columns
+                                    and pd.notna(pivot_n.loc[base_config_id, pv])
+                                 else 0)
+                else:  # marginal
+                    with_cfgs    = contain_map.get(canonical, set())
+                    without_cfgs = set(all_configs) - with_cfgs
+                    with_vals = pivot_score.reindex(list(with_cfgs)).get(pv, pd.Series(dtype=float)) \
+                        if pv in pivot_score.columns else pd.Series(dtype=float)
+                    without_vals = pivot_score.reindex(list(without_cfgs)).get(pv, pd.Series(dtype=float)) \
+                        if pv in pivot_score.columns else pd.Series(dtype=float)
+                    with_vals = with_vals.dropna()
+                    without_vals = without_vals.dropna()
+                    s_with = with_vals.mean() if len(with_vals) else float("nan")
+                    s_without = without_vals.mean() if len(without_vals) else float("nan")
+                    n_with = len(with_vals)
+                    n_without = len(without_vals)
+
+                lift = (s_with - s_without) if pd.notna(s_with) and pd.notna(s_without) \
+                    else float("nan")
+                records.append({
+                    "canonical_id":     canonical,
+                    "predicate_name":   pname,
+                    "predicate_value":  pv,
+                    "n_with":           n_with,
+                    "mean_with":        s_with,
+                    "n_without":        n_without,
+                    "mean_without":     s_without,
+                    "lift":             lift,
+                    "_ref":             ref_value,
+                })
+
+    df = pd.DataFrame(records)
+    if df.empty:
+        return df
+
+    # ── attach DiD if requested ─────────────────────────────────────
+    if metric == "did":
+        df["did"] = float("nan")
+        # Compute per (canonical_id, predicate_name) — lift at ref vs at value.
+        for (canon, pname), group in df.groupby(["canonical_id", "predicate_name"]):
+            ref = group["_ref"].iloc[0]
+            if ref is None:
+                continue  # multi-value w/o explicit reference → leave NaN
+            ref_lift_series = group.loc[group["predicate_value"] == ref, "lift"]
+            if ref_lift_series.empty or pd.isna(ref_lift_series.iloc[0]):
+                continue
+            ref_lift = ref_lift_series.iloc[0]
+            for idx in group.index:
+                pv = df.at[idx, "predicate_value"]
+                if pv == ref:
+                    df.at[idx, "did"] = 0.0
+                else:
+                    lv = df.at[idx, "lift"]
+                    if pd.notna(lv):
+                        df.at[idx, "did"] = lv - ref_lift
+
+    df = df.drop(columns=["_ref"])
+    return df.sort_values(
+        ["canonical_id", "predicate_name", "predicate_value"]
+    ).reset_index(drop=True)

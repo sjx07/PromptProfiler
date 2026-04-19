@@ -13,15 +13,36 @@ class TaskEntry:
 
 
 # ── Seeders ──────────────────────────────────────────────────────────
+# Each seeder inserts queries AND seeds predicates (via registered
+# extractors). Predicate seeding is idempotent — calls on an already-
+# seeded cube insert zero new rows. This removes the manual
+# `seed_predicates` step that previously had to run before any predicate-
+# aware analysis.
+
+
+def _seed_predicates(store: Any, dataset: str) -> None:
+    """Run all registered predicate extractors for a dataset (idempotent)."""
+    from experiment.query_cohorts import seed_predicates
+    n = seed_predicates(store, dataset=dataset)
+    if n:
+        import logging
+        logging.getLogger(__name__).info(
+            "Seeded %d predicate rows for dataset=%s", n, dataset,
+        )
+
 
 def _seed_table_qa(store: Any, cfg: Dict[str, Any], split: str) -> None:
     from tasks.wtq.loaders import seed_queries_wtq
+    import tasks.wtq.predicates  # noqa: F401 — registers extractors on import
     seed_queries_wtq(store, split)
+    _seed_predicates(store, dataset="wtq")
 
 
 def _seed_tabfact(store: Any, cfg: Dict[str, Any], split: str) -> None:
     from tasks.tabfact.loaders import seed_queries_tabfact
+    import tasks.tabfact.predicates  # noqa: F401 — registers extractors on import
     seed_queries_tabfact(store, split)
+    _seed_predicates(store, dataset="tab_fact")
 
 
 def _seed_sql_generation(store: Any, cfg: Dict[str, Any], split: str) -> None:
@@ -32,6 +53,13 @@ def _seed_sql_generation(store: Any, cfg: Dict[str, Any], split: str) -> None:
         seed_queries_bird(store, data_dir, split)
     elif dataset == "spider":
         seed_queries_spider(store, data_dir, split)
+    # nl2sql predicates are DB-introspection based; if a predicates module
+    # exists, importing it registers extractors. Skip gracefully otherwise.
+    try:
+        import tasks.nl2sql.predicates  # noqa: F401
+        _seed_predicates(store, dataset=dataset)
+    except ImportError:
+        pass
 
 
 def _seed_sql_repair(store: Any, cfg: Dict[str, Any], split: str) -> None:
