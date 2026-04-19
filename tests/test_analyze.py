@@ -1135,3 +1135,58 @@ def test_fpt_marginal_confidence_returns_nan_on_small_n(seeded_store):
     assert df["p_gt_zero"].isna().all()
     assert df["ci_lo"].isna().all()
     assert df["ci_hi"].isna().all()
+
+
+# ── R6.5: progress + workers smoke tests ─────────────────────────────
+
+def test_fpt_progress_flag_runs_without_tqdm_crash(seeded_store):
+    """progress=True must not crash — tqdm is a soft dep. Output must
+    be identical to progress=False."""
+    store, ctx = seeded_store
+    df_noprog = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        confidence=True, n_bootstrap=200,
+        progress=False,
+    )
+    df_prog = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        confidence=True, n_bootstrap=200,
+        progress=True,
+    )
+    # Same shape, same numbers.
+    import pandas as pd
+    pd.testing.assert_frame_equal(
+        df_noprog.reset_index(drop=True),
+        df_prog.reset_index(drop=True),
+        check_like=True,
+    )
+
+
+def test_fpt_workers_gt_1_matches_serial(seeded_store):
+    """workers=2 should produce the same numbers as workers=1 for the
+    same seed."""
+    store, ctx = seeded_store
+    df_serial = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        confidence=True, n_bootstrap=200,
+        random_seed=42, workers=1,
+    )
+    df_parallel = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        confidence=True, n_bootstrap=200,
+        random_seed=42, workers=2,
+    )
+    import pandas as pd
+    pd.testing.assert_frame_equal(
+        df_serial.reset_index(drop=True),
+        df_parallel.reset_index(drop=True),
+        check_like=True,
+    )
