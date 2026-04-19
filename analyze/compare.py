@@ -505,6 +505,102 @@ def _per_config_predicate_means(
                              params=(model, scorer, predicate_name))
 
 
+def _per_query_scores(
+    store: CubeStore, *,
+    config_id: int, model: str, scorer: str, predicate_name: str,
+) -> Dict[str, Dict[str, float]]:
+    """{predicate_value: {query_id: score}} for one config × predicate.
+
+    Used to fetch the per-query data needed for paired bootstrap.
+    Errored executions are dropped (error IS NULL / '').
+    """
+    sql = """
+        SELECT e.query_id        AS query_id,
+               p.value           AS predicate_value,
+               ev.score          AS score
+        FROM execution e
+        JOIN evaluation ev ON ev.execution_id = e.execution_id
+        JOIN predicate  p  ON p.query_id = e.query_id
+        WHERE e.config_id = ? AND e.model = ? AND ev.scorer = ?
+          AND p.name = ?
+          AND (e.error IS NULL OR e.error = '')
+          AND ev.score IS NOT NULL
+    """
+    out: Dict[str, Dict[str, float]] = {}
+    for r in store._get_conn().execute(
+        sql, (config_id, model, scorer, predicate_name),
+    ).fetchall():
+        pv = r["predicate_value"]
+        out.setdefault(pv, {})[r["query_id"]] = float(r["score"])
+    return out
+
+
+# ── bootstrap engines for confidence columns ─────────────────────────
+
+def _paired_bootstrap(
+    with_scores: Dict[str, float],
+    without_scores: Dict[str, float],
+    *, n_boot: int, seed: int,
+):
+    """Paired bootstrap over shared query_ids.
+
+    Returns (ci_lo, ci_hi, p_gt_zero) at the 95% level, or (NaN,NaN,NaN)
+    if fewer than 2 shared queries exist.
+
+    The pairing unit is query_id: we resample PAIRS (not independently from
+    each side), so between-query variance is removed. Appropriate under
+    method="simple" where the same queries appear with and without the
+    feature.
+    """
+    try:
+        import numpy as np
+    except ImportError:  # pragma: no cover
+        return (float("nan"), float("nan"), float("nan"))
+
+    shared = sorted(set(with_scores) & set(without_scores))
+    if len(shared) < 2:
+        return (float("nan"), float("nan"), float("nan"))
+
+    w = np.array([with_scores[q] for q in shared], dtype=float)
+    o = np.array([without_scores[q] for q in shared], dtype=float)
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(shared), size=(n_boot, len(shared)))
+    # Vectorized: average along axis=1 after fancy-indexing.
+    diffs = w[idx].mean(axis=1) - o[idx].mean(axis=1)
+    ci_lo, ci_hi = np.percentile(diffs, [2.5, 97.5])
+    p_gt = float((diffs > 0).mean())
+    return (float(ci_lo), float(ci_hi), p_gt)
+
+
+def _unpaired_bootstrap(
+    with_vals: List[float],
+    without_vals: List[float],
+    *, n_boot: int, seed: int,
+):
+    """Unpaired bootstrap. Each side resampled independently.
+
+    Returns (ci_lo, ci_hi, p_gt_zero), or (NaN,NaN,NaN) if either side
+    has < 2 observations.
+    """
+    try:
+        import numpy as np
+    except ImportError:  # pragma: no cover
+        return (float("nan"), float("nan"), float("nan"))
+
+    w = np.asarray(with_vals, dtype=float)
+    o = np.asarray(without_vals, dtype=float)
+    if len(w) < 2 or len(o) < 2:
+        return (float("nan"), float("nan"), float("nan"))
+
+    rng = np.random.default_rng(seed)
+    iw = rng.integers(0, len(w), size=(n_boot, len(w)))
+    io_ = rng.integers(0, len(o), size=(n_boot, len(o)))
+    diffs = w[iw].mean(axis=1) - o[io_].mean(axis=1)
+    ci_lo, ci_hi = np.percentile(diffs, [2.5, 97.5])
+    p_gt = float((diffs > 0).mean())
+    return (float(ci_lo), float(ci_hi), p_gt)
+
+
 def _default_reference_value(predicate_values: List[str]) -> Optional[str]:
     """For binary predicates, return the alphabetically-first value.
     For multi-value, return None (caller must supply).
@@ -527,11 +623,21 @@ def feature_predicate_table(
     reference_values: Optional[Dict[str, str]] = None,
     task: Optional[str] = None,                # optional feature filter
     include_unmatched: bool = False,
+    # ── round-6 confidence / ranking / report ────────────────────────
+    confidence: bool = False,
+    n_bootstrap: int = 1000,
+    random_seed: int = 42,
+    sort_by: Optional[str] = None,             # "lift" | "did" | "effect_lb" | "p_gt_zero"
+    top_k: Optional[int] = None,
+    confidence_min: Optional[float] = None,    # threshold on p_gt_zero
+    report: Optional[str] = None,              # "markdown" | "text" | "both"
 ):
     """Feature × Predicate analysis — long-format DataFrame.
 
     For every (feature, predicate, predicate_value) triple in scope,
-    reports the mean score + chosen effect metric (lift or DiD).
+    reports the mean score + chosen effect metric (lift or DiD), and
+    optionally confidence columns from a bootstrap resample of the
+    underlying per-query (or per-config) scores.
 
     Args:
         method:
@@ -555,14 +661,39 @@ def feature_predicate_table(
                           non-binary predicates under metric="did".
         task: optional filter on feature.task (only relevant when
               multiple tasks share the cube).
+        confidence: if True, attach three columns — ``ci_lo``, ``ci_hi``
+                    (95% bootstrap CI of lift), ``p_gt_zero`` (fraction of
+                    bootstrap resamples where lift > 0), and ``effect_lb``
+                    (alias for ``ci_lo``). Uses PAIRED bootstrap over
+                    shared query_ids under ``method="simple"``, UNPAIRED
+                    bootstrap over per-config means under
+                    ``method="marginal"``. Rows with insufficient data
+                    (< 2 paired queries / < 2 configs per side) get NaN.
+        n_bootstrap: resample count. Default 1000.
+        random_seed: RNG seed. Default 42.
+        sort_by: one of {"lift","did","effect_lb","p_gt_zero"}. When set,
+                 rows are sorted by this column descending. Default sort
+                 (None) is alphabetical by (canonical_id, predicate_name,
+                 predicate_value). "effect_lb" / "p_gt_zero" require
+                 ``confidence=True``.
+        top_k: if set, keep only the top K rows after ``sort_by``.
+        confidence_min: if set, drop rows with ``p_gt_zero`` < threshold
+                        (or NaN). Requires ``confidence=True``.
+        report: if set, also return a freestyle summary. One of
+                "markdown", "text", or "both". Return value becomes
+                ``(df, report_str)`` — or ``(df, {"markdown": ..., "text": ...})``
+                when ``report="both"``.
 
     Returns:
-        pandas.DataFrame with columns:
+        pandas.DataFrame (or ``(df, report)`` when ``report`` is set)
+        with columns:
             canonical_id, predicate_name, predicate_value,
             n_with, mean_with, n_without, mean_without, lift,
-            (and ``did`` when metric="did")
+            [did]             — when metric="did"
+            [ci_lo, ci_hi, p_gt_zero, effect_lb]  — when confidence=True
         Features present in the `feature` table but never observed in any
-        matching config appear as rows with NaN metrics.
+        matching config are dropped by default; set
+        ``include_unmatched=True`` for audit.
     """
     try:
         import pandas as pd
@@ -645,6 +776,23 @@ def feature_predicate_table(
     else:
         contain_map = _configs_containing_feature(store)
 
+    # Sidecar: (canonical_id, predicate_name, predicate_value) → bootstrap
+    # payload.  "paired"   → (with_scores:dict, without_scores:dict)
+    #          "unpaired" → (with_vals:list, without_vals:list)
+    boot_data: Dict[tuple, tuple] = {}
+
+    # Preload per-query scores per config if we'll need paired bootstrap.
+    # Keyed by (config_id, predicate_name) → {pv: {qid: score}}.
+    per_query_cache: Dict[tuple, Dict[str, Dict[str, float]]] = {}
+    if confidence and method == "simple":
+        needed = set(simple_map.values()) | {base_config_id}
+        for cfg in needed:
+            for pname in predicate_names:
+                per_query_cache[(cfg, pname)] = _per_query_scores(
+                    store, config_id=cfg, model=model,
+                    scorer=scorer, predicate_name=pname,
+                )
+
     for pname in predicate_names:
         pc = _per_config_predicate_means(
             store, model=model, scorer=scorer, predicate_name=pname,
@@ -684,6 +832,10 @@ def feature_predicate_table(
                                     and pv in pivot_n.columns
                                     and pd.notna(pivot_n.loc[base_config_id, pv])
                                  else 0)
+                    if confidence and target_cfg is not None:
+                        w = per_query_cache.get((target_cfg, pname), {}).get(pv, {})
+                        o = per_query_cache.get((base_config_id, pname), {}).get(pv, {})
+                        boot_data[(canonical, pname, pv)] = ("paired", w, o)
                 else:  # marginal
                     with_cfgs    = contain_map.get(canonical, set())
                     without_cfgs = set(all_configs) - with_cfgs
@@ -697,6 +849,12 @@ def feature_predicate_table(
                     s_without = without_vals.mean() if len(without_vals) else float("nan")
                     n_with = len(with_vals)
                     n_without = len(without_vals)
+                    if confidence:
+                        boot_data[(canonical, pname, pv)] = (
+                            "unpaired",
+                            with_vals.tolist(),
+                            without_vals.tolist(),
+                        )
 
                 lift = (s_with - s_without) if pd.notna(s_with) and pd.notna(s_without) \
                     else float("nan")
@@ -714,7 +872,7 @@ def feature_predicate_table(
 
     df = pd.DataFrame(records)
     if df.empty:
-        return df
+        return (df, "") if report else df
 
     # ── drop unmatched rows (default) ───────────────────────────────
     # A row with n_with == 0 OR n_without == 0 has no observations on
@@ -725,7 +883,7 @@ def feature_predicate_table(
     if not include_unmatched:
         df = df[(df["n_with"] > 0) & (df["n_without"] > 0)].reset_index(drop=True)
         if df.empty:
-            return df
+            return (df, "") if report else df
 
     # ── attach DiD if requested ─────────────────────────────────────
     if metric == "did":
@@ -749,6 +907,333 @@ def feature_predicate_table(
                         df.at[idx, "did"] = lv - ref_lift
 
     df = df.drop(columns=["_ref"], errors="ignore")
-    return df.sort_values(
-        ["canonical_id", "predicate_name", "predicate_value"]
-    ).reset_index(drop=True)
+
+    # ── confidence columns (optional) ───────────────────────────────
+    if confidence:
+        ci_lo_col, ci_hi_col, p_col = [], [], []
+        for _, row in df.iterrows():
+            key = (row["canonical_id"], row["predicate_name"], row["predicate_value"])
+            payload = boot_data.get(key)
+            if payload is None:
+                ci_lo_col.append(float("nan"))
+                ci_hi_col.append(float("nan"))
+                p_col.append(float("nan"))
+                continue
+            kind = payload[0]
+            if kind == "paired":
+                _, w, o = payload
+                lo, hi, p = _paired_bootstrap(
+                    w, o, n_boot=n_bootstrap, seed=random_seed,
+                )
+            else:
+                _, wv, ov = payload
+                lo, hi, p = _unpaired_bootstrap(
+                    wv, ov, n_boot=n_bootstrap, seed=random_seed,
+                )
+            ci_lo_col.append(lo)
+            ci_hi_col.append(hi)
+            p_col.append(p)
+        df["ci_lo"] = ci_lo_col
+        df["ci_hi"] = ci_hi_col
+        df["p_gt_zero"] = p_col
+        df["effect_lb"] = df["ci_lo"]  # Thompson-style sort key
+
+    # ── confidence_min filter ───────────────────────────────────────
+    if confidence_min is not None:
+        if not confidence:
+            raise ValueError("confidence_min requires confidence=True")
+        if not (0.0 <= confidence_min <= 1.0):
+            raise ValueError(f"confidence_min must be in [0,1]; got {confidence_min!r}")
+        df = df[df["p_gt_zero"].fillna(-1.0) >= confidence_min].reset_index(drop=True)
+
+    # ── sort / top_k ────────────────────────────────────────────────
+    default_sort_cols = ["canonical_id", "predicate_name", "predicate_value"]
+    if sort_by is not None:
+        allowed = {"lift", "did", "effect_lb", "p_gt_zero"}
+        if sort_by not in allowed:
+            raise ValueError(f"sort_by must be one of {sorted(allowed)}; got {sort_by!r}")
+        if sort_by == "did" and metric != "did":
+            raise ValueError("sort_by='did' requires metric='did'")
+        if sort_by in ("effect_lb", "p_gt_zero") and not confidence:
+            raise ValueError(f"sort_by={sort_by!r} requires confidence=True")
+        df = df.sort_values(sort_by, ascending=False, na_position="last").reset_index(drop=True)
+    else:
+        df = df.sort_values(default_sort_cols).reset_index(drop=True)
+
+    if top_k is not None:
+        if top_k < 0:
+            raise ValueError(f"top_k must be >= 0; got {top_k!r}")
+        df = df.head(top_k).reset_index(drop=True)
+
+    # ── report (optional) ───────────────────────────────────────────
+    if report is not None:
+        if report not in ("markdown", "text", "both"):
+            raise ValueError(
+                f"report must be 'markdown' | 'text' | 'both'; got {report!r}"
+            )
+        md = _render_fpt_report_markdown(
+            df, model=model, scorer=scorer, method=method, metric=metric,
+            confidence=confidence, n_bootstrap=n_bootstrap,
+            sort_by=sort_by, top_k=top_k, confidence_min=confidence_min,
+        )
+        txt = _render_fpt_report_text(
+            df, model=model, scorer=scorer, method=method, metric=metric,
+            confidence=confidence, n_bootstrap=n_bootstrap,
+            sort_by=sort_by, top_k=top_k, confidence_min=confidence_min,
+        )
+        if report == "markdown":
+            return (df, md)
+        if report == "text":
+            return (df, txt)
+        return (df, {"markdown": md, "text": txt})
+
+    return df
+
+
+# ── report rendering ──────────────────────────────────────────────────
+
+def _render_fpt_report_markdown(
+    df, *, model, scorer, method, metric,
+    confidence, n_bootstrap, sort_by, top_k, confidence_min,
+) -> str:
+    """Render a markdown report summarizing a feature_predicate_table run.
+
+    Voice: practitioner-facing, not statistical paper. Explains what the
+    numbers mean and when they lie, with per-row one-line interpretation.
+    """
+    import pandas as pd
+
+    lines: List[str] = []
+    lines.append("# Feature × Predicate effect analysis")
+    lines.append("")
+    lines.append(f"- **model:** `{model}`")
+    lines.append(f"- **scorer:** `{scorer}`")
+    lines.append(f"- **method:** `{method}` "
+                 f"({'paired add-one' if method == 'simple' else 'pooled-per-config'})")
+    lines.append(f"- **metric:** `{metric}`")
+    if confidence:
+        pair_kind = "paired" if method == "simple" else "unpaired"
+        lines.append(f"- **confidence:** 95% {pair_kind} bootstrap CI "
+                     f"(n_boot={n_bootstrap}); `p_gt_zero` = fraction of "
+                     f"resamples where lift > 0.")
+    if sort_by:
+        lines.append(f"- **sort_by:** `{sort_by}` (descending)")
+    if top_k is not None:
+        lines.append(f"- **top_k:** {top_k}")
+    if confidence_min is not None:
+        lines.append(f"- **confidence_min:** p_gt_zero ≥ {confidence_min:.2f}")
+    lines.append(f"- **rows:** {len(df)}")
+    lines.append("")
+
+    if df.empty:
+        lines.append("_No rows after filtering._")
+        return "\n".join(lines)
+
+    # ── table ──
+    lines.append("## Ranking")
+    lines.append("")
+    has_did = "did" in df.columns
+    header = ["#", "feature", "predicate", "value", "lift"]
+    if has_did:
+        header.append("did")
+    if confidence:
+        header += ["95% CI", "P(lift>0)"]
+    header += ["n_with", "n_without"]
+    lines.append("| " + " | ".join(header) + " |")
+    lines.append("|" + "|".join(["---"] * len(header)) + "|")
+    for i, (_, r) in enumerate(df.iterrows(), start=1):
+        row = [
+            str(i),
+            f"`{r['canonical_id']}`",
+            f"`{r['predicate_name']}`",
+            f"`{r['predicate_value']}`",
+            _fmt_num(r["lift"]),
+        ]
+        if has_did:
+            row.append(_fmt_num(r.get("did")))
+        if confidence:
+            row.append(f"[{_fmt_num(r.get('ci_lo'))}, {_fmt_num(r.get('ci_hi'))}]")
+            row.append(_fmt_num(r.get("p_gt_zero"), ndigits=2, signed=False))
+        row.append(str(int(r["n_with"])))
+        row.append(str(int(r["n_without"])))
+        lines.append("| " + " | ".join(row) + " |")
+    lines.append("")
+
+    # ── per-row interpretation ──
+    lines.append("## Interpretation")
+    lines.append("")
+    for _, r in df.iterrows():
+        lines.append("- " + _interpret_row(r, confidence=confidence))
+    lines.append("")
+
+    # ── caveats ──
+    lines.append("## Caveats")
+    lines.append("")
+    lines.extend(_caveat_bullets(method=method, confidence=confidence))
+    return "\n".join(lines)
+
+
+def _render_fpt_report_text(
+    df, *, model, scorer, method, metric,
+    confidence, n_bootstrap, sort_by, top_k, confidence_min,
+) -> str:
+    """Plain-text report — same content as markdown but stripped of markup."""
+    import pandas as pd
+
+    lines: List[str] = []
+    lines.append("=" * 72)
+    lines.append("FEATURE x PREDICATE effect analysis")
+    lines.append("=" * 72)
+    lines.append(f"model:   {model}")
+    lines.append(f"scorer:  {scorer}")
+    lines.append(f"method:  {method} "
+                 f"({'paired add-one' if method == 'simple' else 'pooled-per-config'})")
+    lines.append(f"metric:  {metric}")
+    if confidence:
+        pair_kind = "paired" if method == "simple" else "unpaired"
+        lines.append(f"CI:      95% {pair_kind} bootstrap (n_boot={n_bootstrap}); "
+                     f"p_gt_zero = P(lift > 0) over resamples")
+    if sort_by:
+        lines.append(f"sort_by: {sort_by} (desc)")
+    if top_k is not None:
+        lines.append(f"top_k:   {top_k}")
+    if confidence_min is not None:
+        lines.append(f"conf>=:  {confidence_min:.2f}")
+    lines.append(f"rows:    {len(df)}")
+    lines.append("-" * 72)
+
+    if df.empty:
+        lines.append("No rows after filtering.")
+        return "\n".join(lines)
+
+    has_did = "did" in df.columns
+    for i, (_, r) in enumerate(df.iterrows(), start=1):
+        head = (
+            f"[{i}] {r['canonical_id']}  "
+            f"{r['predicate_name']}={r['predicate_value']}  "
+            f"lift={_fmt_num(r['lift'])}  "
+            f"n_with={int(r['n_with'])}  n_without={int(r['n_without'])}"
+        )
+        if has_did:
+            head += f"  did={_fmt_num(r.get('did'))}"
+        if confidence:
+            head += (f"  CI=[{_fmt_num(r.get('ci_lo'))},"
+                     f"{_fmt_num(r.get('ci_hi'))}]"
+                     f"  P(>0)={_fmt_num(r.get('p_gt_zero'), ndigits=2, signed=False)}")
+        lines.append(head)
+        lines.append("    " + _interpret_row(r, confidence=confidence))
+
+    lines.append("-" * 72)
+    lines.append("Caveats:")
+    for c in _caveat_bullets(method=method, confidence=confidence):
+        lines.append("  " + c.lstrip("- "))
+    return "\n".join(lines)
+
+
+def _fmt_num(x, ndigits: int = 3, *, signed: bool = True) -> str:
+    try:
+        import pandas as pd
+        if pd.isna(x):
+            return "—"
+    except Exception:
+        pass
+    if x is None:
+        return "—"
+    try:
+        spec = f"+.{ndigits}f" if signed else f".{ndigits}f"
+        return format(float(x), spec)
+    except (TypeError, ValueError):
+        return str(x)
+
+
+def _interpret_row(r, *, confidence: bool) -> str:
+    """One-sentence interpretation of a ranking row."""
+    try:
+        import pandas as pd
+        def _nan(x): return x is None or (isinstance(x, float) and pd.isna(x))
+    except Exception:  # pragma: no cover
+        def _nan(x): return x is None
+
+    canon = r["canonical_id"]
+    pred  = f"{r['predicate_name']}={r['predicate_value']}"
+    lift  = r["lift"]
+    magnitude = abs(lift) if not _nan(lift) else 0.0
+
+    # Direction + strength — combined, so we avoid "slightly barely moves".
+    if _nan(lift) or magnitude < 0.01:
+        phrase = "shows no measurable effect on"
+    else:
+        strength = (
+            "strongly" if magnitude >= 0.15 else
+            "notably"  if magnitude >= 0.05 else
+            "slightly"
+        )
+        direction = "helps" if lift > 0 else "hurts"
+        phrase = f"{strength} {direction} on"
+
+    if confidence and not _nan(r.get("p_gt_zero")):
+        p = r["p_gt_zero"]
+        # Verdict depends BOTH on direction and confidence.
+        if _nan(lift) or magnitude < 0.01:
+            verdict = "no effect detected"
+        elif lift > 0:
+            verdict = (
+                "high confidence this is real"  if p >= 0.95 else
+                "moderate confidence"           if p >= 0.80 else
+                "inconclusive — wide CI"
+            )
+        else:  # lift < 0
+            verdict = (
+                "high confidence this hurts"    if p <= 0.05 else
+                "moderate confidence of harm"   if p <= 0.20 else
+                "inconclusive — wide CI"
+            )
+        ci = f"CI [{_fmt_num(r.get('ci_lo'))}, {_fmt_num(r.get('ci_hi'))}]"
+        return (f"**`{canon}`** {phrase} `{pred}` "
+                f"(lift {_fmt_num(lift)}, {ci}, "
+                f"P(lift>0)={_fmt_num(r['p_gt_zero'], ndigits=2, signed=False)}) — "
+                f"_{verdict}_.")
+    return (f"**`{canon}`** {phrase} `{pred}` "
+            f"(lift {_fmt_num(lift)}, n={int(r['n_with'])}/{int(r['n_without'])}).")
+
+
+def _caveat_bullets(*, method: str, confidence: bool) -> List[str]:
+    out = [
+        "- Effects are within-cube and conditional on `(model, scorer)`; "
+        "they do not generalize to other models without re-running.",
+        "- No multiple-testing correction is applied. When sweeping many "
+        "(feature × predicate) cells, expect ~5% of uncorrelated nulls to "
+        "cross a 95% threshold by chance.",
+    ]
+    if method == "simple":
+        out.append(
+            "- `method=simple` measures a **controlled** add-one effect. "
+            "It holds the rest of the prompt at baseline, so the number "
+            "is a feature-in-isolation estimate, not 'how this feature "
+            "behaves inside a real stack of features'."
+        )
+    else:
+        out.append(
+            "- `method=marginal` pools across all configs containing the "
+            "feature. Useful as an average uplift, but confounded by "
+            "which other features those configs happened to contain."
+        )
+    if confidence:
+        out.append(
+            "- `p_gt_zero` is the fraction of bootstrap resamples where "
+            "`mean_with > mean_without`. It is NOT a p-value. A value "
+            "of 0.90 means 'in 90% of resamples the feature looked "
+            "better' — treat 0.90 as weak-positive, 0.95+ as solid."
+        )
+        if method == "simple":
+            out.append(
+                "- Paired bootstrap assumes each query_id appears under "
+                "both the base and the feature-only config. Confirmed "
+                "via shared-id intersection."
+            )
+        else:
+            out.append(
+                "- Unpaired bootstrap resamples per-config means; it "
+                "needs ≥ 2 configs per side. Rows failing this show NaN."
+            )
+    return out

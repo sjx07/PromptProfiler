@@ -880,3 +880,258 @@ def test_fpt_skips_base_features(seeded_store):
     assert "section_like" not in set(df["canonical_id"])
     # feat_a and feat_b still appear (their funcs aren't in base).
     assert {"feat_a", "feat_b"} <= set(df["canonical_id"])
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Round 6 — confidence / ranking / report
+# ══════════════════════════════════════════════════════════════════════
+#
+# The seeded fixture has perfect binary scores, so bootstrap output is
+# deterministic:
+#
+#   feat_a @ has_agg=true:  every pair diff = +1   → CI=[1,1], P(>0)=1.0
+#   feat_a @ has_agg=false: every pair diff =  0   → CI=[0,0], P(>0)=0.0
+#   feat_b @ has_agg=true:  every pair diff =  0   → CI=[0,0], P(>0)=0.0
+#   feat_b @ has_agg=false: every pair diff = -1   → CI=[-1,-1], P(>0)=0.0
+#
+# Tests below lean on these deterministic values rather than probabilistic
+# assertions that would flake.
+
+
+def test_fpt_backwards_compat_no_confidence(seeded_store):
+    """Default call (confidence=False) returns the same schema as R5."""
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+    )
+    for col in ("ci_lo", "ci_hi", "p_gt_zero", "effect_lb"):
+        assert col not in df.columns
+
+
+def test_fpt_confidence_adds_columns(seeded_store):
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        confidence=True, n_bootstrap=500,
+    )
+    for col in ("ci_lo", "ci_hi", "p_gt_zero", "effect_lb"):
+        assert col in df.columns
+    # effect_lb == ci_lo (alias).
+    assert (df["effect_lb"] == df["ci_lo"]).all()
+
+
+def test_fpt_confidence_values_deterministic_paired(seeded_store):
+    """Perfect-score fixture → bootstrap collapses to exact values."""
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        confidence=True, n_bootstrap=500,
+    )
+    idx = {(r["canonical_id"], r["predicate_value"]): r
+           for _, r in df.iterrows()}
+
+    # feat_a @ has_agg=true: every diff=+1
+    r = idx[("feat_a", "true")]
+    assert r["ci_lo"] == pytest.approx(1.0)
+    assert r["ci_hi"] == pytest.approx(1.0)
+    assert r["p_gt_zero"] == pytest.approx(1.0)
+
+    # feat_a @ has_agg=false: every diff=0 → p_gt_zero=0 (strictly >)
+    r = idx[("feat_a", "false")]
+    assert r["ci_lo"] == pytest.approx(0.0)
+    assert r["ci_hi"] == pytest.approx(0.0)
+    assert r["p_gt_zero"] == pytest.approx(0.0)
+
+    # feat_b @ has_agg=false: every diff=-1
+    r = idx[("feat_b", "false")]
+    assert r["ci_lo"] == pytest.approx(-1.0)
+    assert r["ci_hi"] == pytest.approx(-1.0)
+    assert r["p_gt_zero"] == pytest.approx(0.0)
+
+
+def test_fpt_sort_by_lift(seeded_store):
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        sort_by="lift",
+    )
+    # Top row should be the strongest positive lift.
+    assert df.iloc[0]["canonical_id"] == "feat_a"
+    assert df.iloc[0]["predicate_value"] == "true"
+    assert df.iloc[0]["lift"] == pytest.approx(1.0)
+    # Sorted descending.
+    lifts = df["lift"].tolist()
+    assert lifts == sorted(lifts, reverse=True)
+
+
+def test_fpt_sort_by_effect_lb_requires_confidence(seeded_store):
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="requires confidence"):
+        feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="lift",
+            base_config_id=ctx["base_cid"],
+            sort_by="effect_lb",
+        )
+
+
+def test_fpt_sort_by_p_gt_zero(seeded_store):
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        confidence=True, n_bootstrap=500,
+        sort_by="p_gt_zero",
+    )
+    # feat_a @ true has p_gt_zero=1.0; everything else is 0.0.
+    assert df.iloc[0]["canonical_id"] == "feat_a"
+    assert df.iloc[0]["predicate_value"] == "true"
+
+
+def test_fpt_top_k(seeded_store):
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        sort_by="lift", top_k=2,
+    )
+    assert len(df) == 2
+
+
+def test_fpt_top_k_negative_raises(seeded_store):
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="top_k must be"):
+        feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="lift",
+            base_config_id=ctx["base_cid"],
+            top_k=-1,
+        )
+
+
+def test_fpt_confidence_min_filters(seeded_store):
+    """confidence_min=0.5 drops everything except feat_a@true (P=1.0)."""
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        confidence=True, n_bootstrap=500,
+        confidence_min=0.5,
+    )
+    assert len(df) == 1
+    assert df.iloc[0]["canonical_id"] == "feat_a"
+    assert df.iloc[0]["predicate_value"] == "true"
+
+
+def test_fpt_confidence_min_requires_confidence(seeded_store):
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="requires confidence"):
+        feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="lift",
+            base_config_id=ctx["base_cid"],
+            confidence_min=0.9,
+        )
+
+
+def test_fpt_confidence_min_out_of_range(seeded_store):
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="must be in"):
+        feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="lift",
+            base_config_id=ctx["base_cid"],
+            confidence=True,
+            confidence_min=1.5,
+        )
+
+
+def test_fpt_report_markdown(seeded_store):
+    store, ctx = seeded_store
+    df, md = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        confidence=True, n_bootstrap=500,
+        sort_by="lift", top_k=3,
+        report="markdown",
+    )
+    assert isinstance(md, str)
+    # Expected sections.
+    assert "# Feature × Predicate effect analysis" in md
+    assert "## Ranking" in md
+    assert "## Interpretation" in md
+    assert "## Caveats" in md
+    # Run metadata.
+    assert MODEL in md
+    assert SCORER in md
+    # Top feature mentioned.
+    assert "feat_a" in md
+    # Bootstrap description present when confidence=True.
+    assert "bootstrap" in md.lower()
+
+
+def test_fpt_report_text(seeded_store):
+    store, ctx = seeded_store
+    df, txt = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        sort_by="lift", top_k=2,
+        report="text",
+    )
+    assert isinstance(txt, str)
+    assert "FEATURE x PREDICATE" in txt
+    assert "Caveats" in txt
+
+
+def test_fpt_report_both(seeded_store):
+    store, ctx = seeded_store
+    df, reports = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        report="both",
+    )
+    assert isinstance(reports, dict)
+    assert "markdown" in reports and "text" in reports
+    assert isinstance(reports["markdown"], str)
+    assert isinstance(reports["text"], str)
+
+
+def test_fpt_report_bad_value_raises(seeded_store):
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="report must be"):
+        feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="lift",
+            base_config_id=ctx["base_cid"],
+            report="pdf",
+        )
+
+
+def test_fpt_marginal_confidence_returns_nan_on_small_n(seeded_store):
+    """Fixture has only 1 config 'with' feature → unpaired bootstrap needs
+    ≥ 2 per side. Confidence columns should be NaN for all rows."""
+    import pandas as pd
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="marginal", metric="lift",
+        confidence=True, n_bootstrap=500,
+    )
+    # All confidence values NaN.
+    assert df["p_gt_zero"].isna().all()
+    assert df["ci_lo"].isna().all()
+    assert df["ci_hi"].isna().all()
