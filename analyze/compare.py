@@ -325,6 +325,8 @@ def feature_predicate_table(
     # R6.5 long-run kwargs:
     progress: bool = False,                    # tqdm bars on hot loops
     workers: int = 1,                          # >1 → ProcessPoolExecutor for bootstrap
+    # R6.5 numeric-predicate guard:
+    skip_numeric: bool = True,                 # drop numeric predicates (categorical-only analysis)
 ):
     """Feature × Predicate analysis — long-format DataFrame.
 
@@ -384,6 +386,25 @@ def feature_predicate_table(
             predicate_names = []
         else:
             predicate_names = sorted(sdf["predicate_name"].unique().tolist())
+
+    # Numeric-predicate guard (R6.5 quick fix). Categorical grouping
+    # over a continuous predicate produces n=1 rows per value — useless.
+    # Until a regression-based path lands, skip them with a warning.
+    if skip_numeric and predicate_names:
+        kinds = data.predicate_kinds(store)
+        numeric_in_scope = [p for p in predicate_names if kinds.get(p) == "numeric"]
+        if numeric_in_scope:
+            import warnings
+            warnings.warn(
+                "feature_predicate_table: dropping numeric predicate(s) "
+                f"{numeric_in_scope} — current pipeline groups by exact "
+                "predicate_value, which is meaningless for continuous "
+                "data. Pass skip_numeric=False to force-include, or "
+                "wait for the regression path. See analyze.data.predicate_kinds.",
+                stacklevel=2,
+            )
+            predicate_names = [p for p in predicate_names if kinds.get(p) != "numeric"]
+
     if not predicate_names:
         empty = pd.DataFrame(columns=empty_cols)
         return (empty, "") if report else empty

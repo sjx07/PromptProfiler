@@ -1166,6 +1166,72 @@ def test_fpt_progress_flag_runs_without_tqdm_crash(seeded_store):
     )
 
 
+# ── R6.5: numeric-predicate guard ────────────────────────────────────
+
+def test_predicate_kinds_classifies_categorical_and_numeric(seeded_store):
+    """has_agg = {'true','false'} → categorical; row_count = ints → numeric."""
+    from analyze import predicate_kinds
+    store, ctx = seeded_store
+    # Inject a numeric predicate.
+    with store._cursor() as cur:
+        for qid, v in [("q1", "5"), ("q2", "12"), ("q3", "3"), ("q4", "47")]:
+            cur.execute(
+                "INSERT OR IGNORE INTO predicate (query_id, name, value) VALUES (?, ?, ?)",
+                (qid, "row_count", v),
+            )
+    kinds = predicate_kinds(store)
+    assert kinds["has_agg"] == "categorical"
+    assert kinds["row_count"] == "numeric"
+
+
+def test_fpt_skips_numeric_predicate_with_warning(seeded_store):
+    """Default skip_numeric=True → numeric predicate dropped + UserWarning emitted."""
+    import warnings
+    store, ctx = seeded_store
+    with store._cursor() as cur:
+        for qid, v in [("q1", "5"), ("q2", "12"), ("q3", "3"), ("q4", "47")]:
+            cur.execute(
+                "INSERT OR IGNORE INTO predicate (query_id, name, value) VALUES (?, ?, ?)",
+                (qid, "row_count", v),
+            )
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        df = feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="lift",
+            base_config_id=ctx["base_cid"],
+        )
+    # The numeric one is dropped; only has_agg rows remain.
+    assert "row_count" not in set(df["predicate_name"])
+    assert "has_agg" in set(df["predicate_name"])
+    # Warning was emitted.
+    msgs = [str(x.message) for x in w]
+    assert any("row_count" in m and "numeric" in m for m in msgs)
+
+
+def test_fpt_skip_numeric_false_includes_numeric(seeded_store):
+    """skip_numeric=False forces numeric predicates back into scope."""
+    import warnings
+    store, ctx = seeded_store
+    with store._cursor() as cur:
+        for qid, v in [("q1", "5"), ("q2", "12"), ("q3", "3"), ("q4", "47")]:
+            cur.execute(
+                "INSERT OR IGNORE INTO predicate (query_id, name, value) VALUES (?, ?, ?)",
+                (qid, "row_count", v),
+            )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df = feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="lift",
+            base_config_id=ctx["base_cid"],
+            skip_numeric=False,
+        )
+    # row_count rows are present (one per unique value, useless but visible).
+    assert "row_count" in set(df["predicate_name"])
+
+
 def test_fpt_workers_gt_1_matches_serial(seeded_store):
     """workers=2 should produce the same numbers as workers=1 for the
     same seed."""

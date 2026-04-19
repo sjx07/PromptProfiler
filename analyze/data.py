@@ -219,3 +219,43 @@ def per_query_scores(
     for _, r in sub.iterrows():
         out.setdefault(r["predicate_value"], {})[r["query_id"]] = float(r["score"])
     return out
+
+
+# ── predicate kind detection ──────────────────────────────────────────
+#
+# The current analysis pipeline groups by ``predicate_value`` as a
+# categorical key. For genuinely numeric predicates (row counts,
+# lengths, …) that produces one row per value with n=1, which is
+# useless. Until we add a regression-based path, numeric predicates
+# are detected here and skipped by default in ``feature_predicate_table``.
+
+def _is_numeric_str(s) -> bool:
+    if s is None:
+        return False
+    try:
+        float(s)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def predicate_kinds(store: CubeStore) -> Dict[str, str]:
+    """Classify every predicate name in the cube as 'numeric' or 'categorical'.
+
+    A predicate is numeric iff **every** observed value parses as a
+    float. Predicates with zero observed values are labeled
+    'categorical' (conservative default — they won't get auto-skipped).
+    """
+    rows = store._get_conn().execute(
+        "SELECT name, value FROM predicate"
+    ).fetchall()
+    by_name: Dict[str, List[str]] = {}
+    for r in rows:
+        by_name.setdefault(r["name"], []).append(r["value"])
+    out: Dict[str, str] = {}
+    for name, vals in by_name.items():
+        if not vals:
+            out[name] = "categorical"
+            continue
+        out[name] = "numeric" if all(_is_numeric_str(v) for v in vals) else "categorical"
+    return out

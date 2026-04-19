@@ -24,6 +24,7 @@ from analyze.meta import (
     list_features_in_cube,
     summary,
 )
+from analyze.data import predicate_kinds  # numeric vs categorical
 
 # ── query (filter + project + aggregate) ──────────────────────────────
 from analyze.query import ExecutionQuery
@@ -56,6 +57,7 @@ __all__ = [
     "list_predicates",
     "list_features_in_cube",
     "summary",
+    "predicate_kinds",
     # query
     "ExecutionQuery",
     # compare
