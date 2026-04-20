@@ -1256,3 +1256,180 @@ def test_fpt_workers_gt_1_matches_serial(seeded_store):
         df_parallel.reset_index(drop=True),
         check_like=True,
     )
+
+
+# ── R7: flipped_responses export ─────────────────────────────────────
+
+def test_flipped_responses_basic_shape(seeded_store):
+    """All flips against base, tagged by feature canonical_id, predicates joined."""
+    from analyze import flipped_responses
+    store, ctx = seeded_store
+    df = flipped_responses(
+        store,
+        base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+    )
+    # feat_a: q1, q2 (base 0 → target 1) = up flips on has_agg=true.
+    # feat_b: q3, q4 (base 1 → target 0) = down flips on has_agg=false.
+    assert len(df) == 4
+    assert set(df["feature_canonical_id"]) == {"feat_a", "feat_b"}
+    assert set(df["direction"]) == {"up", "down"}
+    # Predicates joined.
+    assert all("has_agg" in p for p in df["predicates"])
+    # Error columns present.
+    assert {"error_base", "error_target"} <= set(df.columns)
+
+
+def test_flipped_responses_direction_filter(seeded_store):
+    from analyze import flipped_responses
+    store, ctx = seeded_store
+    df_up = flipped_responses(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER, direction="up",
+    )
+    assert set(df_up["direction"]) == {"up"}
+    df_down = flipped_responses(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER, direction="down",
+    )
+    assert set(df_down["direction"]) == {"down"}
+
+
+def test_flipped_responses_feature_filter(seeded_store):
+    from analyze import flipped_responses
+    store, ctx = seeded_store
+    df = flipped_responses(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+        feature_filter=["feat_a"],
+    )
+    assert set(df["feature_canonical_id"]) == {"feat_a"}
+
+
+def test_flipped_responses_writes_jsonl(seeded_store, tmp_path):
+    from analyze import flipped_responses
+    store, ctx = seeded_store
+    out = tmp_path / "flips.jsonl"
+    df = flipped_responses(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+        out_path=out, fmt="jsonl",
+    )
+    assert out.exists()
+    lines = out.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == len(df)
+    rec = json.loads(lines[0])
+    # Required keys round-tripped.
+    for k in ("query_id", "feature_canonical_id", "direction",
+              "base_score", "target_score", "predicates"):
+        assert k in rec
+
+
+def test_flipped_responses_writes_csv(seeded_store, tmp_path):
+    from analyze import flipped_responses
+    import csv
+    store, ctx = seeded_store
+    out = tmp_path / "flips.csv"
+    flipped_responses(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+        out_path=out, fmt="csv",
+    )
+    assert out.exists()
+    with out.open() as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) > 0
+    # gold + predicates JSON-serialized for spreadsheet safety.
+    assert rows[0]["predicates"].startswith("{")
+    assert rows[0]["gold"].startswith("[")
+
+
+def test_flipped_responses_bad_direction_raises(seeded_store):
+    from analyze import flipped_responses
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="direction"):
+        flipped_responses(
+            store, base_config_id=ctx["base_cid"],
+            model=MODEL, scorer=SCORER,
+            direction="sideways",
+        )
+
+
+def test_flipped_responses_bad_fmt_raises(seeded_store):
+    from analyze import flipped_responses
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="fmt"):
+        flipped_responses(
+            store, base_config_id=ctx["base_cid"],
+            model=MODEL, scorer=SCORER,
+            fmt="parquet",
+        )
+
+
+def test_flipped_responses_git_add_requires_out_path(seeded_store):
+    """git_add=True without out_path is a configuration error."""
+    from analyze import flipped_responses
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="git_add=True requires out_path"):
+        flipped_responses(
+            store, base_config_id=ctx["base_cid"],
+            model=MODEL, scorer=SCORER,
+            git_add=True,
+        )
+
+
+def test_flipped_responses_git_add_outside_repo_warns(seeded_store, tmp_path):
+    """git_add=True in a non-git directory warns + skips, doesn't raise.
+
+    tmp_path is a fresh isolated dir — definitely not in any git repo
+    above it (pytest's tmp_path is typically /tmp/pytest-of-...).
+    """
+    import warnings
+    from analyze import flipped_responses
+    store, ctx = seeded_store
+    out = tmp_path / "flips.jsonl"
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        df = flipped_responses(
+            store, base_config_id=ctx["base_cid"],
+            model=MODEL, scorer=SCORER,
+            out_path=out, fmt="jsonl",
+            git_add=True,
+        )
+    # File still got written.
+    assert out.exists()
+    assert len(df) > 0
+    # Warning emitted (could be "not in work tree" or "git not found").
+    msgs = [str(x.message) for x in w]
+    assert any("git_add" in m or "git " in m for m in msgs)
+
+
+def test_flipped_responses_git_add_inside_repo_stages_file(seeded_store, tmp_path):
+    """git_add=True inside an init'd git repo actually runs `git add`."""
+    import shutil
+    import subprocess
+    if shutil.which("git") is None:
+        pytest.skip("git not available")
+
+    # Spin up a throwaway repo.
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+
+    out = repo / "flips.jsonl"
+    from analyze import flipped_responses
+    store, ctx = seeded_store
+    flipped_responses(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+        out_path=out, fmt="jsonl",
+        git_add=True,
+    )
+    # File is staged → `git diff --cached` shows it.
+    res = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=repo, capture_output=True, text=True, check=True,
+    )
+    assert "flips.jsonl" in res.stdout

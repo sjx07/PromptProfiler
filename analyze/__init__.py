@@ -41,6 +41,9 @@ from analyze.compare import (
     feature_predicate_table,
 )
 
+# ── export (error reports for downstream LLM loops) ───────────────────
+from analyze.export import flipped_responses
+
 # ── monitor ───────────────────────────────────────────────────────────
 from analyze.monitor import ProgressMonitor
 
@@ -69,6 +72,8 @@ __all__ = [
     "harm_cases",
     "help_cases",
     "feature_predicate_table",
+    # export
+    "flipped_responses",
     # monitor
     "ProgressMonitor",
 ]
