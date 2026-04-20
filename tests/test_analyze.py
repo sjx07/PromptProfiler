@@ -1731,3 +1731,183 @@ def test_feature_profile_warn_redundant_false_is_silent(seeded_store):
     # None of the warnings mention "redundant".
     msgs = [str(x.message) for x in w]
     assert not any("redundant predicate" in m.lower() for m in msgs)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# R8 — vectorized attach_ci bootstrap (confidence.py)
+# ══════════════════════════════════════════════════════════════════════
+
+def test_r8_vec_matches_serial_simple(seeded_store):
+    """Vectorized attach_ci output is close to a serial loop of
+    paired_bootstrap. Bootstrap is stochastic and the two paths call the
+    RNG in different orders (batched vs per-row), so we use a loose
+    tolerance on p_gt_zero / ci_lo rather than exact equality."""
+    import numpy as np
+    import pandas as pd
+
+    from analyze.confidence import attach_ci, paired_bootstrap
+    from analyze.data import per_query_scores, scores_df
+
+    store, ctx = seeded_store
+    sdf = scores_df(store, model=MODEL, scorer=SCORER)
+
+    # Build a minimal lift_df covering every (feature × predicate_value)
+    # pair present in the fixture.
+    rows = []
+    for canon in ("feat_a", "feat_b"):
+        for pv in ("true", "false"):
+            rows.append({
+                "canonical_id": canon,
+                "predicate_name": "has_agg",
+                "predicate_value": pv,
+            })
+    lift_df = pd.DataFrame(rows)
+
+    canonical_to_cid = {"feat_a": ctx["a_cid"], "feat_b": ctx["b_cid"]}
+
+    got = attach_ci(
+        lift_df,
+        sdf,
+        method="simple",
+        base_config_id=ctx["base_cid"],
+        canonical_to_cid=canonical_to_cid,
+        n_boot=1000,
+        seed=42,
+    )
+
+    # Independent reference: call paired_bootstrap per row.
+    ref_lo, ref_hi, ref_p = [], [], []
+    for _, r in lift_df.iterrows():
+        target = canonical_to_cid[r["canonical_id"]]
+        w = per_query_scores(sdf, config_id=target,
+                             predicate_name=r["predicate_name"]).get(r["predicate_value"], {})
+        o = per_query_scores(sdf, config_id=ctx["base_cid"],
+                             predicate_name=r["predicate_name"]).get(r["predicate_value"], {})
+        lo, hi, p = paired_bootstrap(w, o, n_boot=1000, seed=42)
+        ref_lo.append(lo)
+        ref_hi.append(hi)
+        ref_p.append(p)
+
+    for i in range(len(lift_df)):
+        # NaN rows must agree on NaN-ness.
+        if np.isnan(ref_p[i]):
+            assert np.isnan(got["p_gt_zero"].iloc[i])
+            continue
+        assert abs(got["p_gt_zero"].iloc[i] - ref_p[i]) <= 0.05, (
+            f"row {i}: p_gt_zero {got['p_gt_zero'].iloc[i]} vs {ref_p[i]}"
+        )
+        assert abs(got["ci_lo"].iloc[i] - ref_lo[i]) <= 0.05, (
+            f"row {i}: ci_lo {got['ci_lo'].iloc[i]} vs {ref_lo[i]}"
+        )
+
+
+def test_r8_vec_nan_on_small_n(seeded_store):
+    """A row whose paired intersection has only one shared query_id must
+    produce NaN×3 in all confidence columns."""
+    import numpy as np
+    import pandas as pd
+
+    from analyze.confidence import attach_ci
+    from analyze.data import scores_df
+
+    store, ctx = seeded_store
+    sdf = scores_df(store, model=MODEL, scorer=SCORER)
+
+    # Construct a lift_df row that targets a predicate_value with no
+    # shared queries in the fixture. Every (feature × has_agg=true) in
+    # the fixture has 2+ shared queries, so we fake a narrow slice by
+    # filtering sdf to a single query_id. This drops the paired share
+    # count to 1 → NaN.
+    sdf_narrow = sdf[sdf["query_id"] == "q1"].copy()
+    lift_df = pd.DataFrame([{
+        "canonical_id": "feat_a",
+        "predicate_name": "has_agg",
+        "predicate_value": "true",
+    }])
+    out = attach_ci(
+        lift_df,
+        sdf_narrow,
+        method="simple",
+        base_config_id=ctx["base_cid"],
+        canonical_to_cid={"feat_a": ctx["a_cid"]},
+        n_boot=200,
+        seed=42,
+    )
+    assert np.isnan(out["ci_lo"].iloc[0])
+    assert np.isnan(out["ci_hi"].iloc[0])
+    assert np.isnan(out["p_gt_zero"].iloc[0])
+    # effect_lb is aliased to ci_lo → NaN too.
+    assert np.isnan(out["effect_lb"].iloc[0])
+
+
+def test_r8_vec_chunked_matches_single_batch(seeded_store, monkeypatch):
+    """Monkeypatching _CHUNK_SIZE down to 50 on a 150-row synthetic
+    lift_df must produce the same output as the single-batch path."""
+    import numpy as np
+    import pandas as pd
+
+    from analyze import confidence as _conf
+    from analyze.confidence import attach_ci
+    from analyze.data import scores_df
+
+    store, ctx = seeded_store
+    sdf = scores_df(store, model=MODEL, scorer=SCORER)
+
+    # Synthetic lift_df: repeat the 4 real (feature × predicate_value)
+    # rows enough times to exceed the forced chunk boundary several
+    # times over.
+    base_rows = []
+    for canon in ("feat_a", "feat_b"):
+        for pv in ("true", "false"):
+            base_rows.append({
+                "canonical_id": canon,
+                "predicate_name": "has_agg",
+                "predicate_value": pv,
+            })
+    lift_df = pd.DataFrame(base_rows * 40)  # 160 rows
+    assert len(lift_df) >= 150
+    canonical_to_cid = {"feat_a": ctx["a_cid"], "feat_b": ctx["b_cid"]}
+
+    # Single-batch: force chunk ≥ n_rows.
+    monkeypatch.setattr(_conf, "_CHUNK_SIZE", 10_000)
+    single = attach_ci(
+        lift_df,
+        sdf,
+        method="simple",
+        base_config_id=ctx["base_cid"],
+        canonical_to_cid=canonical_to_cid,
+        n_boot=300,
+        seed=42,
+    )
+
+    # Chunked: force chunk_size=50 → 160 rows ⇒ 4 chunks.
+    monkeypatch.setattr(_conf, "_CHUNK_SIZE", 50)
+    chunked = attach_ci(
+        lift_df,
+        sdf,
+        method="simple",
+        base_config_id=ctx["base_cid"],
+        canonical_to_cid=canonical_to_cid,
+        n_boot=300,
+        seed=42,
+    )
+
+    # Same chunk layout ⇒ identical numbers row-for-row. The first
+    # chunk of the "chunked" run (rows 0..49) uses seed=42+0, which is
+    # the same seed as the single-batch path for rows 0..49 — so those
+    # first-chunk rows match exactly. Later chunks in the chunked run
+    # use different seeds than the single-batch run, so we can only
+    # assert loose agreement (≤ 0.05) on them.
+    n = len(lift_df)
+    for i in range(50):
+        if np.isnan(single["p_gt_zero"].iloc[i]):
+            assert np.isnan(chunked["p_gt_zero"].iloc[i])
+            continue
+        assert chunked["p_gt_zero"].iloc[i] == single["p_gt_zero"].iloc[i]
+        assert chunked["ci_lo"].iloc[i] == single["ci_lo"].iloc[i]
+    for i in range(50, n):
+        if np.isnan(single["p_gt_zero"].iloc[i]):
+            assert np.isnan(chunked["p_gt_zero"].iloc[i])
+            continue
+        assert abs(chunked["p_gt_zero"].iloc[i] - single["p_gt_zero"].iloc[i]) <= 0.05
+        assert abs(chunked["ci_lo"].iloc[i] - single["ci_lo"].iloc[i]) <= 0.10

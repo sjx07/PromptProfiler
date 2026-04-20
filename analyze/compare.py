@@ -509,6 +509,92 @@ def feature_predicate_table(
 # feature_predicate_table. Redundant-predicate warning comes from
 # data.predicate_overlap.
 
+
+def _summarize_per_feature(
+    long_df,
+    *,
+    confidence: bool,
+    magnitude_threshold: float,
+    confidence_threshold: float,
+):
+    """Long-format (feature × predicate × value) → wide per-feature summary.
+
+    Takes the output of ``feature_predicate_table(..., metric='did')`` and
+    returns one row per feature with ``did_<pname>`` / ``p_gt_zero_<pname>``
+    columns plus four summary columns (``n_sig_slices``, ``max_abs_did``,
+    ``breadth_mean``, ``classification``).
+
+    For each (canonical_id, predicate_name) pair we pick the representative
+    row as the one with largest ``|did|`` (ignoring the always-zero
+    reference row). Multi-value predicates without an explicit DiD reference
+    carry ``did=NaN`` everywhere and flow through as NaN columns.
+
+    Classification labels (per-feature, post-threshold):
+        null       — no predicate with ``|did| ≥ magnitude_threshold``
+        selective  — 1–2 predicates above threshold
+        broad      — ≥ 3 predicates, all same sign
+        mixed      — ≥ 2 predicates, mixed signs
+    """
+    import pandas as pd
+
+    if long_df.empty:
+        return pd.DataFrame(columns=[
+            "canonical_id",
+            "n_sig_slices", "max_abs_did", "breadth_mean", "classification",
+        ])
+
+    # Pick representative row per (canonical_id, predicate_name): the row
+    # whose |did| is largest, excluding always-zero reference rows.
+    def _pick(group):
+        nz = group.loc[group["did"].abs() > 0]
+        return (nz.loc[nz["did"].abs().idxmax()] if len(nz) else group.iloc[0])
+
+    per_fp = (long_df
+              .groupby(["canonical_id", "predicate_name"], as_index=False)
+              .apply(_pick, include_groups=False)
+              .reset_index())
+
+    # Pivot to wide.
+    did_wide = per_fp.pivot(index="canonical_id",
+                            columns="predicate_name", values="did")
+    did_wide.columns = [f"did_{c}" for c in did_wide.columns]
+    blocks = [did_wide]
+    if confidence and "p_gt_zero" in per_fp.columns:
+        p_wide = per_fp.pivot(index="canonical_id",
+                              columns="predicate_name", values="p_gt_zero")
+        p_wide.columns = [f"p_gt_zero_{c}" for c in p_wide.columns]
+        blocks.append(p_wide)
+    wide = pd.concat(blocks, axis=1).reset_index()
+
+    # Per-feature summary stats + classification.
+    did_cols = [c for c in wide.columns if c.startswith("did_")]
+    p_cols   = [c for c in wide.columns if c.startswith("p_gt_zero_")]
+
+    def _stats(row):
+        dids = [row[c] for c in did_cols if pd.notna(row[c])]
+        big = [d for d in dids if abs(d) >= magnitude_threshold]
+        if not big:
+            cls = "null"
+        elif len({1 if d > 0 else -1 for d in big}) > 1:
+            cls = "mixed"
+        elif len(big) <= 2:
+            cls = "selective"
+        else:
+            cls = "broad"
+        n_sig = sum(
+            1 for c in p_cols
+            if pd.notna(row[c]) and row[c] >= confidence_threshold
+        ) if (confidence and p_cols) else 0
+        return pd.Series({
+            "n_sig_slices":   n_sig,
+            "max_abs_did":    max((abs(d) for d in dids), default=float("nan")),
+            "breadth_mean":   (sum(dids) / len(dids)) if dids else float("nan"),
+            "classification": cls,
+        })
+
+    return pd.concat([wide, wide.apply(_stats, axis=1)], axis=1)
+
+
 def feature_profile(
     store: CubeStore,
     *,
@@ -607,93 +693,15 @@ def feature_profile(
             "n_sig_slices", "max_abs_did", "breadth_mean", "classification",
         ])
 
-    # ── 2. pivot per feature × predicate_name ──────────────────────────
-    # For binary predicates we keep ONE representative DiD per (feature,
-    # pname). By convention (effect.did), the reference row has did=0;
-    # the OTHER value carries the interaction. So for a binary predicate
-    # we pick the row where predicate_value != reference, i.e. the
-    # non-zero |did| of the two.
-    #
-    # For multi-value predicates without an explicit reference, did is
-    # NaN everywhere → the column stays NaN (honest signal).
-    def _pick_representative(group):
-        # Prefer the row whose did is farthest from zero in magnitude
-        # (drops the reference row which is always did=0).
-        non_zero = group.loc[group["did"].abs() > 0]
-        if len(non_zero):
-            return non_zero.loc[non_zero["did"].abs().idxmax()]
-        # All-zero group → pick any row to carry ns / NaN forwards.
-        return group.iloc[0]
+    # ── 2. long → wide summary via shared helper ──────────────────────
+    wide = _summarize_per_feature(
+        long_df,
+        confidence=confidence,
+        magnitude_threshold=magnitude_threshold,
+        confidence_threshold=confidence_threshold,
+    )
 
-    per_fp = (long_df
-              .groupby(["canonical_id", "predicate_name"], as_index=False)
-              .apply(_pick_representative, include_groups=False)
-              .reset_index())
-
-    # groupby().apply() with include_groups=False strips the grouping
-    # columns; re-hydrate them from the grouping keys.
-    if "canonical_id" not in per_fp.columns:
-        # Older pandas: the grouped columns live in level_0/level_1.
-        per_fp = (long_df
-                  .groupby(["canonical_id", "predicate_name"], as_index=False)
-                  .apply(_pick_representative)
-                  .reset_index(drop=True))
-
-    # ── 3. pivot to wide ──────────────────────────────────────────────
-    did_wide = per_fp.pivot(index="canonical_id",
-                            columns="predicate_name", values="did")
-    did_wide.columns = [f"did_{c}" for c in did_wide.columns]
-
-    cols = [did_wide]
-    if confidence and "p_gt_zero" in per_fp.columns:
-        p_wide = per_fp.pivot(index="canonical_id",
-                              columns="predicate_name", values="p_gt_zero")
-        p_wide.columns = [f"p_gt_zero_{c}" for c in p_wide.columns]
-        cols.append(p_wide)
-
-    wide = pd.concat(cols, axis=1).reset_index()
-
-    # ── 4. per-feature summary stats ──────────────────────────────────
-    did_cols = [c for c in wide.columns if c.startswith("did_")]
-    p_cols   = [c for c in wide.columns if c.startswith("p_gt_zero_")]
-
-    def _summarize(row):
-        dids = [row[c] for c in did_cols if pd.notna(row[c])]
-        abs_dids = [abs(d) for d in dids]
-        max_abs = max(abs_dids) if abs_dids else float("nan")
-
-        n_sig = 0
-        if confidence and p_cols:
-            for c in p_cols:
-                pv = row[c]
-                if pd.notna(pv) and pv >= confidence_threshold:
-                    n_sig += 1
-
-        # Classification
-        big = [d for d in dids if abs(d) >= magnitude_threshold]
-        if not big:
-            classification = "null"
-        else:
-            signs = {(1 if d > 0 else -1) for d in big}
-            if len(signs) > 1:
-                classification = "mixed"
-            elif len(big) <= 2:
-                classification = "selective"
-            else:
-                classification = "broad"
-
-        breadth = sum(dids) / len(dids) if dids else float("nan")
-        return pd.Series({
-            "n_sig_slices":   n_sig,
-            "max_abs_did":    max_abs,
-            "breadth_mean":   breadth,
-            "classification": classification,
-        })
-
-    summary = wide.apply(_summarize, axis=1)
-    wide = pd.concat([wide, summary], axis=1)
-
-    # ── 5. attach feature_id from the registry ────────────────────────
+    # ── 3. attach feature_id from the registry ────────────────────────
     # Pull (canonical_id, feature_id) directly from the feature table
     # via data.features_df (already parses primitive_spec, materializes
     # func_ids — we only want canonical → feature_id here).

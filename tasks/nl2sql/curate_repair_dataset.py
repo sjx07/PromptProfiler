@@ -1,4 +1,4 @@
-"""Curate SQL repair dataset from existing experiment DBs.
+""Curate SQL repair dataset from existing experiment DBs.
 
 Reads wrong SQL predictions from multiple experiment DBs, deduplicates,
 recovers metadata, and seeds into a new CubeStore for the repair task.

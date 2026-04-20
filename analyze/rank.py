@@ -50,44 +50,47 @@ def rank(
     ``(canonical_id, predicate_name, predicate_value)``.
     """
     df = df_in
+    effect_col = "did" if metric == "did" else "lift"
 
-    # ── confidence_min filter ──
-    if confidence_min is not None:
+    # ── filter pipeline ──
+    # Each entry: (user-supplied value, mask_fn(df, value) → boolean Series).
+    # mask_fn validates its inputs and raises ValueError on bad config.
+    # Pair-level filter runs BEFORE magnitude so the "does this feature
+    # help SOMEWHERE on this predicate?" decision sees the full pair.
+    def _by_p_gt_zero(df, t):
         if not confidence:
             raise ValueError("confidence_min requires confidence=True")
-        if not (0.0 <= confidence_min <= 1.0):
-            raise ValueError(f"confidence_min must be in [0,1]; got {confidence_min!r}")
-        df = df[df["p_gt_zero"].fillna(-1.0) >= confidence_min].reset_index(drop=True)
+        if not (0.0 <= t <= 1.0):
+            raise ValueError(f"confidence_min must be in [0,1]; got {t!r}")
+        return df["p_gt_zero"].fillna(-1.0) >= t
 
-    # ── min_lift_in_pair (pair-level) filter ──
-    # Groups are (canonical_id, predicate_name). We keep a group iff
-    # max(lift across its rows) >= threshold. Runs BEFORE min_effect
-    # so the "does this feature help SOMEWHERE on this predicate?"
-    # decision sees the full pair, not a version already trimmed by
-    # the per-row magnitude gate.
-    if min_lift_in_pair is not None:
+    def _by_pair_max_lift(df, t):
         if "lift" not in df.columns:
             raise ValueError("min_lift_in_pair requires a 'lift' column")
-        group_max = df.groupby(
+        gm = df.groupby(
             ["canonical_id", "predicate_name"], dropna=False,
         )["lift"].transform("max")
-        # Strict > for consistency with the "lift > 0" intent: threshold=0.0
-        # keeps only pairs where at least one side genuinely helps.
-        df = df[group_max.fillna(float("-inf")) > min_lift_in_pair].reset_index(drop=True)
+        # Strict > so threshold=0.0 keeps pairs with at least one row
+        # genuinely > 0, not just ties at zero.
+        return gm.fillna(float("-inf")) > t
 
-    # ── min_effect (magnitude) filter ──
-    # Named "min_effect" because it targets whichever effect column is
-    # active — lift or did — so users don't have to swap kwarg names
-    # when they switch metrics.
-    if min_effect is not None:
-        if min_effect < 0:
-            raise ValueError(f"min_effect must be >= 0; got {min_effect!r}")
-        col = "did" if metric == "did" else "lift"
-        if col not in df.columns:
+    def _by_magnitude(df, t):
+        if t < 0:
+            raise ValueError(f"min_effect must be >= 0; got {t!r}")
+        if effect_col not in df.columns:
             raise ValueError(
-                f"min_effect targets '{col}' column but it's not in the DataFrame"
+                f"min_effect targets '{effect_col}' column but it's not in the DataFrame"
             )
-        df = df[df[col].abs().fillna(-1.0) >= min_effect].reset_index(drop=True)
+        return df[effect_col].abs().fillna(-1.0) >= t
+
+    for value, mask_fn in (
+        (confidence_min, _by_p_gt_zero),
+        (min_lift_in_pair, _by_pair_max_lift),
+        (min_effect, _by_magnitude),
+    ):
+        if value is None:
+            continue
+        df = df[mask_fn(df, value)].reset_index(drop=True)
 
     # ── sort ──
     if sort_by is not None:

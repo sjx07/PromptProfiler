@@ -85,6 +85,21 @@ def scores_df(
     return pd.read_sql_query(sql, store._get_conn(), params=tuple(params))
 
 
+def _parse_json_or(default):
+    """Return a parser that json-loads, falling back to ``default`` on
+    empty / malformed input. Hoisted so both ``configs_df`` and
+    ``features_df`` can share it without redefining per-call closures.
+    """
+    def _fn(s):
+        if not s:
+            return default
+        try:
+            return json.loads(s)
+        except json.JSONDecodeError:
+            return default
+    return _fn
+
+
 def configs_df(
     store: CubeStore,
     config_ids: Optional[List[int]] = None,
@@ -112,24 +127,10 @@ def configs_df(
     if df.empty:
         return df
 
-    def _parse_fids(s):
-        if not s:
-            return frozenset()
-        try:
-            return frozenset(json.loads(s))
-        except json.JSONDecodeError:
-            return frozenset()
-
-    def _parse_meta(s):
-        if not s:
-            return {}
-        try:
-            return json.loads(s)
-        except json.JSONDecodeError:
-            return {}
-
-    df["func_ids"] = df["func_ids"].map(_parse_fids)
-    df["meta"] = df["meta"].map(_parse_meta)
+    parse_list = _parse_json_or([])
+    parse_dict = _parse_json_or({})
+    df["func_ids"] = [frozenset(parse_list(s)) for s in df["func_ids"]]
+    df["meta"]     = [parse_dict(s) for s in df["meta"]]
     return df
 
 
@@ -163,20 +164,13 @@ def features_df(
         df["func_ids"] = []
         return df
 
-    def _parse(s):
-        if not s:
-            return []
-        try:
-            return json.loads(s)
-        except json.JSONDecodeError:
-            return []
-
-    df["primitive_spec"] = df["primitive_spec"].map(_parse)
-    df["func_ids"] = df["primitive_spec"].map(
-        lambda edits: frozenset(
-            make_func_id(e["func_type"], e.get("params", {})) for e in edits
-        )
-    )
+    parse_list = _parse_json_or([])
+    specs = [parse_list(s) for s in df["primitive_spec"]]
+    df["primitive_spec"] = specs
+    df["func_ids"] = [
+        frozenset(make_func_id(e["func_type"], e.get("params", {})) for e in edits)
+        for edits in specs
+    ]
     return df
 
 
