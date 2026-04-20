@@ -2,17 +2,23 @@
 # Launch experiment under nohup with full reproducibility snapshot.
 #
 # Usage:
-#   bash launch_experiment.sh <preflight.md> [--cli-overrides ...]
+#   bash launch_experiment.sh <preflight.md> <config.json> [--cli-overrides ...]
 #
-# Preflight (.md) is REQUIRED. It must contain a line:
-#   - **Config:** <path-to-config.json>
+# Both args REQUIRED and independent. Preflight.md is a pure reasoning
+# document (hypothesis, confounds, decision log); config.json is the pure
+# execution artifact consumed by run_experiment.py. They stay decoupled
+# on disk and in the run snapshot.
+#
+# As a convenience, if the preflight happens to contain a
+# `- **Config:** <path>` line, it is verified to match the config arg —
+# a mismatch is a hard error (catches "wrong preflight for this config"
+# mistakes).
 #
 # Run artifacts land under `experiments/<task>_<ts>/`:
-#   preflight.md         — copied from the argument
-#   config.json          — snapshot of the resolved experiment config
-#   used_features.json   — canonical_ids + feature_id + primitive_spec for
-#                          every base + experiment feature (option c,
-#                          smallest fully-reproducible form)
+#   preflight.md         — copied from arg 1
+#   config.json          — copied from arg 2
+#   used_features.json   — canonical_ids + feature_id + primitive_edits
+#                          for every base + experiment feature
 #   meta.json            — git hash/branch, dirty flag, PID, python version,
 #                          conda env, hostname, cube path, launch command,
 #                          started_at, CLI overrides
@@ -21,38 +27,47 @@
 #   nohup.log            — stdout+stderr of the run
 set -euo pipefail
 
-# ── arg parsing + preflight requirement ──────────────────────────────
+# ── arg parsing + dual-required check ────────────────────────────────
 
-if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <preflight.md> [--cli-overrides ...]" >&2
-    echo "  preflight.md is REQUIRED. It must contain:" >&2
-    echo "    - **Config:** <path-to-config.json>" >&2
+if [[ $# -lt 2 ]]; then
+    echo "Usage: $0 <preflight.md> <config.json> [--cli-overrides ...]" >&2
+    echo "  Both preflight.md and config.json are REQUIRED." >&2
     exit 1
 fi
 
 PREFLIGHT="$1"
-shift
+CONFIG="$2"
+shift 2
 CLI_OVERRIDES="$*"
 
 if [[ "$PREFLIGHT" != *.md ]]; then
     echo "ERROR: first arg must be a preflight .md (got '$PREFLIGHT')." >&2
-    echo "  Preflights are required for every experiment — write one first." >&2
     exit 1
 fi
 if [[ ! -f "$PREFLIGHT" ]]; then
     echo "ERROR: Preflight file '$PREFLIGHT' does not exist." >&2
     exit 1
 fi
-
-# Extract Config: line from preflight (portable — BSD/macOS sed compatible).
-CONFIG="$(sed -n 's/^- \*\*Config:\*\* //p' "$PREFLIGHT" | head -1 | tr -d '[:space:]' || true)"
-if [[ -z "${CONFIG:-}" ]]; then
-    echo "ERROR: No '- **Config:** <path>' line found in $PREFLIGHT." >&2
+if [[ "$CONFIG" != *.json ]]; then
+    echo "ERROR: second arg must be a config .json (got '$CONFIG')." >&2
     exit 1
 fi
 if [[ ! -f "$CONFIG" ]]; then
-    echo "ERROR: Config '$CONFIG' referenced in $PREFLIGHT does not exist." >&2
+    echo "ERROR: Config file '$CONFIG' does not exist." >&2
     exit 1
+fi
+
+# Optional sanity check: if preflight declares a config path, it must match.
+DECLARED="$(sed -n 's/^- \*\*Config:\*\* //p' "$PREFLIGHT" | head -1 | tr -d '[:space:]' || true)"
+if [[ -n "${DECLARED:-}" ]]; then
+    # Resolve both to absolute paths for comparison.
+    DECLARED_ABS="$(cd "$(dirname "$DECLARED")" 2>/dev/null && pwd)/$(basename "$DECLARED")" || DECLARED_ABS="$DECLARED"
+    CONFIG_ABS="$(cd "$(dirname "$CONFIG")" && pwd)/$(basename "$CONFIG")"
+    if [[ "$DECLARED_ABS" != "$CONFIG_ABS" ]]; then
+        echo "ERROR: preflight declares Config: '$DECLARED' but arg says '$CONFIG'." >&2
+        echo "  Remove the 'Config:' line from preflight OR fix the mismatch." >&2
+        exit 1
+    fi
 fi
 
 # ── parse config for task + db path ──────────────────────────────────
