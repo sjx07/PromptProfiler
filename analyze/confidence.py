@@ -41,15 +41,24 @@ _CHUNK_SIZE = 100_000
 
 # ── engines ───────────────────────────────────────────────────────────
 
+def _ci_bounds_pct(ci_level: float) -> tuple:
+    """Return (lo_pct, hi_pct) for numpy.percentile given a ci_level in (0,1)."""
+    if not (0.0 < ci_level < 1.0):
+        raise ValueError(f"ci_level must be in (0,1); got {ci_level!r}")
+    alpha = (1.0 - ci_level) / 2.0
+    return (alpha * 100.0, (1.0 - alpha) * 100.0)
+
+
 def paired_bootstrap(
     with_scores: Dict[str, float],
     without_scores: Dict[str, float],
-    *, n_boot: int = 1000, seed: int = 42,
+    *, n_boot: int = 1000, seed: int = 42, ci_level: float = 0.95,
 ):
     """Paired bootstrap over shared query_ids.
 
     Returns (ci_lo, ci_hi, p_gt_zero). NaN×3 if fewer than 2 shared
-    queries exist.
+    queries exist. ``ci_level`` controls the interval width; 0.95 →
+    [2.5, 97.5] percentiles, 0.80 → [10, 90], etc.
     """
     try:
         import numpy as np
@@ -65,7 +74,8 @@ def paired_bootstrap(
     rng = np.random.default_rng(seed)
     idx = rng.integers(0, len(shared), size=(n_boot, len(shared)))
     diffs = w[idx].mean(axis=1) - o[idx].mean(axis=1)
-    ci_lo, ci_hi = np.percentile(diffs, [2.5, 97.5])
+    lo_pct, hi_pct = _ci_bounds_pct(ci_level)
+    ci_lo, ci_hi = np.percentile(diffs, [lo_pct, hi_pct])
     p_gt = float((diffs > 0).mean())
     return (float(ci_lo), float(ci_hi), p_gt)
 
@@ -73,7 +83,7 @@ def paired_bootstrap(
 def unpaired_bootstrap(
     with_vals: List[float],
     without_vals: List[float],
-    *, n_boot: int = 1000, seed: int = 42,
+    *, n_boot: int = 1000, seed: int = 42, ci_level: float = 0.95,
 ):
     """Unpaired bootstrap. Each side resampled independently.
 
@@ -94,7 +104,8 @@ def unpaired_bootstrap(
     iw = rng.integers(0, len(w), size=(n_boot, len(w)))
     io_ = rng.integers(0, len(o), size=(n_boot, len(o)))
     diffs = w[iw].mean(axis=1) - o[io_].mean(axis=1)
-    ci_lo, ci_hi = np.percentile(diffs, [2.5, 97.5])
+    lo_pct, hi_pct = _ci_bounds_pct(ci_level)
+    ci_lo, ci_hi = np.percentile(diffs, [lo_pct, hi_pct])
     p_gt = float((diffs > 0).mean())
     return (float(ci_lo), float(ci_hi), p_gt)
 
@@ -124,6 +135,7 @@ def _bootstrap_rows_vectorized(
     paired: "List[bool]",
     n_boot: int,
     seed: int,
+    ci_level: float = 0.95,
 ):
     """Vectorized bootstrap for a batch of rows.
 
@@ -257,7 +269,8 @@ def _bootstrap_rows_vectorized(
     o_means = o_sum / vo_lens[:, None]
     diffs = w_means - o_means  # (V, n_boot)
 
-    lo_v, hi_v = np.percentile(diffs, [2.5, 97.5], axis=1)
+    lo_pct, hi_pct = _ci_bounds_pct(ci_level)
+    lo_v, hi_v = np.percentile(diffs, [lo_pct, hi_pct], axis=1)
     p_v = (diffs > 0).mean(axis=1)
 
     ci_lo[valid_idx] = lo_v
@@ -277,6 +290,7 @@ def attach_ci(
     all_cids: Optional[List[int]] = None,              # for "marginal"
     n_boot: int = 1000,
     seed: int = 42,
+    ci_level: float = 0.95,
     progress: bool = False,
     workers: int = 1,
 ):
@@ -469,6 +483,7 @@ def attach_ci(
             paired=paired_flags[start:end],
             n_boot=n_boot,
             seed=chunk_seed,
+            ci_level=ci_level,
         )
         ci_lo_all[start:end] = lo_c
         ci_hi_all[start:end] = hi_c

@@ -351,6 +351,21 @@ def feature_predicate_table(
     except ImportError as e:
         raise ImportError("pandas required for feature_predicate_table") from e
 
+    # R2 deprecation: prefer ``analyze.Pipeline`` for its stage-level cache
+    # reuse (tweaking filter/rank/render does not re-run the bootstrap).
+    # Kept as a shim this round; scheduled for removal in R4. Python
+    # filters duplicate warnings to once per (category, location), so
+    # this does not spam.
+    import warnings as _warn
+    _warn.warn(
+        "feature_predicate_table is deprecated (analysis R2). Use "
+        "analyze.Pipeline(store).source(...).scope(...).effect(...)"
+        ".confidence(...).filter(...).rank(...).render(...).run() — "
+        "the Pipeline caches each stage, so tweaking filter/rank/render "
+        "does not re-run the bootstrap. Scheduled for removal in R4.",
+        DeprecationWarning, stacklevel=2,
+    )
+
     if method not in ("simple", "marginal"):
         raise ValueError(f"method must be 'simple' | 'marginal'; got {method!r}")
     if metric not in ("lift", "did"):

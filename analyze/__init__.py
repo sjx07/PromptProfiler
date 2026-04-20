@@ -26,6 +26,9 @@ from analyze.meta import (
 )
 from analyze.data import predicate_kinds, predicate_overlap
 
+# ── chain-of-ops pipeline (R2) ────────────────────────────────────────
+from analyze.pipeline import Pipeline
+
 # ── query (filter + project + aggregate) ──────────────────────────────
 from analyze.query import ExecutionQuery
 
@@ -75,6 +78,7 @@ __all__ = [
     "help_cases",
     "feature_predicate_table",
     "feature_profile",
+    "Pipeline",
     # export
     "flipped_responses",
     # monitor

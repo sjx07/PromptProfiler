@@ -22,6 +22,8 @@ def rank(
     confidence_min: Optional[float] = None,
     min_effect: Optional[float] = None,
     min_lift_in_pair: Optional[float] = None,
+    require_sign: Optional[str] = None,      # "positive" | "negative" | "any" | None
+    sort_secondary: Optional[object] = None, # str or list[str] — tie-breaker
     metric: str = "lift",
     confidence: bool = False,
 ):
@@ -83,10 +85,27 @@ def rank(
             )
         return df[effect_col].abs().fillna(-1.0) >= t
 
+    def _by_sign(df, sign):
+        if sign not in ("positive", "negative", "any"):
+            raise ValueError(
+                f"require_sign must be 'positive' | 'negative' | 'any'; got {sign!r}"
+            )
+        if sign == "any":
+            return df[effect_col].notna() | df[effect_col].isna()  # all True
+        if effect_col not in df.columns:
+            raise ValueError(
+                f"require_sign targets '{effect_col}' column but it's not in the DataFrame"
+            )
+        # Drop NaN rows when a sign is required (ambiguous sign).
+        if sign == "positive":
+            return df[effect_col].fillna(float("-inf")) > 0
+        return df[effect_col].fillna(float("+inf")) < 0
+
     for value, mask_fn in (
         (confidence_min, _by_p_gt_zero),
         (min_lift_in_pair, _by_pair_max_lift),
         (min_effect, _by_magnitude),
+        (require_sign, _by_sign),
     ):
         if value is None:
             continue
@@ -102,7 +121,28 @@ def rank(
             raise ValueError("sort_by='did' requires metric='did'")
         if sort_by in ("effect_lb", "p_gt_zero") and not confidence:
             raise ValueError(f"sort_by={sort_by!r} requires confidence=True")
-        df = df.sort_values(sort_by, ascending=False, na_position="last").reset_index(drop=True)
+
+        # Assemble sort key list. Primary is sort_by (desc). Secondary
+        # breaks ties — caller passes a string or a list of strings; each
+        # must be a column present in the DataFrame. Default ascending
+        # for secondary (stable, predictable), but caller can pass tuples
+        # (col, ascending_bool) for explicit control.
+        keys: list = [sort_by]
+        ascending: list = [False]
+        if sort_secondary is not None:
+            sec_list = [sort_secondary] if isinstance(sort_secondary, (str, tuple)) else list(sort_secondary)
+            for item in sec_list:
+                if isinstance(item, tuple):
+                    col, asc = item
+                else:
+                    col, asc = item, True
+                if col not in df.columns:
+                    raise ValueError(
+                        f"sort_secondary column '{col}' not in DataFrame"
+                    )
+                keys.append(col)
+                ascending.append(asc)
+        df = df.sort_values(keys, ascending=ascending, na_position="last").reset_index(drop=True)
     else:
         df = df.sort_values(
             ["canonical_id", "predicate_name", "predicate_value"]

@@ -1706,6 +1706,255 @@ def test_fpt_min_effect_combined_with_confidence(seeded_store):
     assert (df["p_gt_zero"] >= 0.9).all()
 
 
+# ══════════════════════════════════════════════════════════════════════
+# analysis/R2 — Pipeline + new knobs + HTML
+# ══════════════════════════════════════════════════════════════════════
+
+def test_pipeline_source_required(seeded_store):
+    from analyze import Pipeline
+    store, _ = seeded_store
+    p = Pipeline(store).effect(method="simple")
+    with pytest.raises(ValueError, match="source.*required"):
+        p.run()
+
+
+def test_pipeline_minimal_chain_runs(seeded_store):
+    """Source + scope + effect defaults; no confidence/filter/rank."""
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df = (Pipeline(store)
+              .source(model=MODEL, scorer=SCORER)
+              .scope(base_config_id=ctx["base_cid"])
+              .effect(method="simple", metric="lift")
+              .run())
+    assert "lift" in df.columns
+    assert len(df) >= 2
+
+
+def test_pipeline_render_returns_tuple(seeded_store):
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        out = (Pipeline(store)
+               .source(model=MODEL, scorer=SCORER)
+               .scope(base_config_id=ctx["base_cid"])
+               .effect(method="simple", metric="lift")
+               .render(fmt="markdown")
+               .run())
+    df, md = out
+    assert isinstance(md, str)
+    assert "## Ranking" in md
+
+
+def test_pipeline_full_chain_matches_fpt(seeded_store):
+    """Pipeline output equals feature_predicate_table output for the same params."""
+    import warnings
+    from analyze import Pipeline, feature_predicate_table
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df_p = (Pipeline(store)
+                .source(model=MODEL, scorer=SCORER)
+                .scope(base_config_id=ctx["base_cid"])
+                .effect(method="simple", metric="did")
+                .confidence(n_bootstrap=200, seed=42)
+                .rank(sort_by="did")
+                .run())
+        df_f = feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="did",
+            base_config_id=ctx["base_cid"],
+            confidence=True, n_bootstrap=200, random_seed=42,
+            sort_by="did",
+        )
+    import pandas as pd
+    pd.testing.assert_frame_equal(
+        df_p.reset_index(drop=True),
+        df_f.reset_index(drop=True),
+        check_like=True,
+    )
+
+
+def test_pipeline_cache_reuse_on_filter_change(seeded_store):
+    """Mutating filter adds ~2 cache entries, upstream 4 stages reused."""
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        p = (Pipeline(store)
+             .source(model=MODEL, scorer=SCORER)
+             .scope(base_config_id=ctx["base_cid"])
+             .effect(method="simple", metric="did")
+             .confidence(n_bootstrap=100, seed=42)
+             .filter(min_lift_in_pair=0.0)
+             .rank(sort_by="did"))
+        p.run()
+        size_after_first = p.cache_size()
+
+        p2 = p.filter(min_lift_in_pair=0.5)
+        p2.run()
+        size_after_second = p2.cache_size()
+
+    assert size_after_first == 6
+    assert size_after_second == 8
+
+
+def test_pipeline_feature_include_exclude(seeded_store):
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df_inc = (Pipeline(store)
+                  .source(model=MODEL, scorer=SCORER)
+                  .scope(base_config_id=ctx["base_cid"], feature_include=["feat_a"])
+                  .effect(method="simple", metric="lift")
+                  .run())
+        df_exc = (Pipeline(store)
+                  .source(model=MODEL, scorer=SCORER)
+                  .scope(base_config_id=ctx["base_cid"], feature_exclude=["feat_b"])
+                  .effect(method="simple", metric="lift")
+                  .run())
+    assert set(df_inc["canonical_id"]) == {"feat_a"}
+    assert set(df_exc["canonical_id"]) == {"feat_a"}
+
+
+def test_pipeline_ci_level_parametric(seeded_store):
+    """ci_level=0.80 yields CI no wider than 0.95."""
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        def _run(level):
+            return (Pipeline(store)
+                    .source(model=MODEL, scorer=SCORER)
+                    .scope(base_config_id=ctx["base_cid"])
+                    .effect(method="simple", metric="lift")
+                    .confidence(n_bootstrap=500, seed=42, ci_level=level)
+                    .run())
+        df95 = _run(0.95)
+        df80 = _run(0.80)
+    widths_95 = (df95["ci_hi"] - df95["ci_lo"]).dropna()
+    widths_80 = (df80["ci_hi"] - df80["ci_lo"]).dropna()
+    assert (widths_80.to_numpy() <= widths_95.to_numpy() + 1e-9).all()
+
+
+def test_pipeline_require_sign_positive(seeded_store):
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df = (Pipeline(store)
+              .source(model=MODEL, scorer=SCORER)
+              .scope(base_config_id=ctx["base_cid"])
+              .effect(method="simple", metric="lift")
+              .filter(require_sign="positive")
+              .run())
+    assert (df["lift"] > 0).all()
+
+
+def test_pipeline_require_sign_negative(seeded_store):
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df = (Pipeline(store)
+              .source(model=MODEL, scorer=SCORER)
+              .scope(base_config_id=ctx["base_cid"])
+              .effect(method="simple", metric="lift")
+              .filter(require_sign="negative")
+              .run())
+    if len(df):
+        assert (df["lift"] < 0).all()
+
+
+def test_pipeline_sort_secondary_tiebreak(seeded_store):
+    """sort_secondary accepted and applies."""
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df = (Pipeline(store)
+              .source(model=MODEL, scorer=SCORER)
+              .scope(base_config_id=ctx["base_cid"])
+              .effect(method="simple", metric="lift")
+              .rank(sort_by="lift", sort_secondary="canonical_id")
+              .run())
+    assert "lift" in df.columns and len(df) >= 1
+
+
+def test_pipeline_verbose_false_skips_interpretation(seeded_store):
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _, md = (Pipeline(store)
+                 .source(model=MODEL, scorer=SCORER)
+                 .scope(base_config_id=ctx["base_cid"])
+                 .effect(method="simple", metric="lift")
+                 .render(fmt="markdown", verbose=False)
+                 .run())
+    assert "## Ranking" in md
+    assert "## Caveats" in md
+    assert "## Interpretation" not in md
+
+
+def test_pipeline_html_renders(seeded_store):
+    """fmt='html' produces self-contained HTML with DataTables + embedded JSON."""
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _, html = (Pipeline(store)
+                   .source(model=MODEL, scorer=SCORER)
+                   .scope(base_config_id=ctx["base_cid"])
+                   .effect(method="simple", metric="did")
+                   .confidence(n_bootstrap=100, seed=42)
+                   .render(fmt="html")
+                   .run())
+    assert html.startswith("<!doctype")
+    assert "const DATA = [" in html
+    assert 's_eff' in html and 's_pgt' in html and 's_pair' in html
+    assert "datatables.net" in html
+
+
+def test_pipeline_immutability(seeded_store):
+    """Each setter returns a new Pipeline; parent stays unmodified."""
+    from analyze import Pipeline
+    store, _ = seeded_store
+    p1 = Pipeline(store).source(model=MODEL, scorer=SCORER)
+    p2 = p1.effect(method="simple", metric="did")
+    assert "effect" not in p1.stages()
+    assert "effect" in p2.stages()
+
+
+def test_feature_predicate_table_shim_emits_deprecation_warning(seeded_store):
+    """fpt still works but emits DeprecationWarning pointing at Pipeline."""
+    import warnings
+    store, ctx = seeded_store
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="lift",
+            base_config_id=ctx["base_cid"],
+        )
+    msgs = [m for m in w if issubclass(m.category, DeprecationWarning)]
+    assert any("Pipeline" in str(m.message) for m in msgs)
+
+
 def test_feature_profile_warn_redundant_false_is_silent(seeded_store):
     """warn_redundant_predicates=False suppresses the diagnostic."""
     import warnings
