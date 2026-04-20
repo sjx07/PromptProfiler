@@ -1,0 +1,17 @@
+{
+  "feature_id": "cot_enumerate_candidates",
+  "canonical_id": "cot_enumerate_candidates",
+  "task": "table_qa",
+  "requires": ["_section_reasoning"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ddaf0b0424be",
+        "payload": {"content": "List every row or value that could plausibly be the answer, then narrow the list down to the single best one."}
+      }
+    }
+  ]
+}

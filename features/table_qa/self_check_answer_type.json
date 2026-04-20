@@ -1,0 +1,17 @@
+{
+  "feature_id": "self_check_answer_type",
+  "canonical_id": "self_check_answer_type",
+  "task": "table_qa",
+  "requires": ["_section_format_fix"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "74d04a9c3a4d",
+        "payload": {"content": "Before emitting the final answer, check that its TYPE (number, name, date, list) is consistent with the wording of the question."}
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "feature_id": "few_shot_diverse",
+  "canonical_id": "few_shot_diverse",
+  "task": "table_qa",
+  "requires": ["_section_strategy"],
+  "conflicts_with": ["few_shot_by_question_type"],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d1ca7abe1430",
+        "payload": {"content": "Follow the style of these three worked examples:\n\nExample 1 (aggregation) — Table: Player,Points; Alice,10; Bob,15; Carol,20. Q: What is the total points scored? Reasoning: 10 + 15 + 20 = 45. A: 45\n\nExample 2 (count) — Table: Country,Medals; France,3; Spain,2; Italy,5. Q: How many countries won more than 2 medals? Reasoning: France (3) and Italy (5) qualify. A: 2\n\nExample 3 (superlative) — Table: City,Population; Lyon,500k; Paris,2100k; Nice,340k. Q: Which city has the largest population? Reasoning: Paris 2100k > Lyon 500k > Nice 340k. A: Paris"}
+      }
+    }
+  ]
+}

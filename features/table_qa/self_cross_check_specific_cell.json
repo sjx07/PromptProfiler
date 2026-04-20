@@ -1,0 +1,17 @@
+{
+  "feature_id": "self_cross_check_specific_cell",
+  "canonical_id": "self_cross_check_specific_cell",
+  "task": "table_qa",
+  "requires": ["_section_format_fix"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "74d04a9c3a4d",
+        "payload": {"content": "Before emitting, point to the exact cell(s) in the table that justify the answer, and quote them."}
+      }
+    }
+  ]
+}

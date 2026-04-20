@@ -1,0 +1,17 @@
+{
+  "feature_id": "question_first_recap",
+  "canonical_id": "question_first_recap",
+  "task": "table_qa",
+  "requires": ["_section_strategy"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d1ca7abe1430",
+        "payload": {"content": "Before reading the table, restate in your own words what the question is asking. Confirm you understand it before answering."}
+      }
+    }
+  ]
+}

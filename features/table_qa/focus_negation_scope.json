@@ -1,0 +1,17 @@
+{
+  "feature_id": "focus_negation_scope",
+  "canonical_id": "focus_negation_scope",
+  "task": "table_qa",
+  "requires": ["_section_table_handling"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "7aeb9dc920cd",
+        "payload": {"content": "If the question contains 'not', 'except', 'other than', or 'without', identify exactly which entity is being excluded. Restate the positive form of the question first."}
+      }
+    }
+  ]
+}

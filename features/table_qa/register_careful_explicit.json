@@ -1,0 +1,17 @@
+{
+  "feature_id": "register_careful_explicit",
+  "canonical_id": "register_careful_explicit",
+  "task": "table_qa",
+  "requires": ["_section_role"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1cf3928ef089",
+        "payload": {"content": "Take your time. Show every lookup and every computation step explicitly in your reasoning."}
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "feature_id": "talk_to_yourself",
+  "canonical_id": "talk_to_yourself",
+  "task": "table_qa",
+  "requires": ["_section_strategy"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d1ca7abe1430",
+        "payload": {"content": "Before reading the question, describe the table to yourself in one or two sentences — its columns, its typical values, and what it is about."}
+      }
+    }
+  ]
+}

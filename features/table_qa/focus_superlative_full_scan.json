@@ -1,0 +1,17 @@
+{
+  "feature_id": "focus_superlative_full_scan",
+  "canonical_id": "focus_superlative_full_scan",
+  "task": "table_qa",
+  "requires": ["_section_table_handling"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "7aeb9dc920cd",
+        "payload": {"content": "For 'highest', 'lowest', 'longest', 'shortest' or similar superlative questions, enumerate every candidate row before picking a winner."}
+      }
+    }
+  ]
+}

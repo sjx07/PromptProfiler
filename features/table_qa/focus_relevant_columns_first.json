@@ -1,0 +1,17 @@
+{
+  "feature_id": "focus_relevant_columns_first",
+  "canonical_id": "focus_relevant_columns_first",
+  "task": "table_qa",
+  "requires": ["_section_table_handling"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "7aeb9dc920cd",
+        "payload": {"content": "Identify which columns the question cares about first. Only then scan rows within those columns."}
+      }
+    }
+  ]
+}

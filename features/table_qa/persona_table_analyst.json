@@ -1,0 +1,17 @@
+{
+  "feature_id": "persona_table_analyst",
+  "canonical_id": "persona_table_analyst",
+  "task": "table_qa",
+  "requires": ["_section_role"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1cf3928ef089",
+        "payload": {"content": "You are a careful data analyst reading a small table. Answer like one: precise, column-aware, and never hallucinating."}
+      }
+    }
+  ]
+}

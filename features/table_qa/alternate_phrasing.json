@@ -1,0 +1,17 @@
+{
+  "feature_id": "alternate_phrasing",
+  "canonical_id": "alternate_phrasing",
+  "task": "table_qa",
+  "requires": ["_section_strategy"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d1ca7abe1430",
+        "payload": {"content": "Rewrite the question in two or three different phrasings. Answer each independently. If they agree, commit; if not, work out why they disagree before emitting."}
+      }
+    }
+  ]
+}
