@@ -259,3 +259,88 @@ def predicate_kinds(store: CubeStore) -> Dict[str, str]:
             continue
         out[name] = "numeric" if all(_is_numeric_str(v) for v in vals) else "categorical"
     return out
+
+
+# ── predicate redundancy diagnostic ───────────────────────────────────
+#
+# Two predicate-values are "redundant" when they tag (almost) the same
+# query set. Example from a real cube:
+#   is_count=yes            ↔ operation_type=count
+#   has_superlative=yes     ↔ operation_type=superlative
+# These appear twice in feature_predicate_table with identical lifts.
+# Jaccard ≥ threshold flags the pair; the user can collapse or warn.
+
+def predicate_overlap(store: CubeStore, *, threshold: float = 0.95):
+    """Pairwise Jaccard similarity of predicate-value query-id sets.
+
+    For every pair of (pred_name, pred_value) slots in the cube, compute
+    the Jaccard index of the query_id sets they tag. Returns only pairs
+    at or above ``threshold`` — the "these are the same queries in
+    different dress" cases.
+
+    The pair is ordered canonically (``pred_a_name < pred_b_name`` or
+    equal names and ``pred_a_value < pred_b_value``) so each pair
+    appears once.
+
+    Returns a pandas DataFrame with columns:
+        pred_a_name, pred_a_value, pred_b_name, pred_b_value,
+        n_a, n_b, n_intersect, jaccard
+    sorted by ``jaccard`` descending.
+    """
+    try:
+        import pandas as pd
+    except ImportError as e:  # pragma: no cover
+        raise ImportError("pandas required for predicate_overlap") from e
+
+    if not (0.0 <= threshold <= 1.0):
+        raise ValueError(f"threshold must be in [0,1]; got {threshold!r}")
+
+    rows = store._get_conn().execute(
+        "SELECT name, value, query_id FROM predicate"
+    ).fetchall()
+    # (name, value) → set of query_ids
+    slots: Dict[tuple, set] = {}
+    for r in rows:
+        key = (r["name"], r["value"])
+        slots.setdefault(key, set()).add(r["query_id"])
+
+    keys = sorted(slots.keys())
+    records = []
+    for i in range(len(keys)):
+        a_name, a_val = keys[i]
+        a_set = slots[keys[i]]
+        if not a_set:
+            continue
+        for j in range(i + 1, len(keys)):
+            b_name, b_val = keys[j]
+            # Don't compare a predicate to itself (e.g. has_agg=yes vs
+            # has_agg=no — they're complementary, not redundant).
+            if a_name == b_name:
+                continue
+            b_set = slots[keys[j]]
+            if not b_set:
+                continue
+            inter = len(a_set & b_set)
+            union = len(a_set | b_set)
+            if union == 0:
+                continue
+            jaccard = inter / union
+            if jaccard < threshold:
+                continue
+            records.append({
+                "pred_a_name":  a_name,
+                "pred_a_value": a_val,
+                "pred_b_name":  b_name,
+                "pred_b_value": b_val,
+                "n_a":          len(a_set),
+                "n_b":          len(b_set),
+                "n_intersect":  inter,
+                "jaccard":      jaccard,
+            })
+    df = pd.DataFrame(records, columns=[
+        "pred_a_name", "pred_a_value", "pred_b_name", "pred_b_value",
+        "n_a", "n_b", "n_intersect", "jaccard",
+    ])
+    if not df.empty:
+        df = df.sort_values("jaccard", ascending=False).reset_index(drop=True)
+    return df

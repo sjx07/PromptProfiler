@@ -24,7 +24,7 @@ from analyze.meta import (
     list_features_in_cube,
     summary,
 )
-from analyze.data import predicate_kinds  # numeric vs categorical
+from analyze.data import predicate_kinds, predicate_overlap
 
 # ── query (filter + project + aggregate) ──────────────────────────────
 from analyze.query import ExecutionQuery
@@ -39,6 +39,7 @@ from analyze.compare import (
     harm_cases,
     help_cases,
     feature_predicate_table,
+    feature_profile,
 )
 
 # ── export (error reports for downstream LLM loops) ───────────────────
@@ -61,6 +62,7 @@ __all__ = [
     "list_features_in_cube",
     "summary",
     "predicate_kinds",
+    "predicate_overlap",
     # query
     "ExecutionQuery",
     # compare
@@ -72,6 +74,7 @@ __all__ = [
     "harm_cases",
     "help_cases",
     "feature_predicate_table",
+    "feature_profile",
     # export
     "flipped_responses",
     # monitor

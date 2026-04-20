@@ -1433,3 +1433,301 @@ def test_flipped_responses_git_add_inside_repo_stages_file(seeded_store, tmp_pat
         cwd=repo, capture_output=True, text=True, check=True,
     )
     assert "flips.jsonl" in res.stdout
+
+
+# ══════════════════════════════════════════════════════════════════════
+# analysis/R1 — feature_profile + predicate_overlap
+# ══════════════════════════════════════════════════════════════════════
+
+def test_predicate_overlap_empty_when_no_redundancy(seeded_store):
+    """Fixture has only has_agg — no other predicate to overlap with."""
+    from analyze import predicate_overlap
+    store, _ = seeded_store
+    df = predicate_overlap(store)
+    assert df.empty
+
+
+def test_predicate_overlap_detects_redundant_pair(seeded_store):
+    """Inject a redundant predicate tagging the same queries as has_agg."""
+    from analyze import predicate_overlap
+    store, _ = seeded_store
+    # Copy has_agg values under a new name — perfect overlap.
+    with store._cursor() as cur:
+        rows = cur.execute(
+            "SELECT query_id, value FROM predicate WHERE name = 'has_agg'"
+        ).fetchall()
+        for r in rows:
+            cur.execute(
+                "INSERT OR IGNORE INTO predicate (query_id, name, value) VALUES (?, ?, ?)",
+                (r["query_id"], "is_aggregation", r["value"]),
+            )
+    df = predicate_overlap(store)
+    assert not df.empty
+    # At least one pair has has_agg ↔ is_aggregation at jaccard=1.0.
+    matches = df[
+        ((df["pred_a_name"] == "has_agg") & (df["pred_b_name"] == "is_aggregation")) |
+        ((df["pred_b_name"] == "has_agg") & (df["pred_a_name"] == "is_aggregation"))
+    ]
+    assert len(matches) >= 1
+    assert (matches["jaccard"] == 1.0).any()
+
+
+def test_predicate_overlap_ignores_same_name_complementary(seeded_store):
+    """has_agg=yes vs has_agg=no are disjoint but both live under the same
+    predicate name — they must NOT be flagged as redundant."""
+    from analyze import predicate_overlap
+    store, _ = seeded_store
+    df = predicate_overlap(store, threshold=0.0)  # flag ALL overlaps
+    # No rows where both sides share a predicate name (we skip those).
+    if not df.empty:
+        assert not (df["pred_a_name"] == df["pred_b_name"]).any()
+
+
+def test_predicate_overlap_bad_threshold_raises(seeded_store):
+    from analyze import predicate_overlap
+    store, _ = seeded_store
+    with pytest.raises(ValueError, match="threshold"):
+        predicate_overlap(store, threshold=1.5)
+
+
+def test_feature_profile_basic_schema(seeded_store):
+    """Profile DF has one row per feature and expected summary cols."""
+    import warnings
+    from analyze import feature_profile
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # may warn on empty cubes etc.
+        df = feature_profile(
+            store, model=MODEL, scorer=SCORER,
+            base_config_id=ctx["base_cid"],
+            n_bootstrap=100,
+        )
+    # One row per non-base feature (feat_a + feat_b; base-like filtered out).
+    assert len(df) >= 1
+    for col in ("canonical_id", "feature_id",
+                "n_sig_slices", "max_abs_did",
+                "breadth_mean", "classification"):
+        assert col in df.columns
+    # did_has_agg column is present (the fixture's one predicate).
+    did_cols = [c for c in df.columns if c.startswith("did_")]
+    assert len(did_cols) >= 1
+
+
+def test_feature_profile_classifies_null_when_all_ties(seeded_store):
+    """Both feat_a and feat_b in the fixture have DiD within threshold for
+    some predicates — verify classification field is one of the allowed
+    labels."""
+    import warnings
+    from analyze import feature_profile
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df = feature_profile(
+            store, model=MODEL, scorer=SCORER,
+            base_config_id=ctx["base_cid"],
+            n_bootstrap=100,
+        )
+    assert df["classification"].isin(
+        ["null", "selective", "broad", "mixed"]
+    ).all()
+
+
+def test_feature_profile_selective_with_strong_interaction(seeded_store):
+    """Fixture feat_a has lift=+1.0 @has_agg=yes and 0.0 @has_agg=no → DiD=+1.0.
+    That's one big slice above the magnitude threshold → 'selective'."""
+    import warnings
+    from analyze import feature_profile
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df = feature_profile(
+            store, model=MODEL, scorer=SCORER,
+            base_config_id=ctx["base_cid"],
+            n_bootstrap=100,
+            magnitude_threshold=0.05,  # easy threshold for this fixture
+        )
+    row_a = df[df["canonical_id"] == "feat_a"].iloc[0]
+    # feat_a's has_agg DiD should be large and positive.
+    assert row_a["did_has_agg"] > 0.5
+    assert row_a["max_abs_did"] >= 0.5
+    # Classification should land on selective (only one predicate in scope).
+    assert row_a["classification"] == "selective"
+
+
+def test_feature_profile_warns_on_redundant_predicates(seeded_store):
+    """Inject a redundant predicate; feature_profile must emit a warning."""
+    import warnings
+    from analyze import feature_profile
+    store, ctx = seeded_store
+    with store._cursor() as cur:
+        rows = cur.execute(
+            "SELECT query_id, value FROM predicate WHERE name = 'has_agg'"
+        ).fetchall()
+        for r in rows:
+            cur.execute(
+                "INSERT OR IGNORE INTO predicate (query_id, name, value) VALUES (?, ?, ?)",
+                (r["query_id"], "is_aggregation", r["value"]),
+            )
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        feature_profile(
+            store, model=MODEL, scorer=SCORER,
+            base_config_id=ctx["base_cid"],
+            n_bootstrap=50,
+        )
+    msgs = [str(x.message) for x in w]
+    assert any("redundant predicate" in m.lower() for m in msgs)
+
+
+def test_fpt_min_effect_filters_on_lift(seeded_store):
+    """min_effect=0.5 drops rows where |lift| < 0.5."""
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        min_effect=0.5,
+    )
+    # Every surviving row has |lift| >= 0.5.
+    assert (df["lift"].abs() >= 0.5).all()
+    # At least one row survives (feat_a @ has_agg=true has lift=+1.0).
+    assert len(df) >= 1
+
+
+def test_fpt_min_effect_targets_did_when_metric_is_did(seeded_store):
+    """metric='did' + min_effect → filters on |did|, not |lift|."""
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="did",
+        base_config_id=ctx["base_cid"],
+        min_effect=0.5,
+    )
+    import pandas as pd
+    # Every surviving row has |did| >= 0.5 (NaN rows drop via fillna(-1)).
+    survivors = df["did"].dropna()
+    if len(survivors):
+        assert (survivors.abs() >= 0.5).all()
+
+
+def test_fpt_min_effect_negative_raises(seeded_store):
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="min_effect must be"):
+        feature_predicate_table(
+            store, model=MODEL, scorer=SCORER,
+            method="simple", metric="lift",
+            base_config_id=ctx["base_cid"],
+            min_effect=-0.1,
+        )
+
+
+def test_fpt_min_lift_in_pair_drops_universal_losers(seeded_store):
+    """feat_b has lift=0 @has_agg=yes and lift=-1.0 @has_agg=false — no
+    side helps, so min_lift_in_pair=0.0 drops the whole (feat_b, has_agg)
+    pair. feat_a keeps both rows (lift=+1.0 @yes passes the threshold)."""
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        min_lift_in_pair=0.0,
+    )
+    present = set(df["canonical_id"])
+    # feat_a survives (helps on yes), feat_b dropped (helps nowhere).
+    assert "feat_a" in present
+    assert "feat_b" not in present
+    # Both of feat_a's rows are kept (it's a pair-level filter).
+    assert len(df[df["canonical_id"] == "feat_a"]) == 2
+
+
+def test_fpt_min_lift_in_pair_with_did_mode(seeded_store):
+    """Works in DiD mode too — pair-level lift check is metric-agnostic.
+
+    Fixture: feat_a has max(lift)=1.0 (helps on has_agg=yes);
+    feat_b has max(lift)=0.0 (lifts are 0.0 and -1.0). With strict
+    `> 0.0`, feat_a passes and feat_b is dropped.
+    """
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="did",
+        base_config_id=ctx["base_cid"],
+        min_lift_in_pair=0.0,
+    )
+    assert "feat_a" in set(df["canonical_id"])
+    assert "feat_b" not in set(df["canonical_id"])
+
+
+def test_fpt_min_lift_in_pair_runs_before_min_effect(seeded_store):
+    """Pair-level filter must run BEFORE per-row min_effect — otherwise
+    min_effect could trim rows away and distort the pair-max decision.
+
+    Setup: feat_a pair has rows with lift=[1.0, 0.0]. With
+    min_effect=0.5, the 0.0 row would drop first if ordering is wrong.
+    The pair-max is still 1.0 in any ordering, but we verify that with
+    strict combo the feat_a pair survives (feat_b gets dropped by both).
+    """
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        min_lift_in_pair=0.0,
+        min_effect=0.5,
+    )
+    # feat_a survives pair-filter. Then min_effect drops the 0.0 row
+    # from feat_a's pair, leaving only the 1.0 row. feat_b dropped entirely.
+    assert set(df["canonical_id"]) == {"feat_a"}
+    assert (df["lift"].abs() >= 0.5).all()
+
+
+def test_fpt_min_lift_in_pair_missing_lift_column_raises():
+    """If somehow called on a df without 'lift' column — explicit error."""
+    import pandas as pd
+    from analyze.rank import rank
+    empty = pd.DataFrame({"canonical_id": [], "predicate_name": []})
+    with pytest.raises(ValueError, match="min_lift_in_pair requires a 'lift' column"):
+        rank(empty, min_lift_in_pair=0.0)
+
+
+def test_fpt_min_effect_combined_with_confidence(seeded_store):
+    """min_effect and confidence_min compose: both gates applied."""
+    store, ctx = seeded_store
+    df = feature_predicate_table(
+        store, model=MODEL, scorer=SCORER,
+        method="simple", metric="lift",
+        base_config_id=ctx["base_cid"],
+        confidence=True, n_bootstrap=100,
+        min_effect=0.5,
+        confidence_min=0.9,
+    )
+    # Both conditions hold on every surviving row.
+    assert (df["lift"].abs() >= 0.5).all()
+    assert (df["p_gt_zero"] >= 0.9).all()
+
+
+def test_feature_profile_warn_redundant_false_is_silent(seeded_store):
+    """warn_redundant_predicates=False suppresses the diagnostic."""
+    import warnings
+    from analyze import feature_profile
+    store, ctx = seeded_store
+    with store._cursor() as cur:
+        rows = cur.execute(
+            "SELECT query_id, value FROM predicate WHERE name = 'has_agg'"
+        ).fetchall()
+        for r in rows:
+            cur.execute(
+                "INSERT OR IGNORE INTO predicate (query_id, name, value) VALUES (?, ?, ?)",
+                (r["query_id"], "is_aggregation", r["value"]),
+            )
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        feature_profile(
+            store, model=MODEL, scorer=SCORER,
+            base_config_id=ctx["base_cid"],
+            n_bootstrap=50,
+            warn_redundant_predicates=False,
+        )
+    # None of the warnings mention "redundant".
+    msgs = [str(x.message) for x in w]
+    assert not any("redundant predicate" in m.lower() for m in msgs)

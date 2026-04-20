@@ -321,6 +321,8 @@ def feature_predicate_table(
     sort_by: Optional[str] = None,
     top_k: Optional[int] = None,
     confidence_min: Optional[float] = None,
+    min_effect: Optional[float] = None,        # magnitude gate on |lift| or |did|
+    min_lift_in_pair: Optional[float] = None,  # pair-level: max(lift) over predicate_values ≥ threshold
     report: Optional[str] = None,              # "markdown" | "text" | "both"
     # R6.5 long-run kwargs:
     progress: bool = False,                    # tqdm bars on hot loops
@@ -475,7 +477,10 @@ def feature_predicate_table(
     # ── 6. rank / filter / top_k ──────────────────────────────────────
     df = rank.rank(
         df,
-        sort_by=sort_by, top_k=top_k, confidence_min=confidence_min,
+        sort_by=sort_by, top_k=top_k,
+        confidence_min=confidence_min,
+        min_effect=min_effect,
+        min_lift_in_pair=min_lift_in_pair,
         metric=metric, confidence=confidence,
     )
 
@@ -492,3 +497,215 @@ def feature_predicate_table(
         )
         return df, _report.render(df, fmt=report, run_meta=run_meta)
     return df
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Feature × Predicate interaction profile (analysis fork R1)
+# ══════════════════════════════════════════════════════════════════════
+#
+# Wide-format view: one row per feature, one `did_<pname>` column per
+# binary categorical predicate, plus depth/breadth stats and a simple
+# classification. Built on the same lower layers as
+# feature_predicate_table. Redundant-predicate warning comes from
+# data.predicate_overlap.
+
+def feature_profile(
+    store: CubeStore,
+    *,
+    model: str,
+    scorer: str,
+    base_config_id: int,
+    predicate_names: Optional[List[str]] = None,
+    reference_values: Optional[Dict[str, str]] = None,
+    task: Optional[str] = None,
+    # thresholds (tune per cube; defaults are conservative):
+    magnitude_threshold: float = 0.01,   # |did| below this = "null" slot
+    confidence_threshold: float = 0.80,  # P(lift>0) above this = "sig positive"
+    # plumbed through to the bootstrap engine:
+    confidence: bool = True,
+    n_bootstrap: int = 1000,
+    random_seed: int = 42,
+    progress: bool = False,
+    workers: int = 1,
+    # diagnostics:
+    skip_numeric: bool = True,
+    warn_redundant_predicates: bool = True,
+    redundancy_threshold: float = 0.95,
+):
+    """Wide-format feature × predicate interaction profile.
+
+    One row per feature. For each binary categorical predicate in scope,
+    computes `did = lift(value != ref) − lift(ref)` and reports it as
+    a column. Adds breadth/depth summary stats + classification.
+
+    Returns a pandas.DataFrame with columns:
+        canonical_id, feature_id,
+        did_<pname_1>, did_<pname_2>, …
+        p_gt_zero_<pname_1>, …             # if confidence=True
+        n_sig_slices, max_abs_did, breadth_mean, classification
+
+    Classification (post-hoc label based on thresholds):
+        null       — no predicate with |did| ≥ magnitude_threshold
+        selective  — 1–2 predicates with |did| above threshold; rest null
+        broad      — ≥3 predicates same-signed (all positive or all negative)
+        mixed      — ≥2 predicates above threshold with DIFFERENT signs
+
+    Args:
+        magnitude_threshold: |did| below this is considered "not meaningfully
+            different". Default 0.01 matches the verdict logic in report.py.
+        confidence_threshold: P(lift>0) at which a slice counts as
+            statistically non-null (used for n_sig_slices).
+        warn_redundant_predicates: if True, emit a UserWarning listing
+            predicate-pair redundancies (e.g. is_count ↔ operation_type=count)
+            detected by data.predicate_overlap. Does not modify the output.
+    """
+    try:
+        import pandas as pd
+    except ImportError as e:
+        raise ImportError("pandas required for feature_profile") from e
+
+    # ── 0. redundancy diagnostic (opt-out) ─────────────────────────────
+    if warn_redundant_predicates:
+        overlap = data.predicate_overlap(store, threshold=redundancy_threshold)
+        if not overlap.empty:
+            import warnings
+            pairs = "; ".join(
+                f"{r['pred_a_name']}={r['pred_a_value']} ↔ "
+                f"{r['pred_b_name']}={r['pred_b_value']} "
+                f"(jaccard={r['jaccard']:.2f})"
+                for _, r in overlap.head(10).iterrows()
+            )
+            warnings.warn(
+                "feature_profile: redundant predicate pair(s) detected "
+                f"(jaccard ≥ {redundancy_threshold}): {pairs}. "
+                "Same queries double-counted across columns. "
+                "Pass warn_redundant_predicates=False to silence, or "
+                "call analyze.data.predicate_overlap(store) to audit.",
+                stacklevel=2,
+            )
+
+    # ── 1. delegate to feature_predicate_table for the long-format cells ──
+    # We ask for metric="did" + confidence=True so each (feature × predicate
+    # × value) row carries did + p_gt_zero ready-to-use.
+    long_df = feature_predicate_table(
+        store,
+        model=model, scorer=scorer,
+        method="simple", metric="did",
+        predicate_names=predicate_names,
+        base_config_id=base_config_id,
+        reference_values=reference_values,
+        task=task,
+        confidence=confidence,
+        n_bootstrap=n_bootstrap,
+        random_seed=random_seed,
+        progress=progress, workers=workers,
+        skip_numeric=skip_numeric,
+    )
+    if long_df.empty:
+        return pd.DataFrame(columns=[
+            "canonical_id", "feature_id",
+            "n_sig_slices", "max_abs_did", "breadth_mean", "classification",
+        ])
+
+    # ── 2. pivot per feature × predicate_name ──────────────────────────
+    # For binary predicates we keep ONE representative DiD per (feature,
+    # pname). By convention (effect.did), the reference row has did=0;
+    # the OTHER value carries the interaction. So for a binary predicate
+    # we pick the row where predicate_value != reference, i.e. the
+    # non-zero |did| of the two.
+    #
+    # For multi-value predicates without an explicit reference, did is
+    # NaN everywhere → the column stays NaN (honest signal).
+    def _pick_representative(group):
+        # Prefer the row whose did is farthest from zero in magnitude
+        # (drops the reference row which is always did=0).
+        non_zero = group.loc[group["did"].abs() > 0]
+        if len(non_zero):
+            return non_zero.loc[non_zero["did"].abs().idxmax()]
+        # All-zero group → pick any row to carry ns / NaN forwards.
+        return group.iloc[0]
+
+    per_fp = (long_df
+              .groupby(["canonical_id", "predicate_name"], as_index=False)
+              .apply(_pick_representative, include_groups=False)
+              .reset_index())
+
+    # groupby().apply() with include_groups=False strips the grouping
+    # columns; re-hydrate them from the grouping keys.
+    if "canonical_id" not in per_fp.columns:
+        # Older pandas: the grouped columns live in level_0/level_1.
+        per_fp = (long_df
+                  .groupby(["canonical_id", "predicate_name"], as_index=False)
+                  .apply(_pick_representative)
+                  .reset_index(drop=True))
+
+    # ── 3. pivot to wide ──────────────────────────────────────────────
+    did_wide = per_fp.pivot(index="canonical_id",
+                            columns="predicate_name", values="did")
+    did_wide.columns = [f"did_{c}" for c in did_wide.columns]
+
+    cols = [did_wide]
+    if confidence and "p_gt_zero" in per_fp.columns:
+        p_wide = per_fp.pivot(index="canonical_id",
+                              columns="predicate_name", values="p_gt_zero")
+        p_wide.columns = [f"p_gt_zero_{c}" for c in p_wide.columns]
+        cols.append(p_wide)
+
+    wide = pd.concat(cols, axis=1).reset_index()
+
+    # ── 4. per-feature summary stats ──────────────────────────────────
+    did_cols = [c for c in wide.columns if c.startswith("did_")]
+    p_cols   = [c for c in wide.columns if c.startswith("p_gt_zero_")]
+
+    def _summarize(row):
+        dids = [row[c] for c in did_cols if pd.notna(row[c])]
+        abs_dids = [abs(d) for d in dids]
+        max_abs = max(abs_dids) if abs_dids else float("nan")
+
+        n_sig = 0
+        if confidence and p_cols:
+            for c in p_cols:
+                pv = row[c]
+                if pd.notna(pv) and pv >= confidence_threshold:
+                    n_sig += 1
+
+        # Classification
+        big = [d for d in dids if abs(d) >= magnitude_threshold]
+        if not big:
+            classification = "null"
+        else:
+            signs = {(1 if d > 0 else -1) for d in big}
+            if len(signs) > 1:
+                classification = "mixed"
+            elif len(big) <= 2:
+                classification = "selective"
+            else:
+                classification = "broad"
+
+        breadth = sum(dids) / len(dids) if dids else float("nan")
+        return pd.Series({
+            "n_sig_slices":   n_sig,
+            "max_abs_did":    max_abs,
+            "breadth_mean":   breadth,
+            "classification": classification,
+        })
+
+    summary = wide.apply(_summarize, axis=1)
+    wide = pd.concat([wide, summary], axis=1)
+
+    # ── 5. attach feature_id from the registry ────────────────────────
+    # Pull (canonical_id, feature_id) directly from the feature table
+    # via data.features_df (already parses primitive_spec, materializes
+    # func_ids — we only want canonical → feature_id here).
+    fdf = data.features_df(store, task=task)
+    if not fdf.empty:
+        cid_to_fid = dict(zip(fdf["canonical_id"], fdf["feature_id"]))
+        wide.insert(1, "feature_id",
+                    wide["canonical_id"].map(cid_to_fid))
+    else:
+        wide.insert(1, "feature_id", None)
+
+    # Sort by max_abs_did descending — the "deepest-effect" features first.
+    wide = wide.sort_values("max_abs_did", ascending=False,
+                            na_position="last").reset_index(drop=True)
+    return wide
