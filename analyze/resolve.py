@@ -66,31 +66,67 @@ def simple_effect_configs(
 ) -> Dict[str, int]:
     """Map ``canonical_id → config_id`` for "base + exactly this feature".
 
-    A config ``c`` matches feature ``f`` iff ``c.func_ids − base.func_ids``
-    equals the feature's add_funcs (its ``func_ids`` minus base).
+    Two-pass resolution, in priority order:
 
-    Features whose add_funcs is empty (everything they contribute already
-    lives in base) are skipped.
+      1. **``config.meta.canonical_id``** — the authoritative, explicit
+         mapping written by ``add_one_feature`` and other generators.
+         Cheap, robust against materializer side-effects that add
+         extra func_ids beyond the feature's primitive_spec.
+      2. **Func_ids delta** — for configs whose meta lacks a
+         canonical_id (e.g. coalitions, legacy cubes), match by
+         ``c.func_ids − base.func_ids == feature.add_funcs``.
+
+    The delta fallback is necessary but fragile: if the materializer
+    injects primitives (section nodes, output fields) that aren't
+    present in the feature's primitive_spec, the equality check misses
+    and the feature silently vanishes from the analysis. Pass 1 avoids
+    that failure mode for any config generator that writes
+    canonical_id into meta.
+
+    Features whose primitives are entirely contained in the base config
+    are skipped (no separable "with" semantics).
     """
     base_fids = base_func_ids(configs_df_in, base_config_id)
     out: Dict[str, int] = {}
 
-    # Precompute deltas for non-base configs.
-    deltas = []
+    # Canonical IDs known to the feature registry — guard against a
+    # cube where config.meta.canonical_id points to a feature that
+    # isn't currently registered (stale runs).
+    known_canon = set(features_df_in["canonical_id"].tolist()) \
+        if not features_df_in.empty else set()
+
+    # Pass 1: read config.meta.canonical_id directly.
     for _, crow in configs_df_in.iterrows():
         cid = int(crow["config_id"])
         if cid == base_config_id:
             continue
-        deltas.append((cid, crow["func_ids"] - base_fids))
+        meta = crow.get("meta") or {}
+        canon = meta.get("canonical_id") if isinstance(meta, dict) else None
+        if canon and canon in known_canon and canon not in out:
+            out[canon] = cid
 
-    for _, frow in features_df_in.iterrows():
-        add_funcs = frow["func_ids"] - base_fids
-        if not add_funcs:
-            continue
-        for cid, delta in deltas:
-            if delta == add_funcs:
-                out[frow["canonical_id"]] = cid
-                break
+    # Pass 2: func_ids delta for any feature still missing.
+    missing = [row for _, row in features_df_in.iterrows()
+               if row["canonical_id"] not in out] if not features_df_in.empty else []
+    if missing:
+        deltas = []
+        for _, crow in configs_df_in.iterrows():
+            cid = int(crow["config_id"])
+            if cid == base_config_id:
+                continue
+            # Skip configs already claimed by a pass-1 match.
+            if cid in out.values():
+                continue
+            deltas.append((cid, crow["func_ids"] - base_fids))
+
+        for frow in missing:
+            add_funcs = frow["func_ids"] - base_fids
+            if not add_funcs:
+                continue
+            for cid, delta in deltas:
+                if delta == add_funcs:
+                    out[frow["canonical_id"]] = cid
+                    break
     return out
 
 

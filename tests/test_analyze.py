@@ -1951,6 +1951,52 @@ def test_base_func_ids_none_raises_clearly(seeded_store):
         base_func_ids(cdf, None)
 
 
+def test_simple_effect_configs_prefers_meta_canonical_id():
+    """Config whose materialized func_ids includes extras beyond the
+    feature's primitive_spec still resolves via config.meta.canonical_id.
+
+    Reproduces the real-world failure: delta matching missed, silently
+    producing 0 rows. The fix prefers meta.canonical_id (pass 1) and
+    falls back to delta matching (pass 2).
+    """
+    import pandas as pd
+    from analyze.resolve import simple_effect_configs
+
+    # Base has two scaffolding primitives (section nodes).
+    cdf = pd.DataFrame({
+        "config_id": [1, 2, 3],
+        "func_ids": [
+            frozenset(["sec_role", "sec_task"]),            # base
+            # Add-one feat_cot: feature primitive + ALSO a new scaffolding
+            # primitive injected by the materializer. delta would be
+            # {cot, sec_out} but feature.func_ids is only {cot}.
+            frozenset(["sec_role", "sec_task", "cot", "sec_out"]),
+            # Add-one feat_code with a clean delta (delta == feature.func_ids).
+            frozenset(["sec_role", "sec_task", "code"]),
+        ],
+        "meta": [
+            {},
+            {"canonical_id": "enable_cot"},   # explicit mapping
+            {},                               # no meta — forces delta fallback
+        ],
+    })
+
+    # Feature table — primitive_spec doesn't include sec_out, so delta
+    # for config 2 would NOT match feat_cot without pass 1.
+    fdf = pd.DataFrame({
+        "canonical_id": ["enable_cot", "enable_code"],
+        "feature_id":   ["fid_cot", "fid_code"],
+        "task":         ["t", "t"],
+        "func_ids":     [frozenset(["cot"]), frozenset(["code"])],
+    })
+
+    out = simple_effect_configs(cdf, fdf, base_config_id=1)
+    # Pass 1 picks up enable_cot from config 2's meta.
+    assert out["enable_cot"] == 2
+    # Pass 2 picks up enable_code via delta match.
+    assert out["enable_code"] == 3
+
+
 def test_base_func_ids_dtype_tolerant_lookup():
     """config_id stored as float or string still matches an int base_config_id.
 
