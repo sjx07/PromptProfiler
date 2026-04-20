@@ -14,11 +14,48 @@ from __future__ import annotations
 from typing import Dict, Set
 
 
-def base_func_ids(configs_df_in, base_config_id: int) -> frozenset:
-    """Return the func_ids set for the given base_config_id."""
-    row = configs_df_in[configs_df_in["config_id"] == base_config_id]
+def base_func_ids(configs_df_in, base_config_id) -> frozenset:
+    """Return the func_ids set for the given base_config_id.
+
+    The lookup is dtype-tolerant: ``base_config_id`` is coerced to int
+    for comparison, and the ``config_id`` column is coerced to int on
+    the way in. This defends against cubes where the column was
+    round-tripped as float/str and a naive ``== int`` comparison
+    silently misses.
+
+    Raises ``ValueError`` with the list of available config_ids (capped
+    at 20) plus the smallest-func_ids row as the likely base when the
+    lookup genuinely misses.
+    """
+    if base_config_id is None:
+        raise ValueError(
+            "base_config_id is None. method='simple' needs an explicit "
+            "base config. Call Pipeline.scope(base_config_id=<int>)."
+        )
+
+    # Dtype-tolerant comparison. Cast both sides to int; fall back to
+    # raw equality if coercion fails on an exotic column type.
+    try:
+        target = int(base_config_id)
+        col_int = configs_df_in["config_id"].astype(int)
+        mask = col_int == target
+    except (TypeError, ValueError):
+        mask = configs_df_in["config_id"] == base_config_id
+
+    row = configs_df_in[mask]
     if row.empty:
-        raise ValueError(f"base_config_id {base_config_id} not found")
+        available = sorted(configs_df_in["config_id"].tolist())
+        shown = available[:20]
+        more = f" (+{len(available) - 20} more)" if len(available) > 20 else ""
+        likely = None
+        if not configs_df_in.empty:
+            sizes = configs_df_in["func_ids"].map(len)
+            likely = int(configs_df_in.loc[sizes.idxmin(), "config_id"])
+        hint = f" Smallest-func_ids config is {likely}." if likely is not None else ""
+        raise ValueError(
+            f"base_config_id {base_config_id!r} not found in cube. "
+            f"Available config_ids: {shown}{more}.{hint}"
+        )
     return row.iloc[0]["func_ids"]
 
 

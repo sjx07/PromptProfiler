@@ -330,6 +330,10 @@ class Pipeline:
             fdf = src["features"]
             sdf = src["scores"]
 
+            # Simple mode needs an explicit base_config_id; marginal-only
+            # leaves it None. The lookup is dtype-tolerant (see
+            # resolve.base_func_ids) so a cube with config_id stored as
+            # int64 / float / string all behaves the same.
             base_fids: frozenset = frozenset()
             if p["base_config_id"] is not None:
                 base_fids = resolve.base_func_ids(cdf, p["base_config_id"])

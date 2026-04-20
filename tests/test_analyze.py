@@ -1940,6 +1940,60 @@ def test_pipeline_immutability(seeded_store):
     assert "effect" in p2.stages()
 
 
+def test_base_func_ids_none_raises_clearly(seeded_store):
+    """None → explicit error. Auto-detect is out of scope; user passes
+    the base config_id explicitly."""
+    from analyze.data import configs_df
+    from analyze.resolve import base_func_ids
+    store, _ = seeded_store
+    cdf = configs_df(store)
+    with pytest.raises(ValueError, match="None"):
+        base_func_ids(cdf, None)
+
+
+def test_base_func_ids_dtype_tolerant_lookup():
+    """config_id stored as float or string still matches an int base_config_id.
+
+    The real-world failure: user's cube had config_id=1 with empty
+    func_ids, they passed base_config_id=1 (int), but a dtype quirk
+    made ``column == 1`` return all False. The lookup now coerces
+    both sides to int for comparison.
+    """
+    import pandas as pd
+    from analyze.resolve import base_func_ids
+
+    # config_id column as float64 (pandas default when mixed with NaN).
+    cdf_float = pd.DataFrame({
+        "config_id": [1.0, 2.0, 3.0],
+        "func_ids":  [frozenset(), frozenset(["a"]), frozenset(["b"])],
+        "meta":      [{}, {}, {}],
+    })
+    assert base_func_ids(cdf_float, 1) == frozenset()
+
+    # config_id as string (round-tripped through JSON or bad CSV).
+    cdf_str = pd.DataFrame({
+        "config_id": ["1", "2", "3"],
+        "func_ids":  [frozenset(), frozenset(["a"]), frozenset(["b"])],
+        "meta":      [{}, {}, {}],
+    })
+    assert base_func_ids(cdf_str, 1) == frozenset()
+
+
+def test_base_func_ids_missing_lists_available_configs(seeded_store):
+    """Bad config_id → error lists existing ones + flags likely base."""
+    from analyze.data import configs_df
+    from analyze.resolve import base_func_ids
+    store, _ = seeded_store
+    cdf = configs_df(store)
+    with pytest.raises(ValueError, match="not found") as e:
+        base_func_ids(cdf, 999)
+    msg = str(e.value)
+    # Lists available config_ids.
+    assert "Available config_ids:" in msg
+    # Flags the most-likely base (smallest func_ids — the actual base_cid).
+    assert "Smallest-func_ids" in msg
+
+
 def test_feature_predicate_table_shim_emits_deprecation_warning(seeded_store):
     """fpt still works but emits DeprecationWarning pointing at Pipeline."""
     import warnings
