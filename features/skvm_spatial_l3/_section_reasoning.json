@@ -1,0 +1,16 @@
+{
+  "canonical_id": "_section_reasoning",
+  "task": "skvm_spatial_l3",
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "section",
+        "parent_id": "__root__",
+        "payload": {"title": "reasoning", "ordinal": 30, "is_system": true, "min_rules": 0, "max_rules": 10}
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "canonical_id": "_section_strategy",
+  "task": "skvm_logic_l2",
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "section",
+        "parent_id": "__root__",
+        "payload": {"title": "strategy", "ordinal": 20, "is_system": true, "min_rules": 0, "max_rules": 10}
+      }
+    }
+  ]
+}

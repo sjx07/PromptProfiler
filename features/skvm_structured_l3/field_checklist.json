@@ -1,0 +1,16 @@
+{
+  "canonical_id": "field_checklist",
+  "task": "skvm_structured_l3",
+  "requires": ["_section_format_fix"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "887142ba0b96",
+        "payload": {"content": "Each member object must contain EXACTLY these keys and no others: `name` (string), `role` (string), `email` (string), `joined_year` (integer, not a string)."}
+      }
+    }
+  ]
+}

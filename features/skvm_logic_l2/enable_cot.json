@@ -1,0 +1,24 @@
+{
+  "canonical_id": "enable_cot",
+  "task": "skvm_logic_l2",
+  "requires": ["_section_reasoning"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ddaf0b0424be",
+        "payload": {"content": "Think step by step. For each constraint, record what it pins or eliminates before picking the final name."}
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {"name": "reasoning", "description": "Step-by-step deduction before the final name."}
+      }
+    }
+  ]
+}

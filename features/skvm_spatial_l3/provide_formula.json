@@ -1,0 +1,16 @@
+{
+  "canonical_id": "provide_formula",
+  "task": "skvm_spatial_l3",
+  "requires": ["_section_strategy"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "59b8fbcc2975",
+        "payload": {"content": "Use the haversine formula: a = sin^2((lat2-lat1)/2) + cos(lat1)cos(lat2)sin^2((lon2-lon1)/2); c = 2·atan2(sqrt(a), sqrt(1-a)); d = R·c with R = 6371 km. Apply degrees-to-radians conversion to lat/lon before taking sin/cos."}
+      }
+    }
+  ]
+}

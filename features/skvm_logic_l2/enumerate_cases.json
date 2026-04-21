@@ -1,0 +1,16 @@
+{
+  "canonical_id": "enumerate_cases",
+  "task": "skvm_logic_l2",
+  "requires": ["_section_strategy"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "59b8fbcc2975",
+        "payload": {"content": "First list every possible assignment consistent with the direct positional constraints, then eliminate any that violate an adjacency or negation constraint."}
+      }
+    }
+  ]
+}
