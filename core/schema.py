@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8   # v8 (analysis R5): + config_feature join table
 
 TABLES: list[str] = [
     # ── reference tables ──────────────────────────────────────────────
@@ -145,6 +145,28 @@ TABLES: list[str] = [
     )
     """,
 
+    # ── config_feature = many-to-many join (schema v8) ────────────────
+    #
+    # Promotes the (config × feature) relationship from JSON inside
+    # config.meta to a proper indexed join table. Resolves the ambiguity
+    # where two configs sharing a canonical_id under different bases
+    # look identical at the meta level. Also lets the analysis layer
+    # use indexed JOINs instead of json_extract(meta, '$.feature_ids').
+    #
+    # ``role`` is reserved for future use (e.g. "base" vs "experiment"
+    # vs "coalition") — today it's always 'feature' and nobody reads it.
+    # The PK (config_id, feature_id) implies a covering index on
+    # config_id; we add idx_cf_feature separately for feature→configs
+    # direction.
+    """
+    CREATE TABLE IF NOT EXISTS config_feature (
+        config_id   INTEGER NOT NULL REFERENCES config(config_id) ON DELETE CASCADE,
+        feature_id  TEXT    NOT NULL REFERENCES feature(feature_id),
+        role        TEXT    NOT NULL DEFAULT 'feature',
+        PRIMARY KEY (config_id, feature_id)
+    )
+    """,
+
 ]
 
 VIEWS: list[str] = [
@@ -226,6 +248,66 @@ VIEWS: list[str] = [
     JOIN json_each(json_extract(c.meta, '$.feature_ids')) AS fid
     JOIN feature    f   ON f.feature_id = fid.value
     """,
+
+    # ── analysis-fork R5 views ───────────────────────────────────────
+    #
+    # Promotes the canonical 3-way join used throughout `analyze/` into
+    # a reusable view. Callers that don't need predicate tags use
+    # ``v_query_scores`` (execution × evaluation only, no predicate
+    # fan-out). Callers that need per-predicate-value splits use
+    # ``v_scored_executions``.
+    #
+    # Rows exclude errored executions (`error IS NULL OR error = ''`)
+    # and NULL scores — matching the filters the Python layer has
+    # always applied.
+    """
+    CREATE VIEW IF NOT EXISTS v_query_scores AS
+    SELECT
+        e.config_id  AS config_id,
+        e.query_id   AS query_id,
+        e.model      AS model,
+        ev.scorer    AS scorer,
+        ev.score     AS score
+    FROM execution e
+    JOIN evaluation ev ON ev.execution_id = e.execution_id
+    WHERE (e.error IS NULL OR e.error = '')
+      AND ev.score IS NOT NULL
+    """,
+
+    """
+    CREATE VIEW IF NOT EXISTS v_scored_executions AS
+    SELECT
+        e.config_id  AS config_id,
+        e.query_id   AS query_id,
+        e.model      AS model,
+        ev.scorer    AS scorer,
+        ev.score     AS score,
+        p.name       AS predicate_name,
+        p.value      AS predicate_value
+    FROM execution e
+    JOIN evaluation ev ON ev.execution_id = e.execution_id
+    JOIN predicate  p  ON p.query_id = e.query_id
+    WHERE (e.error IS NULL OR e.error = '')
+      AND ev.score IS NOT NULL
+    """,
+
+    # Per-(config × predicate-value) means. Layered over
+    # ``v_scored_executions`` so the filter conditions stay in one
+    # place. Callers narrow by (model, scorer, predicate_name) via
+    # WHERE clauses.
+    """
+    CREATE VIEW IF NOT EXISTS v_per_config_predicate_means AS
+    SELECT
+        config_id,
+        predicate_name,
+        predicate_value,
+        model,
+        scorer,
+        AVG(score)  AS mean_score,
+        COUNT(*)    AS n
+    FROM v_scored_executions
+    GROUP BY config_id, predicate_name, predicate_value, model, scorer
+    """,
 ]
 
 INDEXES: list[str] = [
@@ -246,6 +328,28 @@ INDEXES: list[str] = [
     # feature
     "CREATE        INDEX IF NOT EXISTS idx_feature_canonical ON feature(canonical_id)",
     "CREATE        INDEX IF NOT EXISTS idx_feature_task      ON feature(task)",
+    # config_feature (v8) — PK covers config_id lookups; add feature side.
+    "CREATE        INDEX IF NOT EXISTS idx_cf_feature        ON config_feature(feature_id)",
+]
+
+
+# ── idempotent migrations applied on every _ensure_schema ────────────
+# Each entry is a SQL statement that must be safe to re-run (INSERT OR
+# IGNORE, etc.). Used to backfill new tables from pre-existing data
+# so cubes at an earlier schema version come up to date automatically.
+
+MIGRATIONS: list[str] = [
+    # v7 → v8: populate config_feature from the existing
+    # config.meta.feature_ids JSON arrays. Idempotent: INSERT OR IGNORE
+    # against the (config_id, feature_id) PK.
+    """
+    INSERT OR IGNORE INTO config_feature (config_id, feature_id, role)
+    SELECT c.config_id, fid.value AS feature_id, 'feature' AS role
+    FROM config c,
+         json_each(json_extract(c.meta, '$.feature_ids')) AS fid
+    WHERE json_extract(c.meta, '$.feature_ids') IS NOT NULL
+      AND EXISTS (SELECT 1 FROM feature f WHERE f.feature_id = fid.value)
+    """,
 ]
 
 META_TABLE = """

@@ -29,6 +29,9 @@ from analyze.data import predicate_kinds, predicate_overlap
 # ── chain-of-ops pipeline (R2) ────────────────────────────────────────
 from analyze.pipeline import Pipeline
 
+# ── SQL-native source handle (R5 / option D) ─────────────────────────
+from analyze.source import SourceHandle
+
 # ── query (filter + project + aggregate) ──────────────────────────────
 from analyze.query import ExecutionQuery
 
@@ -79,6 +82,7 @@ __all__ = [
     "feature_predicate_table",
     "feature_profile",
     "Pipeline",
+    "SourceHandle",
     # export
     "flipped_responses",
     # monitor

@@ -95,15 +95,83 @@ def simple_effect_configs(
     known_canon = set(features_df_in["canonical_id"].tolist()) \
         if not features_df_in.empty else set()
 
-    # Pass 1: read config.meta.canonical_id directly.
+    # Base's feature_ids — used in pass 1 to verify strict add-one
+    # structure. Without this, a cube with two batches (e.g. "feat_X
+    # alone" AND "CoT + feat_X") both carrying canonical_id=feat_X
+    # would resolve ambiguously.
+    #
+    # Sourced from the ``feature_ids_set`` column on configs_df (v8
+    # config_feature join table). Falls back to ``meta.feature_ids``
+    # if that column isn't present (e.g. hand-built test DataFrame).
+    base_row = configs_df_in[configs_df_in["config_id"] == base_config_id]
+    base_feat_ids: set = set()
+    if not base_row.empty:
+        base_row_obj = base_row.iloc[0]
+        if "feature_ids_set" in configs_df_in.columns:
+            base_feat_ids = set(base_row_obj["feature_ids_set"] or set())
+        else:
+            base_meta = base_row_obj.get("meta") or {}
+            if isinstance(base_meta, dict):
+                base_feat_ids = set(base_meta.get("feature_ids", []) or [])
+
+    # Map canonical_id → feature_id (content hash) for add-one equality check.
+    cid_to_fid = (dict(zip(features_df_in["canonical_id"], features_df_in["feature_id"]))
+                  if not features_df_in.empty and "feature_id" in features_df_in.columns
+                  else {})
+
+    # Pass 1a (strict): canonical_id match AND feature_ids == base ∪ {feat_X}.
+    # Disambiguates cubes that contain multiple configs sharing a
+    # canonical_id under different bases (e.g. "feat_x solo" vs
+    # "CoT + feat_x" both labeled feat_x).
+    #
+    # Prefers ``configs_df.feature_ids_set`` (v8 config_feature-sourced,
+    # authoritative) when present; falls back to ``meta.feature_ids``.
+    has_fids_col = "feature_ids_set" in configs_df_in.columns
+    used_cids: set = set()
     for _, crow in configs_df_in.iterrows():
         cid = int(crow["config_id"])
         if cid == base_config_id:
             continue
         meta = crow.get("meta") or {}
-        canon = meta.get("canonical_id") if isinstance(meta, dict) else None
-        if canon and canon in known_canon and canon not in out:
+        if not isinstance(meta, dict):
+            continue
+        canon = meta.get("canonical_id")
+        if not canon or canon not in known_canon or canon in out:
+            continue
+        # Resolve this config's feature_ids — authoritative source first.
+        if has_fids_col and crow.get("feature_ids_set") is not None:
+            cfg_feat_ids = set(crow["feature_ids_set"])
+            has_strict_signal = True
+        elif "feature_ids" in meta:
+            cfg_feat_ids = set(meta.get("feature_ids") or [])
+            has_strict_signal = True
+        else:
+            cfg_feat_ids = set()
+            has_strict_signal = False
+        if not has_strict_signal:
+            continue  # leave for pass 1b
+        expected_fid = cid_to_fid.get(canon)
+        if expected_fid is None:
+            continue
+        if cfg_feat_ids == base_feat_ids | {expected_fid}:
             out[canon] = cid
+            used_cids.add(cid)
+
+    # Pass 1b (relaxed): canonical_id match alone, for cubes where the
+    # generator didn't write feature_ids into meta (legacy / minimal
+    # metadata). Skips configs already claimed by pass 1a.
+    for _, crow in configs_df_in.iterrows():
+        cid = int(crow["config_id"])
+        if cid == base_config_id or cid in used_cids:
+            continue
+        meta = crow.get("meta") or {}
+        if not isinstance(meta, dict):
+            continue
+        canon = meta.get("canonical_id")
+        if not canon or canon not in known_canon or canon in out:
+            continue
+        out[canon] = cid
+        used_cids.add(cid)
 
     # Pass 2: func_ids delta for any feature still missing.
     missing = [row for _, row in features_df_in.iterrows()

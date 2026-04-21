@@ -316,12 +316,21 @@ class Pipeline:
         return val
 
     def _run_source(self, p: Dict[str, Any], key: str):
+        """Source stage (R5 / option D).
+
+        Returns a ``SourceHandle`` — a lazy query-builder over the
+        SQL view layer. No DataFrames are materialized here; downstream
+        stages pull what they need via ``handle.scores_df()``,
+        ``handle.configs_df()``, etc. The handle supports legacy
+        dict-style access (``src["scores"]``) so the scope/effect
+        stages continue to work without changes.
+        """
+        from analyze.source import SourceHandle
         def _compute():
-            return {
-                "scores":   data.scores_df(self._store, model=p["model"], scorer=p["scorer"]),
-                "configs":  data.configs_df(self._store),
-                "features": data.features_df(self._store, task=p["task"]),
-            }
+            return SourceHandle(
+                self._store,
+                model=p["model"], scorer=p["scorer"], task=p["task"],
+            )
         return self._cached(key, _compute)
 
     def _run_scope(self, p: Dict[str, Any], src, key: str):

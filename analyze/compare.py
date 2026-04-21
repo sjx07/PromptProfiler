@@ -172,8 +172,31 @@ def add_one_deltas(
     model: str,
     scorer: str,
     candidate_config_ids: Optional[List[int]] = None,
+    exclude_config_ids: Optional[List[int]] = None,
+    kind_filter: Optional[Any] = None,   # str | list[str] | None
 ):
     """For every candidate config, compute the score_diff vs base on shared queries.
+
+    The function name is a misnomer for historical reasons — by default it
+    runs against EVERY config != base, including coalitions, leave-one-out
+    runs, and alternative bases. Use ``kind_filter`` to restrict to a
+    single generator kind (e.g. ``"add_one_feature"``) when you want
+    true add-one semantics.
+
+    Args:
+        candidate_config_ids: explicit allow-list. Defaults to every
+            config in the cube except ``base_config_id``.
+        exclude_config_ids: explicit deny-list. Applied AFTER
+            ``candidate_config_ids`` and ``kind_filter`` resolve.
+            Useful for dropping known-bad runs.
+        kind_filter: filter by ``config.meta.kind``. One of:
+              * ``None``  — no filter (default; legacy behavior)
+              * ``str``   — keep only configs with this kind
+                (e.g. ``"add_one_feature"``, ``"coalition_feature"``,
+                ``"leave_one_out_feature"``)
+              * ``list[str]`` — keep configs whose kind is in the list
+            Configs missing ``meta.kind`` are dropped when the filter
+            is set.
 
     Returns a pandas DataFrame sorted by ``avg_delta`` descending.
     """
@@ -190,12 +213,33 @@ def add_one_deltas(
         ).fetchall()
         candidate_config_ids = [r[0] for r in rows]
 
-    # Canonical_id lookup via pre-parsed configs_df.
+    # Pre-parsed configs_df gives us meta as a dict + the canonical_id
+    # lookup in one pass. Restricted to the candidate set so kind/meta
+    # reads stay cheap on big cubes.
     cdf = data.configs_df(store, config_ids=candidate_config_ids)
-    cid_to_canonical: Dict[int, Optional[str]] = {
-        int(r["config_id"]): r["meta"].get("canonical_id")
-        for _, r in cdf.iterrows()
-    }
+    cid_to_canonical: Dict[int, Optional[str]] = {}
+    cid_to_kind:      Dict[int, Optional[str]] = {}
+    for _, r in cdf.iterrows():
+        cid = int(r["config_id"])
+        meta = r["meta"] if isinstance(r["meta"], dict) else {}
+        cid_to_canonical[cid] = meta.get("canonical_id")
+        cid_to_kind[cid]      = meta.get("kind")
+
+    # ── kind_filter (config.meta.kind) ────────────────────────────────
+    if kind_filter is not None:
+        if isinstance(kind_filter, str):
+            kinds = {kind_filter}
+        else:
+            kinds = set(kind_filter)
+        candidate_config_ids = [
+            cid for cid in candidate_config_ids
+            if cid_to_kind.get(cid) in kinds
+        ]
+
+    # ── exclude_config_ids ────────────────────────────────────────────
+    if exclude_config_ids:
+        excl = set(int(c) for c in exclude_config_ids)
+        candidate_config_ids = [cid for cid in candidate_config_ids if cid not in excl]
 
     records: List[Dict[str, Any]] = []
     for cid in candidate_config_ids:
@@ -207,6 +251,7 @@ def add_one_deltas(
         records.append({
             "config_id":    cid,
             "canonical_id": cid_to_canonical.get(cid),
+            "kind":         cid_to_kind.get(cid),
             "n_shared":     d["n_shared"],
             "avg_a":        d["avg_a"],
             "avg_b":        d["avg_b"],
@@ -214,6 +259,10 @@ def add_one_deltas(
             "flipped_up":   len(d["flipped_up"]),
             "flipped_down": len(d["flipped_down"]),
         })
+    cols = ["config_id", "canonical_id", "kind", "n_shared",
+            "avg_a", "avg_b", "avg_delta", "flipped_up", "flipped_down"]
+    if not records:
+        return pd.DataFrame(columns=cols)
     return pd.DataFrame(records).sort_values("avg_delta", ascending=False).reset_index(drop=True)
 
 

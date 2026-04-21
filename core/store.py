@@ -33,6 +33,7 @@ _SQL_CLAUSE = {
 from core.schema import (
     INDEXES,
     META_TABLE,
+    MIGRATIONS,
     SCHEMA_VERSION,
     TABLES,
     VIEWS,
@@ -73,20 +74,39 @@ class CubeStore:
             self._conn.row_factory = sqlite3.Row
         return self._conn
 
+    # Additive upgrades that can be applied silently on open — no data
+    # transformation, just new tables + backfills. Ranges inclusive.
+    _AUTO_UPGRADE_FROM = (7,)
+
     def _check_schema_version(self, conn: sqlite3.Connection) -> None:
-        """Raise RuntimeError if cube is at an older schema version and not read_only."""
+        """Raise RuntimeError if cube is at an older schema version and not read_only.
+
+        Exception: additive upgrades listed in ``_AUTO_UPGRADE_FROM`` are
+        allowed to proceed without raising — ``_ensure_schema`` will
+        create any missing tables/indexes and run ``MIGRATIONS`` to
+        backfill from existing data.
+        """
         row = conn.execute(
             "SELECT value FROM _cube_meta WHERE key = 'schema_version'"
         ).fetchone()
         if row is None:
             return  # fresh database — no version yet
         stored = int(row[0])
-        if stored < SCHEMA_VERSION and not self._read_only:
-            raise RuntimeError(
-                f"cube schema_version={stored} is older than required {SCHEMA_VERSION}. "
-                f"Open with read_only=True for migration scripting, or create a fresh cube. "
-                f"See docs/refactor_phase1.md."
+        if stored >= SCHEMA_VERSION:
+            return
+        if self._read_only:
+            return
+        if stored in self._AUTO_UPGRADE_FROM:
+            logger.info(
+                "cube schema_version=%s → %s: auto-applying additive upgrade",
+                stored, SCHEMA_VERSION,
             )
+            return
+        raise RuntimeError(
+            f"cube schema_version={stored} is older than required {SCHEMA_VERSION}. "
+            f"Open with read_only=True for migration scripting, or create a fresh cube. "
+            f"See docs/refactor_phase1.md."
+        )
 
     def _ensure_schema(self) -> None:
         conn = self._get_conn()
@@ -99,6 +119,15 @@ class CubeStore:
             conn.execute(view)
         for idx in INDEXES:
             conn.execute(idx)
+        # Idempotent migrations — backfill new tables from pre-existing
+        # data (e.g. v7 cubes get config_feature populated from
+        # config.meta.feature_ids on first open).
+        if not self._read_only:
+            for migration in MIGRATIONS:
+                try:
+                    conn.execute(migration)
+                except sqlite3.Error as e:
+                    logger.warning("migration step failed (non-fatal): %s", e)
         conn.execute(
             "INSERT OR REPLACE INTO _cube_meta (key, value) VALUES (?, ?)",
             ("schema_version", str(SCHEMA_VERSION)),
@@ -207,14 +236,40 @@ class CubeStore:
             "SELECT config_id FROM config WHERE func_ids = ?", (canonical,)
         ).fetchone()
         if row:
-            return row[0]
+            config_id = row[0]
+        else:
+            with self._cursor() as cur:
+                cur.execute(
+                    "INSERT INTO config (func_ids, meta) VALUES (?, ?)",
+                    (canonical, json.dumps(meta or {})),
+                )
+                config_id = cur.lastrowid
 
-        with self._cursor() as cur:
-            cur.execute(
-                "INSERT INTO config (func_ids, meta) VALUES (?, ?)",
-                (canonical, json.dumps(meta or {})),
-            )
-            return cur.lastrowid
+        # v8: mirror meta.feature_ids into the config_feature join
+        # table. Idempotent via INSERT OR IGNORE (PK covers (config_id,
+        # feature_id)). Rows with a feature_id not in the feature table
+        # are silently skipped by the FK; we filter them here too so
+        # mis-named cubes don't hard-error.
+        if meta:
+            feat_ids = meta.get("feature_ids") or []
+            if feat_ids:
+                with self._cursor() as cur:
+                    # Keep only feature_ids that exist in the feature table.
+                    known = {
+                        r[0] for r in cur.execute(
+                            f"SELECT feature_id FROM feature WHERE feature_id IN ({','.join('?' * len(feat_ids))})",
+                            tuple(feat_ids),
+                        ).fetchall()
+                    }
+                    rows = [(config_id, fid, "feature")
+                            for fid in feat_ids if fid in known]
+                    if rows:
+                        cur.executemany(
+                            "INSERT OR IGNORE INTO config_feature "
+                            "(config_id, feature_id, role) VALUES (?, ?, ?)",
+                            rows,
+                        )
+        return config_id
 
     def get_config_func_ids(self, config_id: int) -> List[str]:
         row = self._get_conn().execute(

@@ -1951,6 +1951,268 @@ def test_base_func_ids_none_raises_clearly(seeded_store):
         base_func_ids(cdf, None)
 
 
+# ══════════════════════════════════════════════════════════════════════
+# analysis/R5 (Phase 1) — SQL views + SourceHandle
+# ══════════════════════════════════════════════════════════════════════
+
+def test_v8_config_feature_auto_populated_on_create(seeded_store):
+    """get_or_create_config(meta={'feature_ids': [...]}) writes
+    config_feature rows automatically (schema v8)."""
+    store, ctx = seeded_store
+    # Fixture already created configs via get_or_create_config with
+    # meta.feature_ids; verify the join table has the expected rows.
+    rows = store._get_conn().execute(
+        "SELECT config_id, feature_id FROM config_feature ORDER BY config_id"
+    ).fetchall()
+    pairs = {(int(r["config_id"]), r["feature_id"]) for r in rows}
+    # a_cid → fa_hash; b_cid → fb_hash.
+    assert (ctx["a_cid"], ctx["fa_hash"]) in pairs
+    assert (ctx["b_cid"], ctx["fb_hash"]) in pairs
+    # Base config has no features → no rows.
+    base_rows = [p for p in pairs if p[0] == ctx["base_cid"]]
+    assert base_rows == []
+
+
+def test_v8_configs_df_exposes_feature_ids_set(seeded_store):
+    """data.configs_df includes the feature_ids_set column sourced
+    from config_feature."""
+    from analyze.data import configs_df
+    store, ctx = seeded_store
+    cdf = configs_df(store)
+    assert "feature_ids_set" in cdf.columns
+    by_id = {int(r["config_id"]): r["feature_ids_set"]
+             for _, r in cdf.iterrows()}
+    assert by_id[ctx["base_cid"]] == frozenset()
+    assert by_id[ctx["a_cid"]]    == frozenset([ctx["fa_hash"]])
+    assert by_id[ctx["b_cid"]]    == frozenset([ctx["fb_hash"]])
+
+
+def test_v8_migration_backfills_from_meta(seeded_store):
+    """Simulating a pre-v8 cube: delete config_feature rows, re-run
+    migrations, verify rows are re-populated from config.meta.feature_ids."""
+    from core.schema import MIGRATIONS
+    store, ctx = seeded_store
+    conn = store._get_conn()
+    # Wipe the join table — simulate v7 state with only meta.feature_ids.
+    conn.execute("DELETE FROM config_feature")
+    conn.commit()
+    assert conn.execute("SELECT COUNT(*) FROM config_feature").fetchone()[0] == 0
+    # Re-run the migration snippets (what _ensure_schema does on open).
+    for stmt in MIGRATIONS:
+        conn.execute(stmt)
+    conn.commit()
+    # Rows are back.
+    n = conn.execute("SELECT COUNT(*) FROM config_feature").fetchone()[0]
+    assert n >= 2  # a_cid + b_cid at minimum
+
+
+def test_source_handle_scores_df_matches_legacy(seeded_store):
+    """SourceHandle.scores_df() returns the same rows/cols as data.scores_df."""
+    import pandas as pd
+    from analyze import SourceHandle, data as d
+    store, _ = seeded_store
+    src = SourceHandle(store, model=MODEL, scorer=SCORER)
+    v = src.scores_df()
+    o = d.scores_df(store, model=MODEL, scorer=SCORER)
+    assert set(v.columns) == set(o.columns)
+    vv = v.sort_values(["config_id", "query_id", "predicate_name"]).reset_index(drop=True)
+    oo = o.sort_values(["config_id", "query_id", "predicate_name"]).reset_index(drop=True)
+    pd.testing.assert_frame_equal(vv, oo)
+
+
+def test_source_handle_query_scores_has_no_predicate_join(seeded_store):
+    """query_scores_df (no predicate fan-out) has no predicate columns."""
+    from analyze import SourceHandle
+    store, _ = seeded_store
+    src = SourceHandle(store, model=MODEL, scorer=SCORER)
+    q = src.query_scores_df()
+    assert "predicate_name"  not in q.columns
+    assert "predicate_value" not in q.columns
+    # Row count = number of evaluations (one per config × query with valid score).
+    assert len(q) > 0
+
+
+def test_source_handle_per_config_predicate_means_view(seeded_store):
+    """v_per_config_predicate_means aggregates correctly via the view."""
+    from analyze import SourceHandle
+    store, ctx = seeded_store
+    src = SourceHandle(store, model=MODEL, scorer=SCORER)
+    m = src.per_config_predicate_means(predicate_name="has_agg")
+    idx = {(r["config_id"], r["predicate_value"]): r
+           for _, r in m.iterrows()}
+    # Fixture (see seeded_store): base=[0,0,1,1], a=[1,1,1,1].
+    assert idx[(ctx["base_cid"], "true")]["mean_score"]  == pytest.approx(0.0)
+    assert idx[(ctx["base_cid"], "false")]["mean_score"] == pytest.approx(1.0)
+    assert idx[(ctx["a_cid"],    "true")]["mean_score"]  == pytest.approx(1.0)
+    assert idx[(ctx["a_cid"],    "false")]["mean_score"] == pytest.approx(1.0)
+
+
+def test_source_handle_is_lazy_and_caches(seeded_store):
+    """No DataFrame materialized until a method is called; repeated calls hit cache."""
+    from analyze import SourceHandle
+    store, _ = seeded_store
+    src = SourceHandle(store, model=MODEL, scorer=SCORER)
+    assert len(src._cache) == 0  # nothing fetched yet
+    _ = src.scores_df()
+    n_after_first = len(src._cache)
+    _ = src.scores_df()
+    n_after_second = len(src._cache)
+    assert n_after_first == 1
+    assert n_after_second == 1  # cache hit, no new entry
+
+
+def test_source_handle_dict_subscript_compat(seeded_store):
+    """Legacy dict-style access still works for Pipeline stage code."""
+    from analyze import SourceHandle
+    store, _ = seeded_store
+    src = SourceHandle(store, model=MODEL, scorer=SCORER)
+    assert len(src["scores"]) > 0
+    assert len(src["configs"]) > 0
+    assert len(src["features"]) >= 0
+    with pytest.raises(KeyError):
+        _ = src["something_unknown"]
+
+
+def test_source_handle_show_sql(seeded_store):
+    """show_sql returns the parameterized query for inspection."""
+    from analyze import SourceHandle
+    store, _ = seeded_store
+    src = SourceHandle(store, model=MODEL, scorer=SCORER)
+    sql = src.show_sql("scores")
+    assert "v_scored_executions" in sql
+    assert "model = ?" in sql
+    sql_means = src.show_sql("means", predicate_name="has_agg")
+    assert "v_per_config_predicate_means" in sql_means
+    # Unknown stage → ValueError.
+    with pytest.raises(ValueError, match="stage"):
+        src.show_sql("nonsense")
+
+
+def test_pipeline_source_stage_returns_source_handle(seeded_store):
+    """Pipeline._run_source now returns a SourceHandle, but legacy
+    dict-style downstream code still works."""
+    from analyze import Pipeline, SourceHandle
+    store, ctx = seeded_store
+    p = (Pipeline(store)
+         .source(model=MODEL, scorer=SCORER)
+         .scope(base_config_id=ctx["base_cid"])
+         .effect(method="simple", metric="lift"))
+    # Run to populate cache, then inspect the source-stage value.
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df = p.run()
+    # Find the source entry — it's the first cache key chronologically,
+    # but shape-check by value type.
+    any_source = next(
+        v for v in p._cache.values() if isinstance(v, SourceHandle)
+    )
+    assert isinstance(any_source, SourceHandle)
+    assert any_source.model == MODEL
+    assert len(df) > 0
+
+
+def test_add_one_deltas_kind_filter(seeded_store):
+    """kind_filter='add_one_feature' keeps only configs whose meta.kind matches."""
+    store, ctx = seeded_store
+    # Fixture's a_cid + b_cid have meta.kind='add_one_feature'; base has kind='base'.
+    df = add_one_deltas(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+        kind_filter="add_one_feature",
+    )
+    assert set(df["config_id"]) == {ctx["a_cid"], ctx["b_cid"]}
+    assert (df["kind"] == "add_one_feature").all()
+
+
+def test_add_one_deltas_kind_filter_list(seeded_store):
+    """kind_filter accepts a list of kinds."""
+    store, ctx = seeded_store
+    df = add_one_deltas(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+        kind_filter=["add_one_feature", "coalition_feature"],
+    )
+    # Only add_one in fixture; both a_cid and b_cid survive.
+    assert set(df["config_id"]) == {ctx["a_cid"], ctx["b_cid"]}
+
+
+def test_add_one_deltas_kind_filter_unknown_drops_all(seeded_store):
+    """A kind_filter that matches nothing yields an empty df."""
+    store, ctx = seeded_store
+    df = add_one_deltas(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+        kind_filter="leave_one_out_feature",
+    )
+    assert df.empty
+
+
+def test_add_one_deltas_exclude_config_ids(seeded_store):
+    """exclude_config_ids drops listed configs from results."""
+    store, ctx = seeded_store
+    df = add_one_deltas(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+        exclude_config_ids=[ctx["b_cid"]],
+    )
+    assert ctx["b_cid"] not in set(df["config_id"])
+    assert ctx["a_cid"] in set(df["config_id"])
+
+
+def test_add_one_deltas_combined_filters(seeded_store):
+    """kind_filter + exclude_config_ids compose."""
+    store, ctx = seeded_store
+    df = add_one_deltas(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+        kind_filter="add_one_feature",
+        exclude_config_ids=[ctx["a_cid"]],
+    )
+    assert set(df["config_id"]) == {ctx["b_cid"]}
+
+
+def test_simple_effect_configs_disambiguates_between_bases():
+    """Cube with TWO batches both labeled canonical_id=feat_X:
+
+      * solo batch: feature_ids = {feat_X}        → match against empty base
+      * cot batch:  feature_ids = {cot, feat_X}   → match against cot-only base
+
+    Resolver must pick the right config per base, not arbitrary.
+    """
+    import pandas as pd
+    from analyze.resolve import simple_effect_configs
+
+    cdf = pd.DataFrame({
+        "config_id": [1, 2, 3, 4],
+        "func_ids":  [frozenset(),
+                      frozenset(["cot"]),
+                      frozenset(["feat_x"]),            # solo batch
+                      frozenset(["cot", "feat_x"])],    # cot batch
+        "meta": [
+            {"feature_ids": []},                                       # base 1
+            {"canonical_id": "enable_cot", "feature_ids": ["cid_cot"]},# cot-only
+            {"canonical_id": "feat_x", "feature_ids": ["cid_x"]},      # feat_x solo
+            {"canonical_id": "feat_x", "feature_ids": ["cid_cot", "cid_x"]},  # cot+feat_x
+        ],
+    })
+    fdf = pd.DataFrame({
+        "canonical_id": ["enable_cot", "feat_x"],
+        "feature_id":   ["cid_cot",    "cid_x"],
+        "task":         ["t",          "t"],
+        "func_ids":     [frozenset(["cot"]), frozenset(["feat_x"])],
+    })
+
+    # Base = empty (config 1). feat_x's add-one should be config 3 (solo).
+    out1 = simple_effect_configs(cdf, fdf, base_config_id=1)
+    assert out1["feat_x"] == 3, f"expected solo config 3, got {out1.get('feat_x')}"
+    assert out1["enable_cot"] == 2
+
+    # Base = CoT-only (config 2). feat_x's add-one should be config 4 (cot+feat_x).
+    out2 = simple_effect_configs(cdf, fdf, base_config_id=2)
+    assert out2["feat_x"] == 4, f"expected cot+feat_x config 4, got {out2.get('feat_x')}"
+
+
 def test_simple_effect_configs_prefers_meta_canonical_id():
     """Config whose materialized func_ids includes extras beyond the
     feature's primitive_spec still resolves via config.meta.canonical_id.

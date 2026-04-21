@@ -107,7 +107,13 @@ def configs_df(
     """Config table with parsed columns.
 
     Columns: ``config_id`` (int), ``func_ids`` (frozenset[str]),
-             ``meta`` (dict).
+             ``meta`` (dict), ``feature_ids_set`` (frozenset[str]).
+
+    ``feature_ids_set`` is sourced from the ``config_feature`` join
+    table (schema v8) — the authoritative record of which features
+    live in each config. Falls back to ``meta.get("feature_ids")``
+    for any config that isn't in the join table yet (can happen on
+    older cubes opened read-only where auto-migration is disabled).
     """
     try:
         import pandas as pd
@@ -118,7 +124,9 @@ def configs_df(
     params: tuple = ()
     if config_ids is not None:
         if not config_ids:
-            return pd.DataFrame(columns=["config_id", "func_ids", "meta"])
+            return pd.DataFrame(columns=[
+                "config_id", "func_ids", "meta", "feature_ids_set",
+            ])
         ph = ",".join("?" * len(config_ids))
         sql += f" WHERE config_id IN ({ph})"
         params = tuple(config_ids)
@@ -131,6 +139,29 @@ def configs_df(
     parse_dict = _parse_json_or({})
     df["func_ids"] = [frozenset(parse_list(s)) for s in df["func_ids"]]
     df["meta"]     = [parse_dict(s) for s in df["meta"]]
+
+    # Load feature_ids per config from config_feature (authoritative).
+    cf_rows = store._get_conn().execute(
+        "SELECT config_id, feature_id FROM config_feature"
+        + (f" WHERE config_id IN ({','.join('?' * len(config_ids))})"
+           if config_ids is not None else "")
+        ,
+        tuple(config_ids) if config_ids is not None else (),
+    ).fetchall()
+    cf_map: Dict[int, set] = {}
+    for r in cf_rows:
+        cf_map.setdefault(int(r["config_id"]), set()).add(r["feature_id"])
+
+    def _resolve_feats(row):
+        cid = int(row["config_id"])
+        if cid in cf_map:
+            return frozenset(cf_map[cid])
+        # Fallback for configs not yet backfilled into config_feature.
+        meta = row["meta"]
+        fids = meta.get("feature_ids") if isinstance(meta, dict) else None
+        return frozenset(fids or [])
+
+    df["feature_ids_set"] = df.apply(_resolve_feats, axis=1)
     return df
 
 
