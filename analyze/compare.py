@@ -49,21 +49,32 @@ def score_diff(
           "agree":           int,             # same score on shared queries
         }
     """
-    a_rows = {r["query_id"]: r["score"]
-              for r in ExecutionQuery(store).config(config_a).model(model).scorer(scorer).rows()
-              if r.get("score") is not None}
-    b_rows = {r["query_id"]: r["score"]
-              for r in ExecutionQuery(store).config(config_b).model(model).scorer(scorer).rows()
-              if r.get("score") is not None}
-    shared = set(a_rows) & set(b_rows)
+    # R5 phase-3: single SQL JOIN via v_query_scores instead of two
+    # full ExecutionQuery materializations + Python dict intersect.
+    conn = store._get_conn()
+    pair_sql = """
+        WITH a AS (
+            SELECT query_id, score FROM v_query_scores
+            WHERE config_id = ? AND model = ? AND scorer = ?
+        ),
+        b AS (
+            SELECT query_id, score FROM v_query_scores
+            WHERE config_id = ? AND model = ? AND scorer = ?
+        )
+        SELECT a.query_id, a.score AS score_a, b.score AS score_b
+        FROM a JOIN b USING (query_id)
+    """
+    pair_params = (config_a, model, scorer, config_b, model, scorer)
+    pairs = conn.execute(pair_sql, pair_params).fetchall()
 
     flipped_up: List[str] = []
     flipped_down: List[str] = []
     agree = 0
     sum_a = 0.0
     sum_b = 0.0
-    for qid in shared:
-        a, b = a_rows[qid], b_rows[qid]
+    for r in pairs:
+        qid = r["query_id"]
+        a, b = r["score_a"], r["score_b"]
         sum_a += a
         sum_b += b
         if a == b:
@@ -72,14 +83,25 @@ def score_diff(
             flipped_up.append(qid)
         else:
             flipped_down.append(qid)
+    n_shared = len(pairs)
 
-    n = len(shared) or 1
+    # Totals (row counts per config under this model/scorer) — one sub-query.
+    n_a, n_b = conn.execute(
+        """
+        SELECT
+            (SELECT COUNT(*) FROM v_query_scores WHERE config_id=? AND model=? AND scorer=?),
+            (SELECT COUNT(*) FROM v_query_scores WHERE config_id=? AND model=? AND scorer=?)
+        """,
+        (config_a, model, scorer, config_b, model, scorer),
+    ).fetchone()
+
+    n = n_shared or 1
     return {
         "config_a":    config_a,
         "config_b":    config_b,
-        "n_a":         len(a_rows),
-        "n_b":         len(b_rows),
-        "n_shared":    len(shared),
+        "n_a":         int(n_a),
+        "n_b":         int(n_b),
+        "n_shared":    n_shared,
         "avg_a":       sum_a / n,
         "avg_b":       sum_b / n,
         "avg_delta":   (sum_b - sum_a) / n,
@@ -149,18 +171,23 @@ def predicate_slice(
     except ImportError as e:  # pragma: no cover
         raise ImportError("pandas required for predicate_slice") from e
 
-    sdf = data.scores_df(
-        store, model=model, scorer=scorer,
-        config_ids=config_ids, predicate_name=predicate_name,
+    # R5 phase-3: single SQL query against v_per_config_predicate_means
+    # instead of pulling scores_df and grouping in pandas.
+    import pandas as pd
+    sql = (
+        "SELECT predicate_value, config_id, n, mean_score "
+        "FROM v_per_config_predicate_means "
+        "WHERE model = ? AND scorer = ? AND predicate_name = ?"
     )
-    if sdf.empty:
-        import pandas as pd
-        return pd.DataFrame(columns=["predicate_value", "config_id", "n", "mean_score"])
-    out = sdf.groupby(["predicate_value", "config_id"], as_index=False).agg(
-        n=("score", "count"),
-        mean_score=("score", "mean"),
-    )
-    return out.sort_values(["predicate_value", "config_id"]).reset_index(drop=True)
+    params: List[Any] = [model, scorer, predicate_name]
+    if config_ids:
+        if not config_ids:
+            return pd.DataFrame(columns=["predicate_value", "config_id", "n", "mean_score"])
+        ph = ",".join("?" * len(config_ids))
+        sql += f" AND config_id IN ({ph})"
+        params.extend(config_ids)
+    sql += " ORDER BY predicate_value, config_id"
+    return pd.read_sql_query(sql, store._get_conn(), params=tuple(params))
 
 
 # ── add-one deltas vs a base config ───────────────────────────────────
@@ -168,7 +195,8 @@ def predicate_slice(
 def add_one_deltas(
     store: CubeStore,
     *,
-    base_config_id: int,
+    base_config_id: Optional[int] = None,
+    base_features: Optional[List[str]] = None,
     model: str,
     scorer: str,
     candidate_config_ids: Optional[List[int]] = None,
@@ -204,6 +232,21 @@ def add_one_deltas(
         import pandas as pd
     except ImportError as e:  # pragma: no cover
         raise ImportError("pandas required for add_one_deltas") from e
+
+    # Symbolic-baseline resolution. Pass either base_config_id (explicit
+    # int) OR base_features (list of canonical_ids whose unique matching
+    # config becomes the baseline). Mutex.
+    if base_features is not None and base_config_id is not None:
+        raise ValueError(
+            "add_one_deltas(): pass either base_config_id or base_features, not both"
+        )
+    if base_config_id is None and base_features is not None:
+        base_config_id = resolve.find_config_by_features(store, base_features)
+    if base_config_id is None:
+        raise ValueError(
+            "add_one_deltas(): base_config_id is required "
+            "(or pass base_features=[...canonical_ids] to resolve symbolically)"
+        )
 
     conn = store._get_conn()
     if candidate_config_ids is None:
@@ -241,29 +284,61 @@ def add_one_deltas(
         excl = set(int(c) for c in exclude_config_ids)
         candidate_config_ids = [cid for cid in candidate_config_ids if cid not in excl]
 
-    records: List[Dict[str, Any]] = []
-    for cid in candidate_config_ids:
-        d = score_diff(
-            store,
-            config_a=base_config_id, config_b=cid,
-            model=model, scorer=scorer,
-        )
-        records.append({
-            "config_id":    cid,
-            "canonical_id": cid_to_canonical.get(cid),
-            "kind":         cid_to_kind.get(cid),
-            "n_shared":     d["n_shared"],
-            "avg_a":        d["avg_a"],
-            "avg_b":        d["avg_b"],
-            "avg_delta":    d["avg_delta"],
-            "flipped_up":   len(d["flipped_up"]),
-            "flipped_down": len(d["flipped_down"]),
-        })
     cols = ["config_id", "canonical_id", "kind", "n_shared",
             "avg_a", "avg_b", "avg_delta", "flipped_up", "flipped_down"]
-    if not records:
+    if not candidate_config_ids:
         return pd.DataFrame(columns=cols)
-    return pd.DataFrame(records).sort_values("avg_delta", ascending=False).reset_index(drop=True)
+
+    # R5 phase-3: single aggregated SQL query across all candidates
+    # instead of N-calls to score_diff. Fetches per-config counts +
+    # deltas in one round-trip via v_query_scores JOIN.
+    ph = ",".join("?" * len(candidate_config_ids))
+    agg_sql = f"""
+        WITH base_rows AS (
+            SELECT query_id, score
+            FROM v_query_scores
+            WHERE config_id = ? AND model = ? AND scorer = ?
+        )
+        SELECT
+            c.config_id                                       AS config_id,
+            COUNT(*)                                          AS n_shared,
+            AVG(b.score)                                      AS avg_a,
+            AVG(c.score)                                      AS avg_b,
+            AVG(c.score - b.score)                            AS avg_delta,
+            SUM(CASE WHEN c.score > b.score THEN 1 ELSE 0 END) AS flipped_up,
+            SUM(CASE WHEN c.score < b.score THEN 1 ELSE 0 END) AS flipped_down
+        FROM v_query_scores c
+        JOIN base_rows b USING (query_id)
+        WHERE c.model = ? AND c.scorer = ?
+          AND c.config_id IN ({ph})
+        GROUP BY c.config_id
+    """
+    agg_params = (base_config_id, model, scorer, model, scorer, *candidate_config_ids)
+    agg_df = pd.read_sql_query(agg_sql, conn, params=agg_params)
+
+    # Backfill zero-row candidates (configs with no shared queries under
+    # this model × scorer — they vanish from the JOIN).
+    present = set(agg_df["config_id"].astype(int)) if not agg_df.empty else set()
+    zero_rows = [{
+        "config_id":    cid,
+        "n_shared":     0,
+        "avg_a":        0.0,
+        "avg_b":        0.0,
+        "avg_delta":    0.0,
+        "flipped_up":   0,
+        "flipped_down": 0,
+    } for cid in candidate_config_ids if cid not in present]
+    if zero_rows:
+        agg_df = pd.concat([agg_df, pd.DataFrame(zero_rows)], ignore_index=True)
+
+    # Annotate with canonical_id + kind from meta.
+    agg_df["config_id"]    = agg_df["config_id"].astype(int)
+    agg_df["canonical_id"] = agg_df["config_id"].map(cid_to_canonical)
+    agg_df["kind"]         = agg_df["config_id"].map(cid_to_kind)
+
+    return (agg_df[cols]
+            .sort_values("avg_delta", ascending=False)
+            .reset_index(drop=True))
 
 
 # ── per-query flip inspector ──────────────────────────────────────────
@@ -284,54 +359,70 @@ def flip_rows(
     if direction not in ("up", "down", "both"):
         raise ValueError(f"direction must be 'up' | 'down' | 'both'; got {direction!r}")
 
-    def _index(config_id: int) -> Dict[str, Dict[str, Any]]:
-        rows = (ExecutionQuery(store)
-                .config(config_id).model(model).scorer(scorer)
-                .columns(["query_id", "raw_response", "prediction", "score"])
-                .rows())
-        return {r["query_id"]: r for r in rows if r.get("score") is not None}
-
-    a = _index(base_config)
-    b = _index(target_config)
-    shared = set(a) & set(b)
-    if not shared:
-        return []
-
-    placeholders = ",".join("?" * len(shared))
-    q_rows = store._get_conn().execute(
-        f"SELECT query_id, content, meta FROM query WHERE query_id IN ({placeholders})",
-        tuple(shared),
+    # R5 phase-3: single CTE-JOIN query. One round-trip returns all
+    # disagreement rows with the raw/prediction/score columns pre-joined
+    # and the query-table content + meta attached.
+    conn = store._get_conn()
+    sql = """
+        WITH a AS (
+            SELECT e.query_id, e.raw_response, e.prediction, ev.score
+            FROM execution e
+            JOIN evaluation ev ON ev.execution_id = e.execution_id
+            WHERE e.config_id = ? AND e.model = ? AND ev.scorer = ?
+              AND (e.error IS NULL OR e.error = '')
+              AND ev.score IS NOT NULL
+        ),
+        b AS (
+            SELECT e.query_id, e.raw_response, e.prediction, ev.score
+            FROM execution e
+            JOIN evaluation ev ON ev.execution_id = e.execution_id
+            WHERE e.config_id = ? AND e.model = ? AND ev.scorer = ?
+              AND (e.error IS NULL OR e.error = '')
+              AND ev.score IS NOT NULL
+        )
+        SELECT
+            a.query_id                        AS query_id,
+            q.content                         AS question,
+            q.meta                            AS query_meta,
+            a.score                           AS base_score,
+            b.score                           AS target_score,
+            a.prediction                      AS base_prediction,
+            b.prediction                      AS target_prediction,
+            a.raw_response                    AS base_raw,
+            b.raw_response                    AS target_raw
+        FROM a JOIN b USING (query_id)
+        LEFT JOIN query q USING (query_id)
+        WHERE a.score != b.score
+        ORDER BY a.query_id
+    """
+    rows = conn.execute(
+        sql,
+        (base_config, model, scorer, target_config, model, scorer),
     ).fetchall()
-    q_map: Dict[str, Dict[str, Any]] = {}
-    for qr in q_rows:
-        try:
-            meta = json.loads(qr["meta"] or "{}")
-        except json.JSONDecodeError:
-            meta = {}
-        gold = (meta.get("_raw") or {}).get("answers") or meta.get("gold_answers") or []
-        q_map[qr["query_id"]] = {"question": qr["content"], "gold": gold}
 
     out: List[Dict[str, Any]] = []
-    for qid in sorted(shared):
-        sa = a[qid]["score"]
-        sb = b[qid]["score"]
-        if sa == sb:
-            continue
+    for r in rows:
+        sa = r["base_score"]
+        sb = r["target_score"]
         dir_tag = "up" if sb > sa else "down"
         if direction != "both" and direction != dir_tag:
             continue
-        q = q_map.get(qid, {})
+        try:
+            qmeta = json.loads(r["query_meta"] or "{}")
+        except (json.JSONDecodeError, TypeError):
+            qmeta = {}
+        gold = (qmeta.get("_raw") or {}).get("answers") or qmeta.get("gold_answers") or []
         out.append({
-            "query_id":          qid,
-            "question":          q.get("question", ""),
+            "query_id":          r["query_id"],
+            "question":          r["question"] or "",
             "direction":         dir_tag,
             "base_score":        sa,
             "target_score":      sb,
-            "base_prediction":   a[qid].get("prediction", ""),
-            "target_prediction": b[qid].get("prediction", ""),
-            "base_raw":          a[qid].get("raw_response", ""),
-            "target_raw":        b[qid].get("raw_response", ""),
-            "gold":              q.get("gold", []),
+            "base_prediction":   r["base_prediction"] or "",
+            "target_prediction": r["target_prediction"] or "",
+            "base_raw":          r["base_raw"] or "",
+            "target_raw":        r["target_raw"] or "",
+            "gold":              gold,
         })
     return out
 

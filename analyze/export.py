@@ -133,35 +133,82 @@ def flipped_responses(
         ).fetchall():
             pred_map.setdefault(r["query_id"], {})[r["name"]] = r["value"]
 
-    # ── iterate targets, harvest flips, tag ──────────────────────────
+    # ── R5 phase-3: single cross-target JOIN — all flips in one query ──
+    # Replaces the per-target ``flip_rows`` loop. Scales O(1) DB
+    # round-trips in the number of targets.
     records: List[Dict[str, Any]] = []
-    for tcid in target_configs:
-        rows = flip_rows(
-            store,
-            base_config=base_config_id, target_config=tcid,
-            model=model, scorer=scorer, direction=direction,
-        )
-        meta = cid_to_meta.get(tcid, {}) or {}
-        canonical = meta.get("canonical_id")
-        feat_id = meta.get("feature_id")
-        if feature_filter is not None and canonical not in feature_filter:
-            continue
-        for r in rows:
+    if target_configs:
+        ph_t = ",".join("?" * len(target_configs))
+        sql = f"""
+            WITH base AS (
+                SELECT e.query_id, e.raw_response, e.prediction, ev.score
+                FROM execution e
+                JOIN evaluation ev ON ev.execution_id = e.execution_id
+                WHERE e.config_id = ? AND e.model = ? AND ev.scorer = ?
+                  AND (e.error IS NULL OR e.error = '')
+                  AND ev.score IS NOT NULL
+            ),
+            tgt AS (
+                SELECT e.config_id, e.query_id, e.raw_response, e.prediction, ev.score
+                FROM execution e
+                JOIN evaluation ev ON ev.execution_id = e.execution_id
+                WHERE e.config_id IN ({ph_t}) AND e.model = ? AND ev.scorer = ?
+                  AND (e.error IS NULL OR e.error = '')
+                  AND ev.score IS NOT NULL
+            )
+            SELECT
+                tgt.config_id                         AS target_config_id,
+                tgt.query_id                          AS query_id,
+                q.content                             AS question,
+                q.meta                                AS query_meta,
+                base.score                            AS base_score,
+                tgt.score                             AS target_score,
+                base.prediction                       AS base_prediction,
+                tgt.prediction                        AS target_prediction,
+                base.raw_response                     AS base_raw,
+                tgt.raw_response                      AS target_raw
+            FROM tgt JOIN base USING (query_id)
+            LEFT JOIN query q USING (query_id)
+            WHERE base.score != tgt.score
+            ORDER BY tgt.config_id, tgt.query_id
+        """
+        params = [base_config_id, model, scorer,
+                  *target_configs,
+                  model, scorer]
+        raw_rows = store._get_conn().execute(sql, params).fetchall()
+
+        for r in raw_rows:
+            tcid = int(r["target_config_id"])
+            meta = cid_to_meta.get(tcid, {}) or {}
+            canonical = meta.get("canonical_id")
+            feat_id = meta.get("feature_id")
+            if feature_filter is not None and canonical not in feature_filter:
+                continue
+            sa = r["base_score"]
+            sb = r["target_score"]
+            dir_tag = "up" if sb > sa else "down"
+            if direction != "both" and direction != dir_tag:
+                continue
             qid = r["query_id"]
+            try:
+                qmeta = json.loads(r["query_meta"] or "{}")
+            except (json.JSONDecodeError, TypeError):
+                qmeta = {}
+            gold = (qmeta.get("_raw") or {}).get("answers") or qmeta.get("gold_answers") or []
             rec: Dict[str, Any] = {
                 "target_config_id":     tcid,
                 "feature_canonical_id": canonical,
                 "feature_id":           feat_id,
                 "query_id":             qid,
-                "question":             r.get("question", ""),
-                "direction":            r["direction"],
-                "base_score":           r["base_score"],
-                "target_score":         r["target_score"],
-                "base_prediction":      r.get("base_prediction", ""),
-                "target_prediction":    r.get("target_prediction", ""),
-                "base_raw":             r.get("base_raw", ""),
-                "target_raw":           r.get("target_raw", ""),
-                "gold":                 r.get("gold", []),
+                "question":             r["question"] or "",
+                "direction":            dir_tag,
+                "base_score":           sa,
+                "target_score":         sb,
+                "base_prediction":      r["base_prediction"] or "",
+                "target_prediction":    r["target_prediction"] or "",
+                "base_raw":             r["base_raw"] or "",
+                "target_raw":           r["target_raw"] or "",
+                "gold":                 gold,
                 "error_base":           err_map.get((base_config_id, qid), ""),
                 "error_target":         err_map.get((tcid, qid), ""),
             }

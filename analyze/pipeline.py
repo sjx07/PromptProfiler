@@ -130,15 +130,35 @@ class Pipeline:
         self,
         *,
         base_config_id: Optional[int] = None,
+        base_features: Optional[List[str]] = None,
         predicate_names: Optional[List[str]] = None,
         feature_include: Optional[List[str]] = None,
         feature_exclude: Optional[List[str]] = None,
         skip_numeric: bool = True,
         include_unmatched: bool = False,
     ) -> "Pipeline":
-        """Universe filters: which features × predicates enter."""
+        """Universe filters: which features × predicates enter.
+
+        ``base_features`` is the symbolic alternative to
+        ``base_config_id``: pass a list of feature canonical_ids and
+        the scope stage resolves it to the matching config at run-time
+        via ``resolve.find_config_by_features``. Useful when the cube
+        layout is in flux — you don't hard-code a magic integer.
+        Mutually exclusive with ``base_config_id``.
+
+        Examples::
+
+            .scope(base_features=[])                    # empty-feature baseline
+            .scope(base_features=["enable_cot"])        # CoT-only baseline
+            .scope(base_features=["enable_cot", "X"])   # CoT+X baseline
+        """
+        if base_features is not None and base_config_id is not None:
+            raise ValueError(
+                "scope(): pass either base_config_id or base_features, not both"
+            )
         return self._with_stage("scope", {
             "base_config_id":    base_config_id,
+            "base_features":     base_features,
             "predicate_names":   predicate_names,
             "feature_include":   feature_include,
             "feature_exclude":   feature_exclude,
@@ -254,7 +274,8 @@ class Pipeline:
         # Defaults for optional stages.
         stages = dict(self._stages)
         stages.setdefault("scope", {
-            "base_config_id": None, "predicate_names": None,
+            "base_config_id": None, "base_features": None,
+            "predicate_names": None,
             "feature_include": None, "feature_exclude": None,
             "skip_numeric": True, "include_unmatched": False,
         })
@@ -339,13 +360,24 @@ class Pipeline:
             fdf = src["features"]
             sdf = src["scores"]
 
+            # Symbolic-baseline resolution: if the user passed
+            # base_features=[...canonical_ids...], look up the matching
+            # config_id and plug it into p. This lets analysis scripts
+            # reference baselines by their feature composition rather
+            # than by magic config_id integers.
+            effective_base = p["base_config_id"]
+            if effective_base is None and p.get("base_features") is not None:
+                effective_base = resolve.find_config_by_features(
+                    self._store, p["base_features"],
+                )
+
             # Simple mode needs an explicit base_config_id; marginal-only
             # leaves it None. The lookup is dtype-tolerant (see
             # resolve.base_func_ids) so a cube with config_id stored as
             # int64 / float / string all behaves the same.
             base_fids: frozenset = frozenset()
-            if p["base_config_id"] is not None:
-                base_fids = resolve.base_func_ids(cdf, p["base_config_id"])
+            if effective_base is not None:
+                base_fids = resolve.base_func_ids(cdf, effective_base)
 
             # Drop base-like features (all primitives already in base).
             if not fdf.empty:
@@ -384,8 +416,8 @@ class Pipeline:
                     predicate_names = [n for n in predicate_names if kinds.get(n) != "numeric"]
 
             # Build mappings for simple/marginal here so downstream reuses cache.
-            canonical_to_cid = (resolve.simple_effect_configs(cdf, fdf, p["base_config_id"])
-                                if p["base_config_id"] is not None else {})
+            canonical_to_cid = (resolve.simple_effect_configs(cdf, fdf, effective_base)
+                                if effective_base is not None else {})
             canonical_to_with_cids = resolve.configs_containing_feature(cdf, fdf)
 
             return {
@@ -396,7 +428,10 @@ class Pipeline:
                 "predicate_names":        predicate_names,
                 "canonical_to_cid":       canonical_to_cid,
                 "canonical_to_with_cids": canonical_to_with_cids,
-                "base_config_id":         p["base_config_id"],
+                # Downstream reads the RESOLVED base_config_id (an int),
+                # not the symbolic `base_features` list.
+                "base_config_id":         effective_base,
+                "base_features_user":     p.get("base_features"),
                 "include_unmatched":      p["include_unmatched"],
                 "all_cids":               cdf["config_id"].astype(int).tolist()
                                           if not cdf.empty else [],

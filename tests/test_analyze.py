@@ -1955,6 +1955,109 @@ def test_base_func_ids_none_raises_clearly(seeded_store):
 # analysis/R5 (Phase 1) — SQL views + SourceHandle
 # ══════════════════════════════════════════════════════════════════════
 
+def test_find_config_by_features_empty_base(seeded_store):
+    """find_config_by_features([]) returns the empty-feature base."""
+    from analyze.resolve import find_config_by_features
+    store, ctx = seeded_store
+    assert find_config_by_features(store, []) == ctx["base_cid"]
+
+
+def test_find_config_by_features_single_feature(seeded_store):
+    """find_config_by_features(['feat_a']) returns the feat_a-only config."""
+    from analyze.resolve import find_config_by_features
+    store, ctx = seeded_store
+    assert find_config_by_features(store, ["feat_a"]) == ctx["a_cid"]
+
+
+def test_find_config_by_features_unknown_canonical_raises(seeded_store):
+    from analyze.resolve import find_config_by_features
+    store, _ = seeded_store
+    with pytest.raises(ValueError, match="not found in feature table"):
+        find_config_by_features(store, ["feat_nonexistent"])
+
+
+def test_find_config_by_features_no_match_raises_with_hint(seeded_store):
+    """Feature set that doesn't exist as a config raises with a closest-match hint."""
+    from analyze.resolve import find_config_by_features
+    store, _ = seeded_store
+    with pytest.raises(ValueError, match="no config matches") as e:
+        # Request feat_a + feat_b together — no such config in fixture.
+        find_config_by_features(store, ["feat_a", "feat_b"])
+    msg = str(e.value)
+    assert "Closest" in msg
+
+
+def test_add_one_deltas_accepts_base_features_empty(seeded_store):
+    """add_one_deltas(base_features=[]) resolves to the empty-feature base."""
+    store, ctx = seeded_store
+    df_explicit = add_one_deltas(
+        store, base_config_id=ctx["base_cid"],
+        model=MODEL, scorer=SCORER,
+    )
+    df_symbolic = add_one_deltas(
+        store, base_features=[],
+        model=MODEL, scorer=SCORER,
+    )
+    import pandas as pd
+    pd.testing.assert_frame_equal(
+        df_explicit.sort_values("config_id").reset_index(drop=True),
+        df_symbolic.sort_values("config_id").reset_index(drop=True),
+    )
+
+
+def test_add_one_deltas_mutex_raises(seeded_store):
+    """Passing both base_config_id and base_features raises."""
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="either base_config_id or base_features"):
+        add_one_deltas(
+            store,
+            base_config_id=ctx["base_cid"],
+            base_features=[],
+            model=MODEL, scorer=SCORER,
+        )
+
+
+def test_add_one_deltas_requires_base(seeded_store):
+    """Neither base_config_id nor base_features → ValueError."""
+    store, _ = seeded_store
+    with pytest.raises(ValueError, match="base_config_id is required"):
+        add_one_deltas(store, model=MODEL, scorer=SCORER)
+
+
+def test_pipeline_scope_accepts_base_features(seeded_store):
+    """Pipeline.scope(base_features=['feat_a']) runs an analysis against feat_a as base."""
+    import warnings
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df_explicit = (Pipeline(store)
+                       .source(model=MODEL, scorer=SCORER)
+                       .scope(base_config_id=ctx["base_cid"])
+                       .effect(method="simple", metric="lift")
+                       .run())
+        df_symbolic = (Pipeline(store)
+                       .source(model=MODEL, scorer=SCORER)
+                       .scope(base_features=[])   # same as ctx["base_cid"]
+                       .effect(method="simple", metric="lift")
+                       .run())
+    import pandas as pd
+    pd.testing.assert_frame_equal(
+        df_explicit.reset_index(drop=True),
+        df_symbolic.reset_index(drop=True),
+        check_like=True,
+    )
+
+
+def test_pipeline_scope_mutex_raises(seeded_store):
+    from analyze import Pipeline
+    store, ctx = seeded_store
+    with pytest.raises(ValueError, match="either base_config_id or base_features"):
+        Pipeline(store).scope(
+            base_config_id=ctx["base_cid"], base_features=[],
+        )
+
+
 def test_v8_config_feature_auto_populated_on_create(seeded_store):
     """get_or_create_config(meta={'feature_ids': [...]}) writes
     config_feature rows automatically (schema v8)."""

@@ -14,6 +14,81 @@ from __future__ import annotations
 from typing import Dict, Set
 
 
+def find_config_by_features(store, canonical_ids) -> int:
+    """Resolve a symbolic feature set to a concrete config_id.
+
+    Accepts a list of feature canonical_ids and returns the unique
+    config_id whose feature_ids_set matches EXACTLY. Use this instead
+    of hard-coding a base_config_id integer in analysis scripts —
+    the cube layout is free to change without breaking the caller.
+
+    Semantics:
+      * ``canonical_ids=[]`` → the config with NO features (the
+        canonical empty base).
+      * ``canonical_ids=["enable_cot"]`` → the config with exactly
+        enable_cot and nothing else.
+      * ``canonical_ids=["enable_cot", "feat_x"]`` → the unique
+        "CoT + feat_x" config.
+
+    Raises ``ValueError`` when zero or multiple configs match. The
+    "multiple matches" case shouldn't happen under v8 (feature_ids is
+    content-addressed and UNIQUE on func_ids) but is checked defensively.
+
+    Does not import pandas — fetches via raw SQL + the config_feature
+    table directly.
+    """
+    from analyze.data import configs_df as _configs_df
+
+    want = sorted(set(canonical_ids or []))
+    conn = store._get_conn()
+
+    # Translate canonical_ids → feature_ids (content hashes).
+    if want:
+        ph = ",".join("?" * len(want))
+        rows = conn.execute(
+            f"SELECT canonical_id, feature_id FROM feature WHERE canonical_id IN ({ph})",
+            tuple(want),
+        ).fetchall()
+        cid_to_fid = {r["canonical_id"]: r["feature_id"] for r in rows}
+        missing = [c for c in want if c not in cid_to_fid]
+        if missing:
+            raise ValueError(
+                f"canonical_id(s) not found in feature table: {missing}. "
+                f"Run feature registry sync, or check spelling."
+            )
+        target_fids = frozenset(cid_to_fid.values())
+    else:
+        target_fids = frozenset()
+
+    # Scan configs for exact feature_ids_set equality.
+    cdf = _configs_df(store)
+    if cdf.empty:
+        raise ValueError("cube has no configs; cannot resolve base by features")
+
+    matches = [int(r["config_id"]) for _, r in cdf.iterrows()
+               if r["feature_ids_set"] == target_fids]
+
+    if len(matches) == 0:
+        # Helpful hint: list the closest candidates (single-feature diff).
+        near = []
+        for _, r in cdf.iterrows():
+            fids = r["feature_ids_set"]
+            # Jaccard-1-off style: same size ±1 AND one-symmetric-diff.
+            if abs(len(fids) - len(target_fids)) <= 1 and len(fids ^ target_fids) == 1:
+                near.append(int(r["config_id"]))
+        hint = f" Closest single-feature-off: {sorted(near)[:5]}." if near else ""
+        raise ValueError(
+            f"no config matches feature set {want!r}. "
+            f"Run the experiment, or inspect with analyze.list_configs_with_features.{hint}"
+        )
+    if len(matches) > 1:
+        raise ValueError(
+            f"multiple configs match feature set {want!r}: {matches}. "
+            f"Pass base_config_id=<int> explicitly to disambiguate."
+        )
+    return matches[0]
+
+
 def base_func_ids(configs_df_in, base_config_id) -> frozenset:
     """Return the func_ids set for the given base_config_id.
 
