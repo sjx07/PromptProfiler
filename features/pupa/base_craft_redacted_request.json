@@ -1,0 +1,22 @@
+{
+  "feature_id": "base_craft_redacted_request",
+  "canonical_id": "base_craft_redacted_request",
+  "task": "pupa",
+  "target_module": "craft_redacted_request",
+  "requires": ["_section_privacy_rewrite"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "8396fe668724",
+        "payload": {
+          "content": "Create a privacy-preserving request for an external LLM from the private user query without exposing private information."
+        }
+      }
+    }
+  ],
+  "rationale": "Short base instruction matching the PUPA redaction module role."
+}
+

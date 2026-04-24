@@ -73,6 +73,16 @@ def _seed_sql_repair(store: Any, cfg: Dict[str, Any], split: str) -> None:
         )
 
 
+def _seed_pupa(store: Any, cfg: Dict[str, Any], split: str) -> None:
+    from tasks.pupa.loaders import seed_queries_pupa
+    data_path = cfg.get("data_path") or cfg.get("pupa_data_path")
+    if not data_path:
+        raise ValueError(
+            "PUPA requires cfg.data_path pointing to a local PAPILLON/PUPA JSON or JSONL file."
+        )
+    seed_queries_pupa(store, data_path, split)
+
+
 # ── Registry ─────────────────────────────────────────────────────────
 
 def _build_registry() -> Dict[str, TaskEntry]:
@@ -80,6 +90,7 @@ def _build_registry() -> Dict[str, TaskEntry]:
     from tasks.tabfact.fact_verification import FactVerification
     from tasks.nl2sql.sql_generation import SqlGeneration
     from tasks.nl2sql.sql_repair import SqlRepair
+    from tasks.pupa.pupa import PupaPrivacyDelegationTask
 
     return {
         "table_qa": TaskEntry(
@@ -101,6 +112,11 @@ def _build_registry() -> Dict[str, TaskEntry]:
             task_cls=SqlRepair,
             seeder_fn=_seed_sql_repair,
             dataset_key_fn=lambda cfg: cfg.get("dataset", "sql_repair_bird"),
+        ),
+        "pupa": TaskEntry(
+            task_cls=PupaPrivacyDelegationTask,
+            seeder_fn=_seed_pupa,
+            dataset_key_fn=lambda cfg: "pupa",
         ),
     }
 

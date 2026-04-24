@@ -1,0 +1,25 @@
+{
+  "feature_id": "_section_response_synthesis",
+  "canonical_id": "_section_response_synthesis",
+  "task": "pupa",
+  "target_module": "respond_to_query",
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "section",
+        "parent_id": "__root__",
+        "payload": {
+          "title": "response synthesis",
+          "ordinal": 10,
+          "is_system": true,
+          "min_rules": 0,
+          "max_rules": 10
+        }
+      }
+    }
+  ]
+}
+

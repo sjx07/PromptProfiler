@@ -1,0 +1,25 @@
+{
+  "feature_id": "_section_privacy_rewrite",
+  "canonical_id": "_section_privacy_rewrite",
+  "task": "pupa",
+  "target_module": "craft_redacted_request",
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "section",
+        "parent_id": "__root__",
+        "payload": {
+          "title": "privacy rewrite",
+          "ordinal": 10,
+          "is_system": true,
+          "min_rules": 0,
+          "max_rules": 10
+        }
+      }
+    }
+  ]
+}
+
