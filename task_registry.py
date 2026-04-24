@@ -83,6 +83,18 @@ def _seed_pupa(store: Any, cfg: Dict[str, Any], split: str) -> None:
     seed_queries_pupa(store, data_path, split)
 
 
+def _seed_hotpotqa_context(store: Any, cfg: Dict[str, Any], split: str) -> None:
+    from tasks.hotpotqa_context.loaders import seed_queries_hotpotqa_context
+    data_path = cfg.get("data_path") or cfg.get("hotpotqa_data_path")
+    max_queries = int(cfg.get("max_queries", 0) or 0)
+    seed_queries_hotpotqa_context(
+        store,
+        split,
+        data_path=data_path,
+        max_queries=max_queries,
+    )
+
+
 # ── Registry ─────────────────────────────────────────────────────────
 
 def _build_registry() -> Dict[str, TaskEntry]:
@@ -91,6 +103,7 @@ def _build_registry() -> Dict[str, TaskEntry]:
     from tasks.nl2sql.sql_generation import SqlGeneration
     from tasks.nl2sql.sql_repair import SqlRepair
     from tasks.pupa.pupa import PupaPrivacyDelegationTask
+    from tasks.hotpotqa_context.hotpotqa_context import HotpotQAContextTask
 
     return {
         "table_qa": TaskEntry(
@@ -117,6 +130,11 @@ def _build_registry() -> Dict[str, TaskEntry]:
             task_cls=PupaPrivacyDelegationTask,
             seeder_fn=_seed_pupa,
             dataset_key_fn=lambda cfg: "pupa",
+        ),
+        "hotpotqa_context": TaskEntry(
+            task_cls=HotpotQAContextTask,
+            seeder_fn=_seed_hotpotqa_context,
+            dataset_key_fn=lambda cfg: "hotpotqa_context",
         ),
     }
 
