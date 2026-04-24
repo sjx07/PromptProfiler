@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, List
 
 from core.store import CubeStore, OnConflict
+from task import CompoundTask, ModuleRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -83,20 +84,49 @@ def run_config(
         t_start = time.time()
         p_tokens = None
         c_tokens = None
+        meta = None
+        runtime = None
         try:
-            system_prompt, user_content = task.build_prompt(query)
-            result = llm_call(system_prompt, user_content)
-            raw_response = result.get("raw_response", "")
-            if not isinstance(raw_response, str):
-                raw_response = str(raw_response)
-            prediction = task.parse_response(raw_response)
-            p_tokens = result.get("prompt_tokens")
-            c_tokens = result.get("completion_tokens")
+            if isinstance(task, CompoundTask):
+                runtime = ModuleRuntime(llm_call)
+                run_result = task.run(query, runtime)
+                prediction = str(run_result)
+                last_trace = runtime.last_trace()
+                system_prompt = last_trace.system_prompt if last_trace else ""
+                user_content = last_trace.user_content if last_trace else ""
+                raw_response = last_trace.raw_response if last_trace else ""
+                p_tokens = runtime.total_prompt_tokens()
+                c_tokens = runtime.total_completion_tokens()
+                meta = {
+                    "compound": True,
+                    "module_traces": runtime.trace_dicts(),
+                }
+            else:
+                system_prompt, user_content = task.build_prompt(query)
+                result = llm_call(system_prompt, user_content)
+                raw_response = result.get("raw_response", "")
+                if not isinstance(raw_response, str):
+                    raw_response = str(raw_response)
+                prediction = task.parse_response(raw_response)
+                p_tokens = result.get("prompt_tokens")
+                c_tokens = result.get("completion_tokens")
             error = None
         except Exception as e:
-            system_prompt = ""
-            user_content = ""
-            raw_response = ""
+            if runtime is not None:
+                last_trace = runtime.last_trace()
+                system_prompt = last_trace.system_prompt if last_trace else ""
+                user_content = last_trace.user_content if last_trace else ""
+                raw_response = last_trace.raw_response if last_trace else ""
+                p_tokens = runtime.total_prompt_tokens()
+                c_tokens = runtime.total_completion_tokens()
+                meta = {
+                    "compound": True,
+                    "module_traces": runtime.trace_dicts(),
+                }
+            else:
+                system_prompt = ""
+                user_content = ""
+                raw_response = ""
             prediction = ""
             error = str(e)[:500]
             err_count += 1
@@ -115,6 +145,7 @@ def run_config(
             prompt_tokens=p_tokens,
             completion_tokens=c_tokens,
             error=error,
+            meta=meta,
             phase=phase,
             on_conflict=on_conflict,
         )

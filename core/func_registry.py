@@ -25,7 +25,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from core.store import CubeStore
 
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # ── constants ──────────────────────────────────────────────────────────
 
 ROOT_ID = "__root__"
+MAIN_MODULE = "__main__"
 
 ALLOWED_NODE_TYPES = frozenset({
     "section", "rule", "input_field", "output_field", "example",
@@ -304,13 +305,11 @@ def _func_sort_key(func_id: str, func_type: str, params: dict) -> tuple:
 
 # ── apply config ──────────────────────────────────────────────────────
 
-def apply_config(
-    func_ids: List[str],
+def _load_sorted_func_rows(
+    func_ids: Iterable[str],
     store: CubeStore,
-) -> PromptBuildState:
-    """Build a PromptBuildState by applying all funcs in a config."""
-    state = PromptBuildState()
-
+) -> list[tuple[str, dict]]:
+    """Load func rows and sort them in prompt-application order."""
     func_rows = []
     for func_id in func_ids:
         func_row = store.get_func(func_id)
@@ -325,6 +324,28 @@ def apply_config(
         json.loads(pair[1]["params"]) if isinstance(pair[1]["params"], str) else pair[1]["params"],
     ))
 
+    return func_rows
+
+
+def _json_field(value: Any, default: Any) -> Any:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return default
+    return value
+
+
+def _func_target_module(func_row: dict) -> str:
+    meta = _json_field(func_row.get("meta"), {})
+    if not isinstance(meta, dict):
+        return MAIN_MODULE
+    return meta.get("target_module") or MAIN_MODULE
+
+
+def _apply_func_rows(func_rows: list[tuple[str, dict]], state: PromptBuildState) -> None:
     for func_id, func_row in func_rows:
         func_type = func_row["func_type"]
         params = json.loads(func_row["params"]) if isinstance(func_row["params"], str) else func_row["params"]
@@ -337,4 +358,40 @@ def apply_config(
 
         handler(state, params)
 
+
+def apply_config(
+    func_ids: List[str],
+    store: CubeStore,
+) -> PromptBuildState:
+    """Build a PromptBuildState by applying all funcs in a config."""
+    state = PromptBuildState()
+    _apply_func_rows(_load_sorted_func_rows(func_ids, store), state)
     return state
+
+
+def apply_config_modules(
+    func_ids: List[str],
+    store: CubeStore,
+    *,
+    module_names: Iterable[str] | None = None,
+) -> Dict[str, PromptBuildState]:
+    """Build prompt states grouped by each func's target module.
+
+    Untargeted funcs apply to ``MAIN_MODULE``. This preserves the existing
+    single-stage default while giving compound tasks targeted module states.
+    """
+    states: Dict[str, PromptBuildState] = {MAIN_MODULE: PromptBuildState()}
+    if module_names:
+        for name in module_names:
+            states.setdefault(name, PromptBuildState())
+
+    rows_by_module: Dict[str, list[tuple[str, dict]]] = {}
+    for func_id, func_row in _load_sorted_func_rows(func_ids, store):
+        target = _func_target_module(func_row)
+        rows_by_module.setdefault(target, []).append((func_id, func_row))
+        states.setdefault(target, PromptBuildState())
+
+    for target, rows in rows_by_module.items():
+        _apply_func_rows(rows, states[target])
+
+    return states

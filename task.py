@@ -12,14 +12,201 @@ Lifecycle:
 """
 from __future__ import annotations
 
+import copy
 import json
 import logging
-from typing import Dict, Optional
+import time
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, Mapping, Optional
 
 from core.func_registry import PromptBuildState
 from prompt.prompt_state import PromptState
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ModuleSpec:
+    """Prompt defaults for one internal module of a compound task."""
+
+    input_fields: Dict[str, str] = field(default_factory=dict)
+    output_fields: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class ModuleTrace:
+    """Trace for one module-level LLM call."""
+
+    module_name: str
+    stage_index: int
+    system_prompt: str
+    user_content: str
+    raw_response: str = ""
+    parsed_output: Any = ""
+    latency_ms: Optional[float] = None
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    error: Optional[str] = None
+    meta: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "module_name": self.module_name,
+            "stage_index": self.stage_index,
+            "system_prompt": self.system_prompt,
+            "user_content": self.user_content,
+            "raw_response": self.raw_response,
+            "parsed_output": _json_safe(self.parsed_output),
+            "latency_ms": self.latency_ms,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "error": self.error,
+            "meta": _json_safe(self.meta),
+        }
+
+
+@dataclass
+class ModuleCallResult:
+    """Return value from ModuleRuntime.call()."""
+
+    raw_response: str
+    parsed_output: Any
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    latency_ms: Optional[float] = None
+    error: Optional[str] = None
+
+
+class ModuleRuntime:
+    """LLM call wrapper that records module-level traces."""
+
+    def __init__(self, llm_call: Callable[[str, str], Dict[str, Any]]) -> None:
+        self._llm_call = llm_call
+        self.traces: list[ModuleTrace] = []
+
+    def call(
+        self,
+        module_name: str,
+        system_prompt: str,
+        user_content: str,
+        *,
+        parse: Optional[Callable[[str], Any]] = None,
+        meta: Optional[Dict[str, Any]] = None,
+    ) -> ModuleCallResult:
+        stage_index = len(self.traces)
+        t0 = time.time()
+        raw_response = ""
+        parsed_output: Any = ""
+        prompt_tokens = None
+        completion_tokens = None
+        error = None
+        try:
+            result = self._llm_call(system_prompt, user_content)
+            raw_response = result.get("raw_response", "")
+            if not isinstance(raw_response, str):
+                raw_response = str(raw_response)
+            parsed_output = parse(raw_response) if parse else raw_response
+            prompt_tokens = result.get("prompt_tokens")
+            completion_tokens = result.get("completion_tokens")
+            return ModuleCallResult(
+                raw_response=raw_response,
+                parsed_output=parsed_output,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                latency_ms=(time.time() - t0) * 1000,
+            )
+        except Exception as exc:
+            error = str(exc)[:500]
+            raise
+        finally:
+            self.traces.append(ModuleTrace(
+                module_name=module_name,
+                stage_index=stage_index,
+                system_prompt=system_prompt,
+                user_content=user_content,
+                raw_response=raw_response,
+                parsed_output=parsed_output,
+                latency_ms=(time.time() - t0) * 1000,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                error=error,
+                meta=meta or {},
+            ))
+
+    def trace_dicts(self) -> list[Dict[str, Any]]:
+        return [trace.to_dict() for trace in self.traces]
+
+    def last_trace(self) -> Optional[ModuleTrace]:
+        return self.traces[-1] if self.traces else None
+
+    def total_prompt_tokens(self) -> Optional[int]:
+        values = [t.prompt_tokens for t in self.traces if t.prompt_tokens is not None]
+        return sum(values) if values else None
+
+    def total_completion_tokens(self) -> Optional[int]:
+        values = [t.completion_tokens for t in self.traces if t.completion_tokens is not None]
+        return sum(values) if values else None
+
+
+def _json_safe(value: Any) -> Any:
+    try:
+        json.dumps(value)
+        return value
+    except TypeError:
+        if isinstance(value, Mapping):
+            return {str(k): _json_safe(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [_json_safe(v) for v in value]
+        return str(value)
+
+
+class CompoundTask:
+    """Base for tasks that execute multiple named prompt modules internally."""
+
+    name: str = ""
+    scorer: str = ""
+    module_specs: Dict[str, ModuleSpec] = {}
+
+    def __init__(self) -> None:
+        self._module_prompt_states: Dict[str, PromptState] = {}
+
+    @classmethod
+    def module_names(cls) -> tuple[str, ...]:
+        return tuple(cls.module_specs.keys())
+
+    def bind_modules(
+        self,
+        module_states: Mapping[str, PromptBuildState],
+        *,
+        example_pool: Optional[list] = None,
+    ) -> None:
+        """Bind per-module prompt build states to renderable PromptStates."""
+        _ = example_pool  # Reserved for future module-aware few-shot support.
+        self._module_prompt_states = {}
+        for module_name, spec in self.module_specs.items():
+            state = copy.deepcopy(module_states.get(module_name, PromptBuildState()))
+            for key, desc in spec.input_fields.items():
+                state.input_fields.setdefault(key, desc)
+            for key, desc in spec.output_fields.items():
+                state.output_fields.setdefault(key, desc)
+            self._module_prompt_states[module_name] = state.to_prompt_state()
+
+    def build_module_prompt(self, module_name: str, record: dict) -> tuple[str, str]:
+        if module_name not in self._module_prompt_states:
+            raise RuntimeError(f"Module {module_name!r} not bound — call bind_modules() first")
+
+        messages = self._module_prompt_states[module_name].build_messages(record)
+        system_prompt = ""
+        user_content = ""
+        for msg in messages:
+            if msg["role"] == "system":
+                system_prompt = msg["content"]
+            elif msg["role"] == "user":
+                user_content = msg["content"]
+        return system_prompt, user_content
+
+    def run(self, query: dict, runtime: ModuleRuntime) -> Any:
+        raise NotImplementedError
 
 
 class BaseTask:

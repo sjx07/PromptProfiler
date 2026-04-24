@@ -13,9 +13,10 @@ insert_node(section) primitive_edit. No special-casing or $ref resolution.
 Content-addressed feature_id
 ─────────────────────────────
 Each feature spec's ``feature_id`` is a 12-char SHA-256 hex derived exclusively
-from its ``primitive_edits`` list (NOT from requires / conflicts_with / canonical_id
-/ rationale).  Same primitive content → same feature_id.  Different content → different
-feature_id (even if canonical_id is the same).
+from its ``primitive_edits`` list, including optional ``target_module`` values
+(NOT from requires / conflicts_with / canonical_id / rationale).  Same primitive
+content and module target → same feature_id.  Different content or target →
+different feature_id (even if canonical_id is the same).
 
 ``canonical_id`` is the stable human-facing label.  It is the key used in
 ``validate_feature_set()`` and ``materialize()`` (user-facing API).
@@ -38,10 +39,11 @@ import hashlib
 import json
 import logging
 import os
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.func_registry import make_func_id, _canonicalize_insert_node
+from core.func_registry import MAIN_MODULE, make_func_id, _canonicalize_insert_node
 
 logger = logging.getLogger(__name__)
 
@@ -77,16 +79,49 @@ def _canonical_edit(edit: dict) -> str:
     """
     func_type = edit.get("func_type", "")
     params = edit.get("params", {})
+    target_module = edit.get("target_module")
     if func_type == "insert_node":
         canon = _canonicalize_insert_node(params)
-        return f"{func_type}:{json.dumps(canon, sort_keys=True)}"
-    return f"{func_type}:{json.dumps(params, sort_keys=True)}"
+        payload = {"func_type": func_type, "params": canon}
+    else:
+        payload = {"func_type": func_type, "params": params}
+    if target_module:
+        payload["target_module"] = target_module
+    return json.dumps(payload, sort_keys=True)
+
+
+def _target_module_for_edit(spec: dict, edit: dict) -> str:
+    return edit.get("target_module") or spec.get("target_module") or MAIN_MODULE
+
+
+def _primitive_edits_for_hash(spec: dict) -> List[dict]:
+    primitive_edits = deepcopy(spec.get("primitive_edits", []))
+    spec_target = spec.get("target_module")
+    if spec_target:
+        for edit in primitive_edits:
+            edit.setdefault("target_module", spec_target)
+    return primitive_edits
+
+
+def _make_targeted_func_id(func_type: str, params: dict, target_module: str) -> str:
+    base_id = make_func_id(func_type, params)
+    if target_module == MAIN_MODULE:
+        return base_id
+    payload = json.dumps(
+        {
+            "base_func_id": base_id,
+            "target_module": target_module,
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 
 def compute_feature_id(primitive_edits: List[dict]) -> str:
     """Content-addressed 12-char hex ID for a feature.
 
-    Hash input = canonicalized primitive_edits only.
+    Hash input = canonicalized primitive_edits only, including target_module
+    when present on an edit.
     NOT requires / conflicts_with / canonical_id / rationale.
     """
     canonical = json.dumps(
@@ -126,7 +161,7 @@ class FeatureRegistry:
         self._fid_to_cid: Dict[str, str] = {}
 
         for canonical_id, spec in features.items():
-            primitive_edits = spec.get("primitive_edits", [])
+            primitive_edits = _primitive_edits_for_hash(spec)
             feature_id = compute_feature_id(primitive_edits)
 
             enriched = dict(spec)
@@ -271,6 +306,25 @@ class FeatureRegistry:
         func_specs: List[Dict[str, Any]] = []
         seen_func_ids: Dict[str, int] = {}   # func_id -> index in func_specs
         feature_to_funcs: Dict[str, List[str]] = {}  # keyed by content-hash feature_id
+        section_id_by_target: Dict[tuple[str, str], str] = {}
+
+        # First pass: collect target-aware section IDs so targeted rules can
+        # reference targeted sections while old un-targeted section IDs remain
+        # fully backward-compatible.
+        for cid in canonical_ids:
+            spec = self._by_canonical[cid]
+            for edit in spec.get("primitive_edits", []):
+                func_type = edit.get("func_type", "")
+                params = deepcopy(edit.get("params", {}))
+                if func_type != "insert_node" or params.get("node_type") != "section":
+                    continue
+                target_module = _target_module_for_edit(spec, edit)
+                base_id = make_func_id(func_type, params)
+                section_id_by_target[(target_module, base_id)] = _make_targeted_func_id(
+                    func_type,
+                    params,
+                    target_module,
+                )
 
         for cid in canonical_ids:
             spec = self._by_canonical[cid]
@@ -279,17 +333,27 @@ class FeatureRegistry:
 
             for edit in spec.get("primitive_edits", []):
                 func_type = edit.get("func_type", "")
-                params = dict(edit.get("params", {}))
+                params = deepcopy(edit.get("params", {}))
+                target_module = _target_module_for_edit(spec, edit)
 
-                func_id = make_func_id(func_type, params)
+                if func_type == "insert_node":
+                    parent_id = params.get("parent_id")
+                    mapped_parent = section_id_by_target.get((target_module, parent_id))
+                    if mapped_parent:
+                        params["parent_id"] = mapped_parent
+
+                func_id = _make_targeted_func_id(func_type, params, target_module)
 
                 if func_id not in seen_func_ids:
                     seen_func_ids[func_id] = len(func_specs)
+                    meta = {}
+                    if target_module != MAIN_MODULE:
+                        meta["target_module"] = target_module
                     func_specs.append({
                         "func_id":   func_id,
                         "func_type": func_type,
                         "params":    params,
-                        "meta":      {},
+                        "meta":      meta,
                     })
 
                 fid_funcs.append(func_id)
@@ -331,7 +395,7 @@ class FeatureRegistry:
                 "task":           spec.get("task", self.task),
                 "requires_json":  _json.dumps(spec.get("requires", [])),
                 "conflicts_json": _json.dumps(spec.get("conflicts_with", [])),
-                "primitive_spec": _json.dumps(spec.get("primitive_edits", [])),
+                "primitive_spec": _json.dumps(_primitive_edits_for_hash(spec)),
                 "rationale":      spec.get("rationale"),
                 "source_path":    spec.get("_source_path"),
             })

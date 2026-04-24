@@ -158,9 +158,18 @@ def _run_and_eval_plan(
                 llm_call.set_labels(config_id=cid, n_rules=max(n_rules, 0))
 
             # ── run config ────────────────────────────────────────
-            state = apply_config(func_ids, store)
             task = task_cls()
-            task.bind(state, example_pool=example_pool)
+            if hasattr(task, "bind_modules"):
+                from core.func_registry import apply_config_modules
+                state_by_module = apply_config_modules(
+                    func_ids,
+                    store,
+                    module_names=task.module_names(),
+                )
+                task.bind_modules(state_by_module, example_pool=example_pool)
+            else:
+                state = apply_config(func_ids, store)
+                task.bind(state, example_pool=example_pool)
 
             conn = store._get_conn()
             placeholders = ",".join("?" for _ in query_ids)
