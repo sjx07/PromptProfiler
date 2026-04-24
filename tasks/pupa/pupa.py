@@ -164,7 +164,8 @@ def _strip_fence(text: str) -> str:
 
 
 def _strip_thinking(text: str) -> str:
-    return re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL).strip()
+    text = re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL)
+    return re.sub(r"<think>.*\Z", "", text, flags=re.DOTALL).strip()
 
 
 def _first_present(mapping: dict, keys: list[str]) -> Any:

@@ -248,3 +248,4 @@ def test_hotpotqa_context_parsers_strip_qwen_thinking_blocks():
     assert parse_answer(
         '<think>\nNow answer.\n</think>\n{"answer":"Wilmington"}'
     ) == "Wilmington"
+    assert parse_answer("<think>\nTruncated reasoning") == ""

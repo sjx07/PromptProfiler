@@ -222,3 +222,5 @@ def test_pupa_parsers_strip_qwen_thinking_blocks():
         "llm_request": "Give general renewal advice.",
     }
     assert final == "Send a concise renewal reply."
+
+    assert parse_final_response("<think>\nTruncated reasoning") == ""
