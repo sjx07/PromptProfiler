@@ -134,6 +134,49 @@ def test_hotpotqa_context_base_features_route_to_modules():
         os.unlink(db_path)
 
 
+def test_hotpotqa_context_defaults_include_gepa_reasoning_fields():
+    task = HotpotQAContextTask()
+    task.bind_modules({})
+
+    cases = {
+        "summarize1": (
+            {
+                "question": "What city is the headquarters of the organization that created Python?",
+                "passages": "Passage 1 (Python Software Foundation): Its headquarters are in Wilmington.",
+            },
+            "summary",
+        ),
+        "create_query_hop2": (
+            {
+                "question": "What city is the headquarters of the organization that created Python?",
+                "summary_1": "Python is managed by the Python Software Foundation.",
+            },
+            "query",
+        ),
+        "summarize2": (
+            {
+                "question": "What city is the headquarters of the organization that created Python?",
+                "summary_1": "Python is managed by the Python Software Foundation.",
+                "passages": "Passage 1 (Python Software Foundation): Its headquarters are in Wilmington.",
+            },
+            "summary",
+        ),
+        "final_answer": (
+            {
+                "question": "What city is the headquarters of the organization that created Python?",
+                "summary_1": "Python is managed by the Python Software Foundation.",
+                "summary_2": "The Python Software Foundation headquarters are in Wilmington.",
+            },
+            "answer",
+        ),
+    }
+
+    for module_name, (record, task_output_field) in cases.items():
+        system_prompt, _ = task.build_module_prompt(module_name, record)
+        assert '"reasoning"' in system_prompt
+        assert f'"{task_output_field}"' in system_prompt
+
+
 def test_hotpotqa_context_run_uses_context_retrieval_and_records_traces():
     calls = []
 

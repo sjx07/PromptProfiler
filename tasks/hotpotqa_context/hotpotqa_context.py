@@ -28,6 +28,7 @@ class HotpotQAContextTask(CompoundTask):
                 "passages": "First-hop context passages retrieved from the example context.",
             },
             output_fields={
+                "reasoning": "Brief reasoning about which retrieved facts are relevant.",
                 "summary": "Concise first-hop facts relevant to answering the question.",
             },
         ),
@@ -37,6 +38,7 @@ class HotpotQAContextTask(CompoundTask):
                 "summary_1": "The first-hop summary.",
             },
             output_fields={
+                "reasoning": "Brief reasoning about the missing evidence needed for the second hop.",
                 "query": "A focused retrieval query for missing second-hop evidence.",
             },
         ),
@@ -47,6 +49,7 @@ class HotpotQAContextTask(CompoundTask):
                 "passages": "Second-hop context passages retrieved from the example context.",
             },
             output_fields={
+                "reasoning": "Brief reasoning about how the second-hop passages connect to the question.",
                 "summary": "Concise second-hop facts that support the final answer.",
             },
         ),
@@ -57,6 +60,7 @@ class HotpotQAContextTask(CompoundTask):
                 "summary_2": "The second-hop summary.",
             },
             output_fields={
+                "reasoning": "Brief reasoning that uses the two summaries to identify the answer.",
                 "answer": "Shortest supported answer span.",
             },
         ),

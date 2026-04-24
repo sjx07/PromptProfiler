@@ -12,7 +12,7 @@
         "node_type": "rule",
         "parent_id": "cf63b172e8a5",
         "payload": {
-          "content": "Answer with the shortest directly supported answer span from the summaries. Return only the answer, not an explanation."
+          "content": "Answer with the shortest directly supported answer span from the summaries. The answer field must contain only the answer span, not an explanation."
         }
       }
     }
