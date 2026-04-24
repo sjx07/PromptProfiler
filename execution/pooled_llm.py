@@ -33,9 +33,11 @@ class PooledLLMCall:
         vllm_store: VLLMStore | None = None,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
+        max_tokens: int = 2048,
     ) -> None:
 
         self._model = model
+        self._max_tokens = int(max_tokens)
 
         self._ext_client: Optional[Any] = None
         self._clients: Optional[Dict[int, AutoVLLM]] = None
@@ -79,7 +81,7 @@ class PooledLLMCall:
                     {"role": "user", "content": user_content},
                 ],
                 temperature=0.0,
-                max_tokens=512,
+                max_tokens=self._max_tokens,
             )
             content = response.choices[0].message.content
             raw = content.strip() if isinstance(content, str) else json.dumps(content) if content else ""

@@ -154,6 +154,7 @@ def main():
     parser.add_argument("--ports", type=int, nargs="+", default=None)
     parser.add_argument("--num_workers", type=int, default=None)
     parser.add_argument("--max_queries", type=int, default=None)
+    parser.add_argument("--max_tokens", type=int, default=None)
     parser.add_argument("--n_samples", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--split", default=None)
@@ -192,6 +193,7 @@ def main():
     base_url = cfg.get("base_url")
     api_key = os.environ.get(cfg["api_key_env"], "") if cfg.get("api_key_env") else None
     max_queries = cfg.get("max_queries", 0)
+    max_tokens = int(cfg.get("max_tokens", 2048))
     n_samples = cfg.get("n_samples", 200)
     seed = cfg.get("seed", 42)
     split = cfg.get("split", "dev")
@@ -275,12 +277,19 @@ def main():
         model, ports, slots_per_port=slots_per_port,
         labels={"task": task_name, "experiment_type": experiment_type,
                 "dataset": dataset_key, "split": split,
-                "num_workers": num_workers},
+                "num_workers": num_workers, "max_tokens": max_tokens},
         vllm_store=VLLMStore(vllm_db),
         base_url=base_url,
         api_key=api_key,
+        max_tokens=max_tokens,
     )
-    logger.info("Port pool: %s, %d workers, %d slots/port", ports, num_workers, slots_per_port)
+    logger.info(
+        "Port pool: %s, %d workers, %d slots/port, max_tokens=%d",
+        ports,
+        num_workers,
+        slots_per_port,
+        max_tokens,
+    )
 
     # ══════════════════════════════════════════════════════════════════
     # Iterative experiment (unchanged from pre-refactor; rule_ids path).
