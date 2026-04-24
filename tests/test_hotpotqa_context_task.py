@@ -18,6 +18,9 @@ from core.store import CubeStore, OnConflict
 from execution.runner import run_config
 from tasks.hotpotqa_context.hotpotqa_context import (
     HotpotQAContextTask,
+    parse_answer,
+    parse_hop_query,
+    parse_summary,
     retrieve_context_passages,
 )
 from tasks.hotpotqa_context.loaders import seed_queries_hotpotqa_context
@@ -233,3 +236,15 @@ def test_hotpotqa_context_score_reports_em_and_f1():
     assert score == 1.0
     assert metrics["exact_match"] == 1.0
     assert metrics["f1"] == 1.0
+
+
+def test_hotpotqa_context_parsers_strip_qwen_thinking_blocks():
+    assert parse_summary(
+        '<think>\nFind first-hop evidence.\n</think>\n{"summary":"First fact."}'
+    ) == "First fact."
+    assert parse_hop_query(
+        '<think>\nNeed second hop.\n</think>\n{"query":"headquarters city"}'
+    ) == "headquarters city"
+    assert parse_answer(
+        '<think>\nNow answer.\n</think>\n{"answer":"Wilmington"}'
+    ) == "Wilmington"

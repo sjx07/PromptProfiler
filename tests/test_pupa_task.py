@@ -17,7 +17,11 @@ from core.func_registry import apply_config_modules
 from core.store import CubeStore, OnConflict
 from execution.runner import run_config
 from tasks.pupa.loaders import seed_queries_pupa
-from tasks.pupa.pupa import PupaPrivacyDelegationTask
+from tasks.pupa.pupa import (
+    PupaPrivacyDelegationTask,
+    parse_final_response,
+    parse_redacted_request,
+)
 
 
 def test_pupa_loader_seeds_split_from_jsonl():
@@ -201,3 +205,20 @@ def test_pupa_score_uses_reference_and_forbidden_terms_when_available():
 
     assert score == 0.0
     assert metrics["leak_count"] == 1
+
+
+def test_pupa_parsers_strip_qwen_thinking_blocks():
+    redacted = parse_redacted_request(
+        '<think>\nNeed to remove names.\n</think>\n'
+        '{"reasoning":"removed name","llm_request":"Give general renewal advice."}'
+    )
+    final = parse_final_response(
+        '<think>\nUse the external answer.\n</think>\n'
+        '{"response":"Send a concise renewal reply."}'
+    )
+
+    assert redacted == {
+        "reasoning": "removed name",
+        "llm_request": "Give general renewal advice.",
+    }
+    assert final == "Send a concise renewal reply."

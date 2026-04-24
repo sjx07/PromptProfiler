@@ -112,6 +112,7 @@ class PupaPrivacyDelegationTask(CompoundTask):
 
 
 def parse_redacted_request(raw_response: str) -> dict:
+    raw_response = _strip_thinking(raw_response)
     parsed = _parse_json_object(raw_response)
     if isinstance(parsed, dict):
         request = _first_present(parsed, ["llm_request", "request", "redacted_request", "prompt"])
@@ -134,6 +135,7 @@ def parse_redacted_request(raw_response: str) -> dict:
 
 
 def parse_final_response(raw_response: str) -> str:
+    raw_response = _strip_thinking(raw_response)
     parsed = _parse_json_object(raw_response)
     if isinstance(parsed, dict):
         response = _first_present(parsed, ["response", "answer", "final_response"])
@@ -159,6 +161,10 @@ def _strip_fence(text: str) -> str:
     if len(lines) >= 3 and lines[-1].strip() == "```":
         return "\n".join(lines[1:-1]).strip()
     return text
+
+
+def _strip_thinking(text: str) -> str:
+    return re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL).strip()
 
 
 def _first_present(mapping: dict, keys: list[str]) -> Any:

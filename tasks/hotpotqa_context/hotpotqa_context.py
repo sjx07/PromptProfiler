@@ -366,6 +366,7 @@ def _passage_score(query_tokens: list[str], passage: dict[str, Any]) -> int:
 
 
 def _parse_field(raw_response: str, field_names: list[str]) -> str:
+    raw_response = _strip_thinking(raw_response)
     parsed = _parse_json_object(raw_response)
     if isinstance(parsed, dict):
         for field_name in field_names:
@@ -399,6 +400,10 @@ def _strip_fence(text: str) -> str:
     if len(lines) >= 3 and lines[-1].strip() == "```":
         return "\n".join(lines[1:-1]).strip()
     return text
+
+
+def _strip_thinking(text: str) -> str:
+    return re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL).strip()
 
 
 def _extract_labeled_block(text: str, labels: list[str]) -> str:
