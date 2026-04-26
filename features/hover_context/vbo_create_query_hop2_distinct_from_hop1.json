@@ -1,0 +1,24 @@
+{
+  "canonical_id": "vbo_create_query_hop2_distinct_from_hop1",
+  "task": "hover_context",
+  "target_module": "create_query_hop2",
+  "theme": "verify-before-output",
+  "tier": "A",
+  "shared_stem": "vbo_create_query_hop2_distinct_from_hop1",
+  "provenance": "vista_synthesis",
+  "requires": ["_section_create_query_hop2"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "f84c4068e433",
+        "payload": {
+          "content": "Before emitting the query, check that it does not duplicate the claim verbatim. The query should target evidence not yet retrieved in hop 1; if your draft mirrors the claim, rewrite it to focus on an entity or relation that hop 1 did not surface."
+        }
+      }
+    }
+  ],
+  "rationale": "Counterfactual probe: HoVer's GEPA prompt has nothing for verify-before-output × create_query_hop2. Tests whether explicit pre-emission distinctness checks reduce hop-1/hop-2 redundancy on retrieval coverage."
+}

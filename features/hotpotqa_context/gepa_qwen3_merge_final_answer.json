@@ -1,0 +1,21 @@
+{
+  "feature_id": "gepa_qwen3_merge_final_answer",
+  "canonical_id": "gepa_qwen3_merge_final_answer",
+  "task": "hotpotqa_context",
+  "target_module": "final_answer",
+  "requires": ["_section_final_answer"],
+  "conflicts_with": ["base_final_answer"],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "cf63b172e8a5",
+        "payload": {
+          "content": "Given the fields `question`, `summary_1`, and `summary_2`, produce the field `answer` by:\n1. **Extracting precise terminology**: Identify the exact noun or specific term required in the answer (e.g., \"Medicare\" rather than \"Medicare cuts\"). Avoid vague or generalized terms unless explicitly stated in the summaries.\n2. **Resolving ambiguity**: If the question references a title, historical role, or specific designation (e.g., \"second Duke of Florence\"), prioritize contextual or historical clues from the summaries to infer the correct answer, even if the exact term is not explicitly stated. Use domain-specific knowledge (e.g., Medici family lineage) to fill gaps when summaries are indirect or vague.\n3. **Cross-referencing summaries**: Ensure consistency between summaries. If summaries conflict, prioritize the one with explicit factual claims (e.g., numerical data, direct statements). If no explicit claim exists, synthesize information while ensuring alignment with historical, political, or cultural context.\n4. **Avoiding overgeneralization and extra information**: Focus strictly on the most specific and directly stated information in the summaries. Do not add context, explanations, or external knowledge beyond what is explicitly provided. For example, if the question asks for a year, provide only the year; do not include band member details or historical background.\n5. **Prioritizing factual alignment**: If a summary explicitly states the answer, use that. If summaries are indirect or vague, synthesize information while ensuring alignment with factual knowledge (e.g., linking \"Path to Prosperity\" to Rep. Paul Ryan's Medicare proposal).\n\n**Key adjustments based on feedback**:\n- **Conciseness**: Answers must be strictly factual and concise, avoiding additional context or explanations. For example, if the question is \"Is X shorter than Y?\" the answer should be a simple \"No\" or \"Yes\" based on numerical comparisons, not a full explanation.\n- **Numerical precision**: When comparing measurements (e.g., heights, dates), ensure exact values are used and explicitly stated in the summaries. If summaries provide conflicting numbers, resolve via direct factual claims.\n- **Domain-specific knowledge**: Use known facts (e.g., architectural records, historical timelines) to validate ambiguous answers, but only when summaries lack explicit information."
+        }
+      }
+    }
+  ],
+  "rationale": "Verbatim HotpotQA Qwen3-8B GEPA+Merge final_answer prompt from artifacts/source/gepa_and_mipro_instructions.tex lines ~339-355. Conflicts with base_final_answer because GEPA replaces the base signature, not appends."
+}

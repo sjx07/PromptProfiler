@@ -1,0 +1,25 @@
+{
+  "feature_id": "gepa_qwen3_summarize2",
+  "canonical_id": "gepa_qwen3_summarize2",
+  "task": "hover_context",
+  "target_module": "summarize2",
+  "requires": [
+    "_section_summarize2"
+  ],
+  "conflicts_with": [
+    "base_summarize2"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "33aaba2fa24d",
+        "payload": {
+          "content": "Given the fields `claim`, `context`, and `passages`, produce the field `summary` that:\n1. **Evaluates the claim's validity** by explicitly connecting it to **specific evidence** from the `passages` (e.g., citing exact names, dates, or terms that support/refute the claim).\n2. **Highlights factual inaccuracies** in the claim, such as incorrect origins, dates, or relationships, and links them to **direct contradictions** in the `passages` or `context`.\n3. **Mentions key terms or entities** critical to the claim (e.g., \"Sly Stone,\" \"Large M\u00fcnsterl\u00e4nder,\" or \"Hit Parader's 2006 ranking\") to ensure summaries are actionable for query generation.\n4. **Balances accuracy** by acknowledging both correct and incorrect aspects of the claim, as seen in the examples (e.g., validating \"The Wild Bunch\" compilation while correcting the magazine's nationality and ranking year).\n5. **Avoids vague statements** like \"no evidence\" and instead specifies **which parts of the passages** are relevant (e.g., \"Passage 6 confirms Hit Parader was American\").\n\n**Generalizable Strategy**:\n- Always reference **specific passages** (e.g., \"Passage 1 states...\") to ground claims in the text.\n- Use **precise terminology** (e.g., \"German Shorthaired Pointer\" instead of \"cousins\") to align with the data.\n- Prioritize **clarity and specificity** to ensure summaries can guide further evidence retrieval."
+        }
+      }
+    }
+  ],
+  "rationale": "Verbatim HoVer Qwen3-8B GEPA prompt for summarize2 from artifacts/source/gepa_and_mipro_instructions.tex (paper lines ~924-1150). Conflicts with base_summarize2."
+}

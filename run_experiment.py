@@ -82,6 +82,31 @@ def _load_config(config_path: str, cli_overrides: Dict[str, Any]) -> Dict[str, A
     return cfg
 
 
+_GENERATOR_OPTION_KEYS = ("min_features", "max_features", "min_rules", "max_rules")
+
+
+def _generator_kwargs(cfg: Dict[str, Any], *, n_samples: int, seed: int) -> Dict[str, Any]:
+    """Build kwargs forwarded from run config to experiment config generators."""
+    kwargs: Dict[str, Any] = {"n_samples": n_samples, "seed": seed}
+    for key in _GENERATOR_OPTION_KEYS:
+        if cfg.get(key) is not None:
+            kwargs[key] = cfg[key]
+    return kwargs
+
+
+def _llm_sampling_kwargs(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Build decoding kwargs for PooledLLMCall without overloading analysis top_k."""
+    kwargs: Dict[str, Any] = {}
+    if cfg.get("temperature") is not None:
+        kwargs["temperature"] = float(cfg["temperature"])
+    if cfg.get("top_p") is not None:
+        kwargs["top_p"] = float(cfg["top_p"])
+    sampling_top_k = cfg.get("sampling_top_k", cfg.get("llm_top_k"))
+    if sampling_top_k is not None:
+        kwargs["top_k"] = int(sampling_top_k)
+    return kwargs
+
+
 # ── feature materialization ───────────────────────────────────────────
 
 def _build_feature_bundles(
@@ -155,7 +180,14 @@ def main():
     parser.add_argument("--num_workers", type=int, default=None)
     parser.add_argument("--max_queries", type=int, default=None)
     parser.add_argument("--max_tokens", type=int, default=None)
+    parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--top_p", type=float, default=None)
+    parser.add_argument("--sampling_top_k", type=int, default=None)
     parser.add_argument("--n_samples", type=int, default=None)
+    parser.add_argument("--min_features", type=int, default=None)
+    parser.add_argument("--max_features", type=int, default=None)
+    parser.add_argument("--min_rules", type=int, default=None)
+    parser.add_argument("--max_rules", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--split", default=None)
     parser.add_argument("--example_split", default=None)
@@ -175,6 +207,8 @@ def main():
         parser.error(f"Unknown task: {task_name}. Choose from: {list(task_registry.keys())}")
     task_entry = task_registry[task_name]
     task_cls = task_entry.task_cls
+    if hasattr(task_cls, "configure_from_cfg"):
+        task_cls.configure_from_cfg(cfg)
 
     experiment_type = cfg.get("experiment_type", "add_one_feature")
     db_path = cfg.get("db_path")
@@ -194,6 +228,7 @@ def main():
     api_key = os.environ.get(cfg["api_key_env"], "") if cfg.get("api_key_env") else None
     max_queries = cfg.get("max_queries", 0)
     max_tokens = int(cfg.get("max_tokens", 2048))
+    llm_sampling_kwargs = _llm_sampling_kwargs(cfg)
     n_samples = cfg.get("n_samples", 200)
     seed = cfg.get("seed", 42)
     split = cfg.get("split", "dev")
@@ -277,18 +312,21 @@ def main():
         model, ports, slots_per_port=slots_per_port,
         labels={"task": task_name, "experiment_type": experiment_type,
                 "dataset": dataset_key, "split": split,
-                "num_workers": num_workers, "max_tokens": max_tokens},
+                "num_workers": num_workers, "max_tokens": max_tokens,
+                **llm_sampling_kwargs},
         vllm_store=VLLMStore(vllm_db),
         base_url=base_url,
         api_key=api_key,
         max_tokens=max_tokens,
+        **llm_sampling_kwargs,
     )
     logger.info(
-        "Port pool: %s, %d workers, %d slots/port, max_tokens=%d",
+        "Port pool: %s, %d workers, %d slots/port, max_tokens=%d, sampling=%s",
         ports,
         num_workers,
         slots_per_port,
         max_tokens,
+        llm_sampling_kwargs,
     )
 
     # ══════════════════════════════════════════════════════════════════
@@ -313,7 +351,7 @@ def main():
         base_ids=base_ids, bundles=bundles, conflicts=conflicts,
         base_canonical_ids=list(base_features),
         base_feature_ids=[base_feature_hashes[c] for c in base_features],
-        n_samples=n_samples, seed=seed,
+        **_generator_kwargs(cfg, n_samples=n_samples, seed=seed),
     )
     logger.info("Generated %d configs (%s)", len(configs), experiment_type)
 

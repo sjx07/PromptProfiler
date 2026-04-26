@@ -34,10 +34,16 @@ class PooledLLMCall:
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         max_tokens: int = 2048,
+        temperature: float | None = 0.0,
+        top_p: float | None = None,
+        top_k: int | None = None,
     ) -> None:
 
         self._model = model
         self._max_tokens = int(max_tokens)
+        self._temperature = temperature
+        self._top_p = top_p
+        self._top_k = top_k
 
         self._ext_client: Optional[Any] = None
         self._clients: Optional[Dict[int, AutoVLLM]] = None
@@ -74,15 +80,22 @@ class PooledLLMCall:
         port = self._port_pool.get()
         try:
             client = self._ext_client if self._ext_client is not None else self._clients[port]  # type: ignore[index]
-            response = client.chat.completions.create(
-                model=self._model,
-                messages=[
+            request: Dict[str, Any] = {
+                "model": self._model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content},
                 ],
-                temperature=0.0,
-                max_tokens=self._max_tokens,
-            )
+                "max_tokens": self._max_tokens,
+            }
+            if self._temperature is not None:
+                request["temperature"] = self._temperature
+            if self._top_p is not None:
+                request["top_p"] = self._top_p
+            if self._top_k is not None:
+                request["extra_body"] = {"top_k": self._top_k}
+
+            response = client.chat.completions.create(**request)
             content = response.choices[0].message.content
             raw = content.strip() if isinstance(content, str) else json.dumps(content) if content else ""
             usage = getattr(response, "usage", None)

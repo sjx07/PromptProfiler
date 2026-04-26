@@ -1,0 +1,24 @@
+{
+  "canonical_id": "vbo_summarize1_cite_titles",
+  "task": "hotpotqa_context",
+  "target_module": "summarize1",
+  "theme": "verify-before-output",
+  "tier": "A",
+  "shared_stem": "vbo_summarize1_cite_titles",
+  "provenance": "vista_synthesis",
+  "requires": ["_section_summarize1"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "e75f49920c99",
+        "payload": {
+          "content": "Every factual statement in your summary must cite the passage title it came from in the form '[Title]: <statement>'. If a statement cannot be tied to a specific retrieved passage, omit it."
+        }
+      }
+    }
+  ],
+  "rationale": "Mirror of HoVer vbo_cite_titles. HotpotQA's GEPA summarize1 emphasizes structure but not strict per-statement title-grounding; this feature isolates the citation discipline."
+}

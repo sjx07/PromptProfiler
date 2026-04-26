@@ -87,11 +87,29 @@ def _seed_hotpotqa_context(store: Any, cfg: Dict[str, Any], split: str) -> None:
     from tasks.hotpotqa_context.loaders import seed_queries_hotpotqa_context
     data_path = cfg.get("data_path") or cfg.get("hotpotqa_data_path")
     max_queries = int(cfg.get("max_queries", 0) or 0)
+    split_mode = str(cfg.get("split_mode") or cfg.get("hotpotqa_split_mode") or "dataset")
+    sample_seed = int(cfg.get("hotpotqa_sample_seed") or 1)
     seed_queries_hotpotqa_context(
         store,
         split,
         data_path=data_path,
         max_queries=max_queries,
+        split_mode=split_mode,
+        sample_seed=sample_seed,
+    )
+
+
+def _seed_hover_context(store: Any, cfg: Dict[str, Any], split: str) -> None:
+    from tasks.hover_context.loaders import seed_queries_hover
+    data_path = cfg.get("data_path") or cfg.get("hover_data_path")
+    max_queries = int(cfg.get("max_queries", 0) or 0)
+    sample_seed = int(cfg.get("hover_sample_seed") or cfg.get("sample_seed") or 1)
+    seed_queries_hover(
+        store,
+        split,
+        data_path=data_path,
+        max_queries=max_queries,
+        sample_seed=sample_seed,
     )
 
 
@@ -104,6 +122,7 @@ def _build_registry() -> Dict[str, TaskEntry]:
     from tasks.nl2sql.sql_repair import SqlRepair
     from tasks.pupa.pupa import PupaPrivacyDelegationTask
     from tasks.hotpotqa_context.hotpotqa_context import HotpotQAContextTask
+    from tasks.hover_context.hover_context import HoverContextTask
 
     return {
         "table_qa": TaskEntry(
@@ -135,6 +154,11 @@ def _build_registry() -> Dict[str, TaskEntry]:
             task_cls=HotpotQAContextTask,
             seeder_fn=_seed_hotpotqa_context,
             dataset_key_fn=lambda cfg: "hotpotqa_context",
+        ),
+        "hover_context": TaskEntry(
+            task_cls=HoverContextTask,
+            seeder_fn=_seed_hover_context,
+            dataset_key_fn=lambda cfg: "hover_context",
         ),
     }
 

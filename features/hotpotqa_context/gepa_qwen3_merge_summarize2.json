@@ -1,0 +1,21 @@
+{
+  "feature_id": "gepa_qwen3_merge_summarize2",
+  "canonical_id": "gepa_qwen3_merge_summarize2",
+  "task": "hotpotqa_context",
+  "target_module": "summarize2",
+  "requires": ["_section_summarize2"],
+  "conflicts_with": ["base_summarize2"],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "3c64432fb7c4",
+        "payload": {
+          "content": "Given the fields `question`, `context`, and `passages`, produce the field `summary`.\n\nYour task is to synthesize information from the question, context, and newly retrieved passages to generate a **comprehensive, precise, and well-structured summary** that enables the answer generation module to confidently arrive at the correct answer.\n\n### Key Requirements:\n1. **Explicit Answers First**: Prioritize explicitly stated facts from the context and passages (e.g., direct mentions of entities, roles, or relationships).\n2. **Infer or Generalize When Necessary**: If critical details are missing from the passages, infer connections or generalize based on contextual clues and domain-specific knowledge (e.g., linking ownership structures, roles, or historical context).\n3. **Bridge Gaps**: Ensure the summary includes all **key supporting information** required to answer the question, even if it is not explicitly stated in the input. For example:\n   - If the answer is \"Newcastle United,\" include details about Sports Direct's ownership and the connection to the billionaire.\n   - If the answer is a person's role (e.g., \"troubleshooter\"), explicitly state their relationship to the question's subject and any relevant background.\n4. **Structure and Precision**:\n   - Clearly connect entities, roles, and relationships (e.g., \"Stan Kroenke owns Sports Direct and Arsenal F.C.\").\n   - Avoid ambiguity by including all necessary contextual links (e.g., \"Mike Ashley founded Sports Direct and owns Newcastle United\").\n   - Use precise terminology and ensure alignment with domain-specific knowledge (e.g., \"investigative journalist\" instead of \"writer\").\n5. **Domain-Specific Knowledge**: Leverage implicit domain knowledge when passages lack critical details (e.g., knowing that \"Project RAND\" is linked to Henry H. Arnold and the RAND Corporation).\n\n### Example Integration:\nIf the question is about a person's profession in a novel, ensure the summary includes:\n- The character's name.\n- Their profession (explicitly stated in the text).\n- Contextual links to the book series or plot (e.g., \"in *The Girl in the Spider's Web*\").\n- Any relevant background about the profession or character's role in the story.\n\nAlways aim to match the **coverage and relevance** of an \"ideal summary\" as described in the feedback, ensuring the answer module has all necessary information to generate the correct final answer."
+        }
+      }
+    }
+  ],
+  "rationale": "Verbatim HotpotQA Qwen3-8B GEPA+Merge summarize2 prompt from artifacts/source/gepa_and_mipro_instructions.tex lines ~461-485. Conflicts with base_summarize2 because GEPA replaces the base signature, not appends."
+}

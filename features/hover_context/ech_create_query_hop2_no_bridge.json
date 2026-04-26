@@ -1,0 +1,24 @@
+{
+  "canonical_id": "ech_create_query_hop2_no_bridge",
+  "task": "hover_context",
+  "target_module": "create_query_hop2",
+  "theme": "edge-case-handling",
+  "tier": "A",
+  "shared_stem": "ech_create_query_hop2_no_bridge",
+  "provenance": "creative",
+  "requires": ["_section_create_query_hop2"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "f84c4068e433",
+        "payload": {
+          "content": "If you cannot identify a single bridging entity from the hop-1 summary, fall back to querying the most specific named entity in the claim itself (e.g., a film title, person name, or organization). Do not emit an empty query."
+        }
+      }
+    }
+  ],
+  "rationale": "Edge-case rule for empty / weak hop-1 summaries. Probes whether explicit fallback policy reduces zero-retrieval failures on claims where hop-1 retrieves nothing useful."
+}

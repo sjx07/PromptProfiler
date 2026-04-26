@@ -1,34 +1,46 @@
-"""HotpotQA compound QA task using each example's provided context.
+"""HotpotQA compound QA task with wiki BM25 retrieval.
 
-This is intentionally not the paper's full Wikipedia/BM25 retrieval setup.
-It keeps retrieval local to the HotpotQA example context so prompt behavior is
-the variable under test.
+4-module pipeline mirroring the GEPA paper's modified HoVerMultiHop:
+  summarize1 → create_query_hop2 → summarize2 → final_answer
+
+Retriever: `bm25s` over `wiki.abstracts.2017.jsonl` (DSPy's canonical
+multi-hop config: k1=0.9, b=0.4, English stemmer + stopwords).
+
+Scoring: strict EM + HotpotQA F1 via `dspy.evaluate.metrics`
+(which copy the official `hotpot_evaluate_v1.py` formulas).
 """
 from __future__ import annotations
 
 import json
+import os
 import re
-import string
-from collections import Counter
+import threading
+from pathlib import Path
 from typing import Any, Mapping
+
+from dspy.evaluate.metrics import hotpot_f1_score, normalize_text  # type: ignore[import-not-found]
 
 from task import CompoundTask, ModuleRuntime, ModuleSpec
 
 
+# ── Task ─────────────────────────────────────────────────────────────
+
 class HotpotQAContextTask(CompoundTask):
-    """Four-stage multi-hop QA over provided HotpotQA context passages."""
+    """Four-stage multi-hop QA with wiki BM25 retrieval."""
 
     name = "hotpotqa_context"
-    scorer = "hotpotqa_context_f1"
+    scorer = "hotpotqa_context_exact_match"
     retrieval_k = 7
+    wiki_abstracts_path: str | None = None
+    bm25_index_dir: str | None = None
     module_specs = {
         "summarize1": ModuleSpec(
             input_fields={
                 "question": "The original HotpotQA question.",
-                "passages": "First-hop context passages retrieved from the example context.",
+                "passages": "First-hop context passages retrieved from the retriever.",
             },
             output_fields={
-                "reasoning": "Brief reasoning about which retrieved facts are relevant.",
+                "reasoning": "Brief chain-of-thought over the passages before committing to a summary.",
                 "summary": "Concise first-hop facts relevant to answering the question.",
             },
         ),
@@ -38,18 +50,18 @@ class HotpotQAContextTask(CompoundTask):
                 "summary_1": "The first-hop summary.",
             },
             output_fields={
-                "reasoning": "Brief reasoning about the missing evidence needed for the second hop.",
+                "reasoning": "Brief reasoning about what evidence is still missing after hop 1.",
                 "query": "A focused retrieval query for missing second-hop evidence.",
             },
         ),
         "summarize2": ModuleSpec(
             input_fields={
                 "question": "The original HotpotQA question.",
-                "summary_1": "The first-hop summary.",
-                "passages": "Second-hop context passages retrieved from the example context.",
+                "context": "The first-hop summary used as intermediate context.",
+                "passages": "Second-hop context passages retrieved from the retriever.",
             },
             output_fields={
-                "reasoning": "Brief reasoning about how the second-hop passages connect to the question.",
+                "reasoning": "Brief reasoning connecting hop 2 passages to hop 1 summary and the question.",
                 "summary": "Concise second-hop facts that support the final answer.",
             },
         ),
@@ -60,370 +72,284 @@ class HotpotQAContextTask(CompoundTask):
                 "summary_2": "The second-hop summary.",
             },
             output_fields={
-                "reasoning": "Brief reasoning that uses the two summaries to identify the answer.",
+                "reasoning": "Brief reasoning connecting the summaries to the answer span.",
                 "answer": "Shortest supported answer span.",
             },
         ),
     }
 
+    @classmethod
+    def configure_from_cfg(cls, cfg: Mapping[str, Any]) -> None:
+        cls.wiki_abstracts_path = (
+            cfg.get("wiki_abstracts_path")
+            or os.environ.get("HOTPOTQA_WIKI_ABSTRACTS")
+        )
+        cls.bm25_index_dir = (
+            cfg.get("bm25_index_dir")
+            or os.environ.get("HOTPOTQA_BM25_INDEX_DIR")
+        )
+        if cfg.get("retrieval_k") is not None:
+            cls.retrieval_k = int(cfg["retrieval_k"])
+
+    def __init__(
+        self,
+        *,
+        wiki_abstracts_path: str | None = None,
+        bm25_index_dir: str | None = None,
+        retriever: Any | None = None,
+    ) -> None:
+        super().__init__()
+        if retriever is not None:
+            self._retriever = retriever
+        else:
+            self._retriever = get_wiki_bm25_retriever(
+                wiki_abstracts_path or self.__class__.wiki_abstracts_path,
+                bm25_index_dir or self.__class__.bm25_index_dir,
+            )
+
     def run(self, query: dict, runtime: ModuleRuntime) -> str:
         question = query.get("content", "")
-        meta = _as_meta(query.get("meta", {}))
-        context = _context_from_meta(meta)
 
-        passages1 = retrieve_context_passages(question, context, k=self.retrieval_k)
-        system_prompt, user_content = self.build_module_prompt(
+        # hop 1
+        passages1 = self._retriever.search(question, k=self.retrieval_k)
+        sys_p, user_p = self.build_module_prompt(
             "summarize1",
-            {
-                "question": question,
-                "passages": format_passages(passages1),
-            },
+            {"question": question, "passages": format_passages(passages1)},
         )
         summary1 = runtime.call(
-            "summarize1",
-            system_prompt,
-            user_content,
-            parse=parse_summary,
-            meta={
-                "retrieval_query": question,
-                "retrieved_titles": [p["title"] for p in passages1],
-            },
+            "summarize1", sys_p, user_p, parse=parse_summary,
+            meta={"retrieval_query": question,
+                  "retrieved_titles": [p["title"] for p in passages1]},
         ).parsed_output
 
-        system_prompt, user_content = self.build_module_prompt(
+        # hop 2 query
+        sys_p, user_p = self.build_module_prompt(
             "create_query_hop2",
-            {
-                "question": question,
-                "summary_1": summary1,
-            },
+            {"question": question, "summary_1": summary1},
         )
         hop2_query = runtime.call(
-            "create_query_hop2",
-            system_prompt,
-            user_content,
-            parse=parse_hop_query,
+            "create_query_hop2", sys_p, user_p, parse=parse_hop_query,
         ).parsed_output
 
+        # hop 2 retrieve + summarize
         retrieval_query = hop2_query or question
-        passages2 = retrieve_context_passages(retrieval_query, context, k=self.retrieval_k)
-        system_prompt, user_content = self.build_module_prompt(
+        passages2 = self._retriever.search(retrieval_query, k=self.retrieval_k)
+        sys_p, user_p = self.build_module_prompt(
             "summarize2",
-            {
-                "question": question,
-                "summary_1": summary1,
-                "passages": format_passages(passages2),
-            },
+            {"question": question, "context": summary1,
+             "passages": format_passages(passages2)},
         )
         summary2 = runtime.call(
-            "summarize2",
-            system_prompt,
-            user_content,
-            parse=parse_summary,
-            meta={
-                "retrieval_query": retrieval_query,
-                "retrieved_titles": [p["title"] for p in passages2],
-            },
+            "summarize2", sys_p, user_p, parse=parse_summary,
+            meta={"retrieval_query": retrieval_query,
+                  "retrieved_titles": [p["title"] for p in passages2]},
         ).parsed_output
 
-        system_prompt, user_content = self.build_module_prompt(
+        # final answer
+        sys_p, user_p = self.build_module_prompt(
             "final_answer",
-            {
-                "question": question,
-                "summary_1": summary1,
-                "summary_2": summary2,
-            },
+            {"question": question, "summary_1": summary1, "summary_2": summary2},
         )
         return runtime.call(
-            "final_answer",
-            system_prompt,
-            user_content,
-            parse=parse_answer,
+            "final_answer", sys_p, user_p, parse=parse_answer,
         ).parsed_output
 
     def score(self, prediction: str, query_meta: dict) -> tuple[float, dict]:
-        meta = _as_meta(query_meta)
-        raw = meta.get("_raw", {}) if isinstance(meta.get("_raw", {}), dict) else {}
-        answer = _first_text(meta, raw, ["answer", "gold", "target", "reference"])
+        raw = query_meta.get("_raw") if isinstance(query_meta.get("_raw"), dict) else {}
+        answer = query_meta.get("answer") or (raw.get("answer") if raw else "") or ""
         if not answer:
-            return 0.0, {
-                "status": "missing_answer",
-                "answer_present": False,
-                "exact_match": 0.0,
-                "f1": 0.0,
-            }
-
-        exact = 1.0 if normalize_answer(prediction) == normalize_answer(answer) else 0.0
-        f1 = answer_f1(prediction, answer)
-        return f1, {
-            "status": "ok",
-            "answer_present": True,
-            "exact_match": exact,
-            "f1": f1,
-        }
+            return 0.0, {"status": "missing_answer",
+                         "exact_match": 0.0, "f1": 0.0}
+        em = 1.0 if normalize_text(prediction) == normalize_text(answer) else 0.0
+        f1 = hotpot_f1_score(prediction, answer)
+        return em, {"status": "ok", "exact_match": em, "f1": f1}
 
 
-def retrieve_context_passages(query: str, context: Any, *, k: int = 7) -> list[dict[str, Any]]:
-    """Return top-k context passages by deterministic lexical overlap."""
-    if k <= 0:
-        return []
-    passages = _flatten_context(context)
-    if not passages:
-        return []
+# ── Retriever ────────────────────────────────────────────────────────
 
-    query_tokens = _tokens(query)
-    scored = [
-        (_passage_score(query_tokens, passage), idx, passage)
-        for idx, passage in enumerate(passages)
-    ]
-    scored.sort(key=lambda item: (-item[0], item[1]))
-    return [passage for _, _, passage in scored[:k]]
+class WikiBM25Retriever:
+    """BM25 over a local `wiki.abstracts.2017.jsonl` corpus (DSPy-canonical config)."""
 
+    def __init__(self, corpus_path: str | None, index_dir: str | None = None) -> None:
+        self.corpus_path = Path(corpus_path).expanduser() if corpus_path else None
+        self.index_dir = (
+            Path(index_dir).expanduser() if index_dir else self._default_index_dir()
+        )
+        self._lock = threading.Lock()
+        self._ready = False
+        self._retriever: Any = None  # bm25s.BM25 after _ensure_ready
+        self._stemmer: Any = None
+        self._corpus: list[str] = []
+
+    def search(self, query: str, *, k: int = 7, context: Any = None) -> list[dict[str, Any]]:
+        _ = context  # accepted for retriever-interface parity; unused
+        if k <= 0:
+            return []
+        self._ensure_ready()
+        import bm25s  # type: ignore[import-not-found]
+
+        tokens = bm25s.tokenize(
+            str(query), stopwords="en", stemmer=self._stemmer, show_progress=False,
+        )
+        results, _ = self._retriever.retrieve(
+            tokens, k=k, n_threads=1, show_progress=False,
+        )
+        return [_passage_from_corpus_text(self._corpus[int(d)]) for d in results[0][:k]]
+
+    def _ensure_ready(self) -> None:
+        if self._ready:
+            return
+        with self._lock:
+            if self._ready:
+                return
+            try:
+                import bm25s  # type: ignore[import-not-found]
+                import Stemmer  # type: ignore[import-not-found]
+            except ImportError as exc:
+                raise ImportError(
+                    "HotpotQA wiki BM25 needs packages 'bm25s' and 'PyStemmer'."
+                ) from exc
+
+            if not self.corpus_path or not self.corpus_path.exists():
+                raise FileNotFoundError(
+                    "HotpotQA wiki BM25 needs a local wiki.abstracts.2017.jsonl — "
+                    "set cfg.wiki_abstracts_path or HOTPOTQA_WIKI_ABSTRACTS."
+                )
+
+            self.index_dir.mkdir(parents=True, exist_ok=True)
+            self._corpus = list(_iter_wiki_abstract_corpus(self.corpus_path))
+            self._stemmer = Stemmer.Stemmer("english")
+
+            if any(self.index_dir.iterdir()):
+                try:
+                    self._retriever = bm25s.BM25.load(str(self.index_dir))
+                except Exception:
+                    self._retriever = None
+
+            if self._retriever is None:
+                tokens = bm25s.tokenize(
+                    self._corpus, stopwords="en", stemmer=self._stemmer, show_progress=True,
+                )
+                self._retriever = bm25s.BM25(k1=0.9, b=0.4)
+                self._retriever.index(tokens)
+                self._retriever.save(str(self.index_dir))
+            self._ready = True
+
+    @staticmethod
+    def _default_index_dir() -> Path:
+        return Path(os.environ.get("XDG_CACHE_HOME", "~/.cache")).expanduser() / (
+            "prompt_profiler/hotpotqa_wiki_bm25"
+        )
+
+
+_WIKI_RETRIEVER_CACHE: dict[tuple[str | None, str | None], WikiBM25Retriever] = {}
+_WIKI_RETRIEVER_CACHE_LOCK = threading.Lock()
+
+
+def get_wiki_bm25_retriever(
+    corpus_path: str | None, index_dir: str | None = None,
+) -> WikiBM25Retriever:
+    key = (str(corpus_path) if corpus_path else None,
+           str(index_dir) if index_dir else None)
+    with _WIKI_RETRIEVER_CACHE_LOCK:
+        if key not in _WIKI_RETRIEVER_CACHE:
+            _WIKI_RETRIEVER_CACHE[key] = WikiBM25Retriever(corpus_path, index_dir)
+        return _WIKI_RETRIEVER_CACHE[key]
+
+
+def _iter_wiki_abstract_corpus(path: Path):
+    try:
+        import ujson as json_lib  # type: ignore[import-not-found]
+    except ImportError:
+        json_lib = json
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            row = json_lib.loads(line)
+            title = str(row.get("title", "")).strip()
+            text_val = row.get("text", "")
+            text = " ".join(map(str, text_val)) if isinstance(text_val, list) else str(text_val)
+            if title or text:
+                yield f"{title} | {text}"
+
+
+def _passage_from_corpus_text(text: str) -> dict[str, Any]:
+    title, sep, body = str(text).partition(" | ")
+    if not sep:
+        title, body = "context", text
+    return {"title": title.strip(), "text": body.strip()}
+
+
+# ── Formatting + parsers ─────────────────────────────────────────────
 
 def format_passages(passages: list[dict[str, Any]]) -> str:
     if not passages:
         return "No context passages available."
-    lines = []
-    for idx, passage in enumerate(passages, start=1):
-        title = passage.get("title", "")
-        text = passage.get("text", "")
-        lines.append(f"Passage {idx} ({title}): {text}")
-    return "\n\n".join(lines)
+    return "\n\n".join(
+        f"Passage {i} ({p.get('title', '')}): {p.get('text', '')}"
+        for i, p in enumerate(passages, start=1)
+    )
+
+
+_THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+_TRAILING_THINK_RE = re.compile(r"<think>.*\Z", re.DOTALL)
+_JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _parse_json_field(raw: str, *fields: str) -> str:
+    """Extract the first matching JSON field from `raw`; fall back to stripped raw text.
+
+    Defensive against:
+      - `<think>...</think>` prefixes (Qwen / DeepSeek thinking-mode).
+      - ```fenced``` JSON blocks.
+      - Empty-string values — return the empty string rather than falling through
+        (the model genuinely said "I don't know").
+      - Truncated JSON (missing closing brace due to max_tokens cutoff):
+        after a failed `json.loads`, regex-extract each field individually.
+    """
+    text = _TRAILING_THINK_RE.sub("", _THINK_RE.sub("", raw)).strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if len(lines) >= 3 and lines[-1].strip() == "```":
+            text = "\n".join(lines[1:-1]).strip()
+    m = _JSON_RE.search(text)
+    if m:
+        try:
+            obj = json.loads(m.group(0))
+        except json.JSONDecodeError:
+            obj = None
+        if isinstance(obj, dict):
+            for f in fields:
+                if f in obj and obj[f] is not None:
+                    val = obj[f]
+                    # Nested structure (e.g. GEPA+Merge's `summarize1` returns a dict
+                    # of "Entity/Person Mention", "Direct Answer", "Clues for Next
+                    # Steps" because its prompt asks for it). Emit JSON so the next
+                    # module reads structured evidence, not Python `repr(dict)`.
+                    if isinstance(val, (dict, list)):
+                        return json.dumps(val, indent=2, ensure_ascii=False).strip()
+                    return str(val).strip()
+    # Truncated / malformed JSON: regex per field, tolerant of missing brace.
+    for f in fields:
+        pat = re.compile(r'"' + re.escape(f) + r'"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL)
+        fm = pat.search(text)
+        if fm:
+            raw_val = fm.group(1)
+            try:
+                return bytes(raw_val, "utf-8").decode("unicode_escape").strip()
+            except UnicodeDecodeError:
+                return raw_val.strip()
+    return text.strip()
 
 
 def parse_summary(raw_response: str) -> str:
-    return _parse_field(raw_response, ["summary", "summary_1", "facts"])
+    return _parse_json_field(raw_response, "summary", "summary_1", "facts")
 
 
 def parse_hop_query(raw_response: str) -> str:
-    return _parse_field(raw_response, ["query", "search_query", "hop2_query"])
+    return _parse_json_field(raw_response, "query", "search_query", "hop2_query")
 
 
 def parse_answer(raw_response: str) -> str:
-    return _parse_field(raw_response, ["answer", "final_answer", "response"])
-
-
-def normalize_answer(text: str) -> str:
-    lowered = str(text).lower()
-    no_punc = lowered.translate(str.maketrans("", "", string.punctuation))
-    no_articles = re.sub(r"\b(a|an|the)\b", " ", no_punc)
-    return " ".join(no_articles.split())
-
-
-def answer_f1(prediction: str, gold: str) -> float:
-    pred_tokens = normalize_answer(prediction).split()
-    gold_tokens = normalize_answer(gold).split()
-    if not pred_tokens and not gold_tokens:
-        return 1.0
-    if not pred_tokens or not gold_tokens:
-        return 0.0
-
-    common = Counter(pred_tokens) & Counter(gold_tokens)
-    num_same = sum(common.values())
-    if num_same == 0:
-        return 0.0
-    precision = num_same / len(pred_tokens)
-    recall = num_same / len(gold_tokens)
-    return 2 * precision * recall / (precision + recall)
-
-
-def _context_from_meta(meta: dict) -> Any:
-    raw = meta.get("_raw", {}) if isinstance(meta.get("_raw", {}), dict) else {}
-    return (
-        meta.get("context")
-        or raw.get("context")
-        or raw.get("contexts")
-        or raw.get("paragraphs")
-        or []
-    )
-
-
-def _as_meta(value: Any) -> dict:
-    if isinstance(value, dict):
-        return value
-    if isinstance(value, str) and value.strip():
-        try:
-            parsed = json.loads(value)
-        except json.JSONDecodeError:
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
-    return {}
-
-
-def _flatten_context(context: Any) -> list[dict[str, Any]]:
-    if context is None:
-        return []
-    if isinstance(context, str):
-        text = context.strip()
-        if not text:
-            return []
-        if text.startswith("{") or text.startswith("["):
-            try:
-                return _flatten_context(json.loads(text))
-            except json.JSONDecodeError:
-                pass
-        return [_make_passage("context", text)]
-    if isinstance(context, Mapping):
-        if "title" in context and "sentences" in context:
-            titles = context.get("title")
-            sentences = context.get("sentences")
-            if isinstance(titles, list) and isinstance(sentences, list):
-                return [
-                    _make_passage(title, sent)
-                    for title, sent in zip(titles, sentences)
-                ]
-            return [_make_passage(titles, sentences)]
-        if "context" in context:
-            return _flatten_context(context["context"])
-        return [
-            _make_passage(title, sentences)
-            for title, sentences in context.items()
-        ]
-    if isinstance(context, (list, tuple)):
-        passages = []
-        for idx, item in enumerate(context):
-            if isinstance(item, Mapping):
-                title = item.get("title") or item.get("name") or f"passage_{idx}"
-                content = (
-                    item.get("sentences")
-                    or item.get("text")
-                    or item.get("paragraph")
-                    or item.get("content")
-                    or ""
-                )
-                passages.append(_make_passage(title, content))
-            elif isinstance(item, (list, tuple)) and len(item) >= 2:
-                passages.append(_make_passage(item[0], item[1]))
-            else:
-                passages.append(_make_passage(f"passage_{idx}", item))
-        return [p for p in passages if p["text"]]
-    return [_make_passage("context", context)]
-
-
-def _make_passage(title: Any, content: Any) -> dict[str, Any]:
-    sentences = _sentence_list(content)
-    text = " ".join(sentence.strip() for sentence in sentences if sentence.strip())
-    return {
-        "title": str(title or "").strip(),
-        "sentences": sentences,
-        "text": text,
-    }
-
-
-def _sentence_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, (list, tuple)):
-        sentences = []
-        for item in value:
-            sentences.extend(_sentence_list(item))
-        return sentences
-    return [str(value)]
-
-
-_STOPWORDS = {
-    "a",
-    "an",
-    "and",
-    "are",
-    "as",
-    "at",
-    "by",
-    "for",
-    "from",
-    "in",
-    "is",
-    "of",
-    "on",
-    "or",
-    "that",
-    "the",
-    "to",
-    "was",
-    "what",
-    "which",
-    "who",
-}
-
-
-def _tokens(text: str) -> list[str]:
-    return [
-        token
-        for token in re.findall(r"[a-z0-9]+", str(text).lower())
-        if token not in _STOPWORDS
-    ]
-
-
-def _passage_score(query_tokens: list[str], passage: dict[str, Any]) -> int:
-    if not query_tokens:
-        return 0
-    query_set = set(query_tokens)
-    title_tokens = set(_tokens(passage.get("title", "")))
-    passage_tokens = _tokens(f"{passage.get('title', '')} {passage.get('text', '')}")
-    counts = Counter(passage_tokens)
-    overlap = sum(counts[token] for token in query_set)
-    title_bonus = sum(2 for token in query_set if token in title_tokens)
-    phrase = " ".join(query_tokens)
-    phrase_bonus = 3 if phrase and phrase in " ".join(passage_tokens) else 0
-    return overlap + title_bonus + phrase_bonus
-
-
-def _parse_field(raw_response: str, field_names: list[str]) -> str:
-    raw_response = _strip_thinking(raw_response)
-    parsed = _parse_json_object(raw_response)
-    if isinstance(parsed, dict):
-        for field_name in field_names:
-            if field_name in parsed and parsed[field_name] not in (None, ""):
-                return str(parsed[field_name]).strip()
-
-    labeled = _extract_labeled_block(raw_response, field_names)
-    if labeled:
-        return labeled
-    return raw_response.strip()
-
-
-def _parse_json_object(text: str) -> Any:
-    stripped = _strip_fence(str(text).strip())
-    try:
-        return json.loads(stripped)
-    except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", stripped, flags=re.DOTALL)
-        if not match:
-            return None
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            return None
-
-
-def _strip_fence(text: str) -> str:
-    if not text.startswith("```"):
-        return text
-    lines = text.splitlines()
-    if len(lines) >= 3 and lines[-1].strip() == "```":
-        return "\n".join(lines[1:-1]).strip()
-    return text
-
-
-def _strip_thinking(text: str) -> str:
-    text = re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL)
-    return re.sub(r"<think>.*\Z", "", text, flags=re.DOTALL).strip()
-
-
-def _extract_labeled_block(text: str, labels: list[str]) -> str:
-    label_pattern = "|".join(re.escape(label) for label in labels)
-    match = re.search(
-        rf"(?ims)^\s*(?:{label_pattern})\s*:\s*(.*?)(?=^\s*[a-zA-Z_][\w ]{{0,40}}\s*:|\Z)",
-        text,
-    )
-    return match.group(1).strip() if match else ""
-
-
-def _first_text(meta: dict, raw: dict, keys: list[str]) -> str:
-    for source in (meta, raw):
-        for key in keys:
-            value = source.get(key)
-            if value is not None and str(value).strip():
-                return str(value).strip()
-    return ""
+    return _parse_json_field(raw_response, "answer", "final_answer", "response")

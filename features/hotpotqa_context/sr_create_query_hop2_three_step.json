@@ -1,0 +1,24 @@
+{
+  "canonical_id": "sr_create_query_hop2_three_step",
+  "task": "hotpotqa_context",
+  "target_module": "create_query_hop2",
+  "theme": "staged-reasoning",
+  "tier": "A",
+  "shared_stem": "sr_create_query_hop2_three_step",
+  "provenance": "creative",
+  "requires": ["_section_create_query_hop2"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "f84c4068e433",
+        "payload": {
+          "content": "Follow this procedure: (1) list every named entity in the question; (2) mark each as 'resolved' (grounded by a hop-1 title) or 'unresolved'; (3) write the hop-2 query targeting exactly one unresolved entity, using its exact name from the question."
+        }
+      }
+    }
+  ],
+  "rationale": "Mirror of HoVer sr_three_step. Procedure-shaped feature; tests whether explicit list→mark→query decomposition outperforms single-shot query writing on bridge questions."
+}

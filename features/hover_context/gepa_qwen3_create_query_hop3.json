@@ -1,0 +1,25 @@
+{
+  "feature_id": "gepa_qwen3_create_query_hop3",
+  "canonical_id": "gepa_qwen3_create_query_hop3",
+  "task": "hover_context",
+  "target_module": "create_query_hop3",
+  "requires": [
+    "_section_create_query_hop3"
+  ],
+  "conflicts_with": [
+    "base_create_query_hop3"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "de22862412bc",
+        "payload": {
+          "content": "Given the fields `claim`, `summary_1`, and `summary_2`, produce the field `query` that:\n1. Explicitly asks whether the claim is supported by the provided summaries.\n2. Includes **specific evidence** from the summaries (e.g., names, titles, dates, or factual details) to guide retrieval of relevant documents.\n3. Focuses on **key disputed points** in the claim (e.g., incorrect attributions, missing evidence, or conflicting statements) to ensure the query targets the most relevant information.\n\n**Key considerations for the query:**\n- If the summaries mention specific works (e.g., *Planes, Trains and Automobiles*), include the title.\n- If the summaries reference named entities (e.g., John Candy, KLM, Richard Ford), include them.\n- If the summaries clarify contradictions (e.g., \"not X but Y\"), structure the query to highlight this contrast.\n- Avoid vague phrasing; instead of asking \"Is the claim true?\" use \"Does the evidence in the summaries confirm [specific detail]?\"\n\n**Example:**\nIf the claim is about a film and the summaries mention *Planes, Trains and Automobiles* (1987), the query should include that title to retrieve relevant evidence."
+        }
+      }
+    }
+  ],
+  "rationale": "Verbatim HoVer Qwen3-8B GEPA prompt for create_query_hop3 from artifacts/source/gepa_and_mipro_instructions.tex (paper lines ~924-1150). Conflicts with base_create_query_hop3."
+}

@@ -1,0 +1,25 @@
+{
+  "feature_id": "gepa_qwen3_summarize1",
+  "canonical_id": "gepa_qwen3_summarize1",
+  "task": "hover_context",
+  "target_module": "summarize1",
+  "requires": [
+    "_section_summarize1"
+  ],
+  "conflicts_with": [
+    "base_summarize1"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "a062785d42bd",
+        "payload": {
+          "content": "Given the fields `claim` and `passages`, produce the fields `summary` by:\n1. **Analyzing the claim** to identify key elements (e.g., names, locations, relationships, specific terms).\n2. **Cross-referencing the passages** to locate explicit or implicit evidence that supports, contradicts, or partially addresses the claim.\n3. **Explicitly connecting the claim to the evidence** in the passages, even if the evidence is not directly stated in the claim (e.g., linking \"Roger Yuan\" to \"Shanghai Noon\" in Example 1).\n4. **Highlighting domain-specific details** (e.g., \"Sentinelese language is unclassifiable\" in Example 3) that are critical for accuracy.\n5. **Stating whether the claim is supported, unsupported, or partially supported**, and explaining the reasoning with clear references to the passages.\n6. **Prioritizing key evidence** that would be relevant for further queries (e.g., \"Marlborough\" in Example 2) to ensure retrievability.\n\n**Additional Guidance:**\n- If the claim contains unverified details (e.g., \"Roger Yuan\" in Example 1), explicitly note this in the summary.\n- For niche or ambiguous information (e.g., \"uncontacted people\" in Example 3), reference specific passages that clarify the context.\n- Ensure summaries are concise but include all critical evidence needed to validate or refute the claim."
+        }
+      }
+    }
+  ],
+  "rationale": "Verbatim HoVer Qwen3-8B GEPA prompt for summarize1 from artifacts/source/gepa_and_mipro_instructions.tex (paper lines ~924-1150). Conflicts with base_summarize1."
+}

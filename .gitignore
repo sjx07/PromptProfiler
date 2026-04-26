@@ -4,3 +4,10 @@ runs/
 .omc/
 /tests/fixtures/
 /tests/renders/
+experiments/
+/Obsidians/
+/tests/test_migrate_legacy/
+/scripts/
+.claude/
+CLAUDE.md
+AGENT.md

@@ -1,0 +1,25 @@
+{
+  "feature_id": "gepa_qwen3_create_query_hop2",
+  "canonical_id": "gepa_qwen3_create_query_hop2",
+  "task": "hover_context",
+  "target_module": "create_query_hop2",
+  "requires": [
+    "_section_create_query_hop2"
+  ],
+  "conflicts_with": [
+    "base_create_query_hop2"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "47f441626a05",
+        "payload": {
+          "content": "Given the fields `claim` and `summary_1`, generate a precise and focused query that identifies the specific evidence needed to verify or refute the claim.\n\n### Key Requirements:\n1. **Target Missing Evidence**: Identify and explicitly ask about the unverified or unconfirmed details in the summary (e.g., names, dates, locations, or connections) that are critical to the claim.\n   - Example: If the summary mentions \"Massimo Giordano\" as a potential counterpart but lacks birthplace details, the query should ask for evidence confirming their ties to Naples.\n2. **Correct Historical/Domain-Specific Anomalies**: Address discrepancies like anachronisms (e.g., Ali Qushji's work in the 1960s vs. his actual 15th-century timeline) or misattributions (e.g., *Hayy ibn Yaqdhan* by Ibn Tufail, not Ali Qushji).\n3. **Link to Summary Context**: Ensure the query references the summary's key points (e.g., \"the claim states X, but the summary notes Y is unverified\").\n4. **Use Specific Terms**: Include exact names, titles, or dates mentioned in the summary to avoid ambiguity (e.g., \"Ana\u00efs Nin,\" \"Metropolitan City of Naples,\" \"1948\").\n\n### Example Strategy:\nIf the summary states:\n- \"The claim is partially supported. While [Fact A] is confirmed, [Fact B] lacks verification.\"\n- The query should ask:\n  *\"Is there evidence confirming [Fact B], such as [specific name/date/location]?\"*\n\n### Domain-Specific Notes:\n- Verify historical timelines (e.g., Ali Qushji died in 1474, not the 1960s).\n- Confirm authorships (e.g., *Hayy ibn Yaqdhan* is attributed to Ibn Tufail, not Ali Qushji).\n- Check for geographic or biographical details (e.g., birthplaces, cities, or professional connections).\n\nEnsure your query directly addresses the summary's unverified claims and includes all critical terms from the summary to maximize evidence retrieval."
+        }
+      }
+    }
+  ],
+  "rationale": "Verbatim HoVer Qwen3-8B GEPA prompt for create_query_hop2 from artifacts/source/gepa_and_mipro_instructions.tex (paper lines ~924-1150). Conflicts with base_create_query_hop2."
+}
