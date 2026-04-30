@@ -62,10 +62,17 @@ logger = logging.getLogger(__name__)
 
 def _import_predicate_extractors(task_name: str) -> None:
     """Import task-specific predicate modules (registers extractors on import)."""
-    if task_name == "table_qa":
+    if task_name in ("table_qa", "wtq"):
         import tasks.wtq.predicates  # noqa: F401
-    elif task_name == "fact_verification":
+    elif task_name in ("fact_verification", "tabfact"):
         import tasks.tabfact.predicates  # noqa: F401
+    elif task_name in ("sequential_qa", "sqa"):
+        import tasks.sqa.predicates  # noqa: F401
+    elif task_name in ("sql_generation", "bird", "spider"):
+        try:
+            import tasks.nl2sql.predicates  # noqa: F401
+        except ImportError:
+            pass
     else:
         logger.warning("No predicate extractors for task %s", task_name)
 
@@ -82,7 +89,7 @@ def _load_config(config_path: str, cli_overrides: Dict[str, Any]) -> Dict[str, A
     return cfg
 
 
-_GENERATOR_OPTION_KEYS = ("min_features", "max_features", "min_rules", "max_rules")
+_GENERATOR_OPTION_KEYS = ("min_features", "max_features", "min_rules", "max_rules", "coalitions")
 
 
 def _generator_kwargs(cfg: Dict[str, Any], *, n_samples: int, seed: int) -> Dict[str, Any]:
@@ -362,9 +369,11 @@ def main():
     logger.info("Plan: %d configs, %d total LLM calls",
                 len(plan), sum(len(e.query_ids) for e in plan))
 
+    dataset_key = task_entry.dataset_key_fn(cfg) or ""
     _run_and_eval_plan(store, plan, task_cls, model, llm_call,
                        num_workers=num_workers, on_conflict=OnConflict.SKIP,
-                       example_pool=example_pool, phase=phase)
+                       example_pool=example_pool, phase=phase,
+                       dataset=dataset_key)
 
     # ── print summary ────────────────────────────────────────────────
     _print_results(store, task_cls, model, base_cid, configs, experiment_type, task_name)

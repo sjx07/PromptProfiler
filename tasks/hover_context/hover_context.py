@@ -19,14 +19,13 @@ import json
 import re
 from typing import Any, Mapping
 
-from dspy.evaluate.metrics import normalize_text  # type: ignore[import-not-found]
-
 from task import CompoundTask, ModuleRuntime, ModuleSpec
 from tasks.hotpotqa_context.hotpotqa_context import (
     WikiBM25Retriever,
     format_passages,
     get_wiki_bm25_retriever,
     _parse_json_field,
+    normalize_text,
 )
 
 

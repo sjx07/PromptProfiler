@@ -15,6 +15,7 @@ def seed_queries_tabfact(
     split: str,
     *,
     max_queries: int = 0,
+    sample_seed: int = 0,
     on_conflict: OnConflict = OnConflict.SKIP,
 ) -> int:
     """Load TabFact dataset and seed queries into the unified store.
@@ -22,12 +23,20 @@ def seed_queries_tabfact(
     Args:
         split: HuggingFace split name ("train", "validation", "test").
         max_queries: Limit number of queries (0 = all).
+        sample_seed: If > 0, randomly sample max_queries indices with this
+            seed (reproducible). If 0, take the first max_queries.
     """
     from datasets import load_dataset
 
     ds = load_dataset("tab_fact", "tab_fact", split=split, trust_remote_code=True)
-    if max_queries > 0:
-        ds = ds.select(range(min(max_queries, len(ds))))
+    if max_queries > 0 and max_queries < len(ds):
+        if sample_seed > 0:
+            import random
+            rng = random.Random(sample_seed)
+            indices = sorted(rng.sample(range(len(ds)), max_queries))
+            ds = ds.select(indices)
+        else:
+            ds = ds.select(range(max_queries))
 
     queries: List[Dict[str, Any]] = []
     for i, row in enumerate(ds):

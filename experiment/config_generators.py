@@ -326,6 +326,60 @@ def add_one_feature(
     return configs
 
 
+@register("explicit_coalitions")
+def explicit_coalitions(
+    store: CubeStore,
+    *,
+    base_ids: List[str],
+    bundles: FeatureBundles,
+    coalitions: Dict[str, List[str]],
+    base_canonical_ids: List[str] | None = None,
+    base_feature_ids: List[str] | None = None,
+    **_,
+) -> List[ConfigEntry]:
+    """One config per named coalition. ``coalitions`` is {label: [canonical_ids]}.
+
+    Each entry produces a config = base + union of incremental funcs from the
+    listed features. Use for predefined bundle experiments (e.g., theme bundles).
+    """
+    if not coalitions:
+        raise ValueError("explicit_coalitions: 'coalitions' is required and non-empty")
+    base_canonical_ids = base_canonical_ids or []
+    base_feature_ids = base_feature_ids or []
+
+    configs: List[ConfigEntry] = []
+    for label, canonical_ids in coalitions.items():
+        seen = set(base_ids)
+        func_ids = list(base_ids)
+        for cid in canonical_ids:
+            if cid not in bundles:
+                raise ValueError(
+                    f"explicit_coalitions[{label!r}]: feature {cid!r} not in bundles. "
+                    f"Add it to experiment_features."
+                )
+            for f in bundles[cid][1]:
+                if f not in seen:
+                    seen.add(f)
+                    func_ids.append(f)
+        all_canonical_ids = list(base_canonical_ids) + list(canonical_ids)
+        all_feature_ids = list(base_feature_ids) + [bundles[c][0] for c in canonical_ids]
+        meta = {
+            "kind":          "explicit_coalition",
+            "label":         label,
+            "canonical_ids": all_canonical_ids,
+            "feature_ids":   all_feature_ids,
+        }
+        cid_int = store.get_or_create_config(func_ids, meta=meta)
+        configs.append((cid_int, func_ids, {
+            "experiment":    "explicit_coalitions",
+            "label":         label,
+            "canonical_ids": all_canonical_ids,
+            "feature_ids":   all_feature_ids,
+        }))
+    logger.info("explicit_coalitions: %d configs generated", len(configs))
+    return configs
+
+
 @register("leave_one_out_feature")
 def leave_one_out_feature(
     store: CubeStore,

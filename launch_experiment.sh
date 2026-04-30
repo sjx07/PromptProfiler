@@ -160,7 +160,7 @@ python3 -m pip freeze > "$RUN_DIR/pip_freeze.txt" 2>/dev/null || true
 # ── meta.json (comprehensive) ────────────────────────────────────────
 
 PY_VERSION="$(python3 -c 'import sys; print(sys.version.replace(chr(10)," "))')"
-LAUNCH_CMD="bash $0 $PREFLIGHT $CLI_OVERRIDES"
+LAUNCH_CMD="bash $0 $PREFLIGHT $CONFIG $CLI_OVERRIDES"
 
 cat > "$RUN_DIR/meta.json" <<METAEOF
 {
@@ -219,3 +219,13 @@ echo "╠═══════════════════════�
 printf "║  %-55s ║\n" "Tail log:  tail -f $RUN_DIR/nohup.log"
 printf "║  %-55s ║\n" "Stop:      kill $PID"
 echo "╚══════════════════════════════════════════════════════════╝"
+
+if [[ "${WAIT_FOR_COMPLETION:-0}" == "1" ]]; then
+    echo "Waiting for PID $PID to finish..."
+    set +e
+    wait "$PID"
+    STATUS=$?
+    set -e
+    echo "Experiment PID $PID exited with status $STATUS"
+    exit "$STATUS"
+fi

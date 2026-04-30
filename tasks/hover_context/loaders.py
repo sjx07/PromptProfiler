@@ -37,16 +37,19 @@ def seed_queries_hover(
     rows = _load_rows(Path(data_path))
 
     if split.lower() == "test":
-        # langProBe's convention: validation split, shuffled seed=1
+        # langProBe convention: validation split, 3-hop subset, shuffled seed=1.
+        # Earlier rounds skipped the num_hops filter on test, mixing 2/3/4-hop claims.
+        rows = [r for r in rows if r.get("num_hops") == 3]
         rng = random.Random(sample_seed)
         rng.shuffle(rows)
     elif split.lower() == "train":
-        # 3-hop train subset, shuffled seed=0 (langProBe convention)
         rows = [r for r in rows if r.get("num_hops") == 3]
         rng = random.Random(0)
         rng.shuffle(rows)
     else:
-        raise ValueError(f"HoVer supports split ∈ {{train, test}}; got {split!r}")
+        # Pre-prepared data (e.g. round-4 stratified subset). Use rows as-is;
+        # no filter, no shuffle. Caller is responsible for content of data_path.
+        pass
 
     queries: List[Dict[str, Any]] = []
     for row in rows:

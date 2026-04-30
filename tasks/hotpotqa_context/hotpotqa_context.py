@@ -18,9 +18,40 @@ import threading
 from pathlib import Path
 from typing import Any, Mapping
 
-from dspy.evaluate.metrics import hotpot_f1_score, normalize_text  # type: ignore[import-not-found]
-
 from task import CompoundTask, ModuleRuntime, ModuleSpec
+
+try:
+    from dspy.evaluate.metrics import hotpot_f1_score, normalize_text  # type: ignore[import-not-found]
+except ImportError:
+    def normalize_text(text: str) -> str:
+        """DSPy-compatible HotpotQA answer normalization fallback."""
+        import string
+
+        def remove_articles(s: str) -> str:
+            return re.sub(r"\b(a|an|the)\b", " ", s)
+
+        def white_space_fix(s: str) -> str:
+            return " ".join(s.split())
+
+        def remove_punc(s: str) -> str:
+            exclude = set(string.punctuation)
+            return "".join(ch for ch in s if ch not in exclude)
+
+        return white_space_fix(remove_articles(remove_punc(text.lower())))
+
+    def hotpot_f1_score(prediction: str, ground_truth: str) -> float:
+        """Token F1 fallback matching the official HotpotQA metric shape."""
+        pred_tokens = normalize_text(prediction).split()
+        gold_tokens = normalize_text(ground_truth).split()
+        common = set(pred_tokens) & set(gold_tokens)
+        num_same = sum(min(pred_tokens.count(tok), gold_tokens.count(tok)) for tok in common)
+        if len(pred_tokens) == 0 or len(gold_tokens) == 0:
+            return float(pred_tokens == gold_tokens)
+        if num_same == 0:
+            return 0.0
+        precision = num_same / len(pred_tokens)
+        recall = num_same / len(gold_tokens)
+        return 2 * precision * recall / (precision + recall)
 
 
 # ── Task ─────────────────────────────────────────────────────────────

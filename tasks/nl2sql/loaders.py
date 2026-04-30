@@ -77,6 +77,7 @@ def seed_queries_bird(
     split: str = "dev",
     *,
     max_queries: int = 0,
+    sample_seed: int = 0,
     on_conflict: OnConflict = OnConflict.SKIP,
 ) -> int:
     """Load BIRD queries and seed into the unified store.
@@ -123,8 +124,13 @@ def seed_queries_bird(
     with open(json_path) as f:
         raw_records: List[Dict[str, Any]] = json.load(f)
 
-    if max_queries > 0:
-        raw_records = raw_records[:max_queries]
+    if max_queries > 0 and max_queries < len(raw_records):
+        if sample_seed > 0:
+            import random
+            rng = random.Random(sample_seed)
+            raw_records = rng.sample(raw_records, max_queries)
+        else:
+            raw_records = raw_records[:max_queries]
 
     queries: List[Dict[str, Any]] = []
     schema_errors = 0
@@ -187,6 +193,7 @@ def seed_queries_spider(
     split: str = "dev",
     *,
     max_queries: int = 0,
+    sample_seed: int = 0,
     on_conflict: OnConflict = OnConflict.SKIP,
 ) -> int:
     """Load Spider queries and seed into the unified store.
@@ -229,8 +236,13 @@ def seed_queries_spider(
     with open(json_path) as f:
         raw_records: List[Dict[str, Any]] = json.load(f)
 
-    if max_queries > 0:
-        raw_records = raw_records[:max_queries]
+    if max_queries > 0 and max_queries < len(raw_records):
+        if sample_seed > 0:
+            import random
+            rng = random.Random(sample_seed)
+            raw_records = rng.sample(raw_records, max_queries)
+        else:
+            raw_records = raw_records[:max_queries]
 
     queries: List[Dict[str, Any]] = []
     schema_errors = 0

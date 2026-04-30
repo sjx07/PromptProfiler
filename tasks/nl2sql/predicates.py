@@ -18,6 +18,7 @@ import logging
 import re
 import sqlite3
 from collections import Counter
+from functools import lru_cache
 from typing import Dict, List, Optional
 
 import sqlglot
@@ -261,6 +262,7 @@ _DATE_KEYWORDS = frozenset({
 })
 
 
+@lru_cache(maxsize=4096)
 def _extract_db_predicates(db_path: str) -> Dict[str, str]:
     """Introspect a SQLite database and extract 14 schema/data predicates.
 
@@ -453,6 +455,18 @@ _ALL_PRED_NAMES: List[str] = (
 # ── extractor registration ────────────────────────────────────────────────
 
 
+_QUERY_PREDICATE_CACHE: Dict[str, Dict[str, str]] = {}
+
+
+def _cache_key(query: dict, meta: dict) -> str:
+    query_id = str(query.get("query_id", ""))
+    try:
+        meta_key = json.dumps(meta, sort_keys=True, default=str)
+    except TypeError:
+        meta_key = str(meta)
+    return f"{query_id}\0{meta_key}"
+
+
 def _make_extractor(pred_name: str):
     """Create an extractor closure for a single predicate name.
 
@@ -466,7 +480,11 @@ def _make_extractor(pred_name: str):
         meta = query.get("meta", {})
         if isinstance(meta, str):
             meta = json.loads(meta)
-        preds = compute_predicates(meta)
+        key = _cache_key(query, meta)
+        preds = _QUERY_PREDICATE_CACHE.get(key)
+        if preds is None:
+            preds = compute_predicates(meta)
+            _QUERY_PREDICATE_CACHE[key] = preds
         return preds.get(pred_name, "unknown")
     return extractor
 

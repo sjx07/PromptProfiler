@@ -1,5 +1,7 @@
 __pycache/
 __pycache__/
+/features/
+/factory/
 runs/
 .omc/
 /tests/fixtures/

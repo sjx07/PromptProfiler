@@ -34,14 +34,18 @@ def _seed_predicates(store: Any, dataset: str) -> None:
 def _seed_table_qa(store: Any, cfg: Dict[str, Any], split: str) -> None:
     from tasks.wtq.loaders import seed_queries_wtq
     import tasks.wtq.predicates  # noqa: F401 — registers extractors on import
-    seed_queries_wtq(store, split)
+    max_queries = int(cfg.get("max_queries", 0) or 0)
+    sample_seed = int(cfg.get("sample_seed", 0) or 0)
+    seed_queries_wtq(store, split, max_queries=max_queries, sample_seed=sample_seed)
     _seed_predicates(store, dataset="wtq")
 
 
 def _seed_tabfact(store: Any, cfg: Dict[str, Any], split: str) -> None:
     from tasks.tabfact.loaders import seed_queries_tabfact
     import tasks.tabfact.predicates  # noqa: F401 — registers extractors on import
-    seed_queries_tabfact(store, split)
+    max_queries = int(cfg.get("max_queries", 0) or 0)
+    sample_seed = int(cfg.get("sample_seed", 0) or 0)
+    seed_queries_tabfact(store, split, max_queries=max_queries, sample_seed=sample_seed)
     _seed_predicates(store, dataset="tab_fact")
 
 
@@ -49,10 +53,14 @@ def _seed_sql_generation(store: Any, cfg: Dict[str, Any], split: str) -> None:
     from tasks.nl2sql.loaders import seed_queries_bird, seed_queries_spider
     dataset = cfg.get("dataset", "bird")
     data_dir = cfg.get("data_dir", "")
+    max_queries = int(cfg.get("max_queries", 0) or 0)
+    sample_seed = int(cfg.get("sample_seed", 0) or 0)
     if dataset == "bird":
-        seed_queries_bird(store, data_dir, split)
+        seed_queries_bird(store, data_dir, split,
+                          max_queries=max_queries, sample_seed=sample_seed)
     elif dataset == "spider":
-        seed_queries_spider(store, data_dir, split)
+        seed_queries_spider(store, data_dir, split,
+                            max_queries=max_queries, sample_seed=sample_seed)
     # nl2sql predicates are DB-introspection based; if a predicates module
     # exists, importing it registers extractors. Skip gracefully otherwise.
     try:
@@ -113,6 +121,35 @@ def _seed_hover_context(store: Any, cfg: Dict[str, Any], split: str) -> None:
     )
 
 
+def _seed_sequential_qa(store: Any, cfg: Dict[str, Any], split: str) -> None:
+    from tasks.sqa.loaders import seed_queries_sqa, DEFAULT_DATA_DIR
+    import tasks.sqa.predicates  # noqa: F401 — registers extractors on import
+    data_dir = cfg.get("data_dir") or cfg.get("sqa_data_dir") or DEFAULT_DATA_DIR
+    max_queries = int(cfg.get("max_queries", 0) or 0)
+    sample_seed = int(cfg.get("sample_seed", 0) or 0)
+    seed_queries_sqa(store, split, data_dir=data_dir,
+                     max_queries=max_queries, sample_seed=sample_seed)
+    _seed_predicates(store, dataset="sqa")
+
+
+# ── round-MC: dataset-named aliases ──────────────────────────────────
+# The factory authors features under features/<dataset>/, so we register
+# each cell as its own task name. Seeders hard-code the right dataset.
+
+def _seed_bird(store: Any, cfg: Dict[str, Any], split: str) -> None:
+    cfg_b = dict(cfg)
+    cfg_b["dataset"] = "bird"
+    cfg_b.setdefault("data_dir", "/data/users/jsu323/nl2sql/bird")
+    _seed_sql_generation(store, cfg_b, split)
+
+
+def _seed_spider(store: Any, cfg: Dict[str, Any], split: str) -> None:
+    cfg_s = dict(cfg)
+    cfg_s["dataset"] = "spider"
+    cfg_s.setdefault("data_dir", "/data/users/jsu323/nl2sql/spider")
+    _seed_sql_generation(store, cfg_s, split)
+
+
 # ── Registry ─────────────────────────────────────────────────────────
 
 def _build_registry() -> Dict[str, TaskEntry]:
@@ -123,6 +160,7 @@ def _build_registry() -> Dict[str, TaskEntry]:
     from tasks.pupa.pupa import PupaPrivacyDelegationTask
     from tasks.hotpotqa_context.hotpotqa_context import HotpotQAContextTask
     from tasks.hover_context.hover_context import HoverContextTask
+    from tasks.sqa.sequential_qa import SequentialQA
 
     return {
         "table_qa": TaskEntry(
@@ -159,6 +197,40 @@ def _build_registry() -> Dict[str, TaskEntry]:
             task_cls=HoverContextTask,
             seeder_fn=_seed_hover_context,
             dataset_key_fn=lambda cfg: "hover_context",
+        ),
+        "sequential_qa": TaskEntry(
+            task_cls=SequentialQA,
+            seeder_fn=_seed_sequential_qa,
+            dataset_key_fn=lambda cfg: "sqa",
+        ),
+        # Dataset-named aliases (round-MC: factory authors features per
+        # dataset, so feature dirs are features/<bird|spider|wtq|tabfact|sqa>/.
+        # Configs use these names so FeatureRegistry.load(task=cfg.task) finds
+        # the right dir.)
+        "bird": TaskEntry(
+            task_cls=SqlGeneration,
+            seeder_fn=_seed_bird,
+            dataset_key_fn=lambda cfg: "bird",
+        ),
+        "spider": TaskEntry(
+            task_cls=SqlGeneration,
+            seeder_fn=_seed_spider,
+            dataset_key_fn=lambda cfg: "spider",
+        ),
+        "wtq": TaskEntry(
+            task_cls=TableQA,
+            seeder_fn=_seed_table_qa,
+            dataset_key_fn=lambda cfg: "wtq",
+        ),
+        "tabfact": TaskEntry(
+            task_cls=FactVerification,
+            seeder_fn=_seed_tabfact,
+            dataset_key_fn=lambda cfg: "tab_fact",
+        ),
+        "sqa": TaskEntry(
+            task_cls=SequentialQA,
+            seeder_fn=_seed_sequential_qa,
+            dataset_key_fn=lambda cfg: "sqa",
         ),
     }
 

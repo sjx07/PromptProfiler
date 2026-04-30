@@ -28,6 +28,10 @@ FEATURES_DIR = REPO_ROOT / "features"
 
 ROUND_1_PROVENANCES = {"creative", "vista_synthesis", "gepa_decompose"}
 
+# This test targets multi-module HoVer/HotpotQA features. Single-prompt tasks
+# (sql_generation) are validated separately by tests/test_factory_validators.py.
+ROUND_1_TASKS = {"hover_context", "hotpotqa_context"}
+
 
 def _round_1_cases() -> List[Tuple[str, str]]:
     cases: List[Tuple[str, str]] = []
@@ -35,6 +39,8 @@ def _round_1_cases() -> List[Tuple[str, str]]:
         return cases
     for task_dir in sorted(FEATURES_DIR.iterdir()):
         if not task_dir.is_dir():
+            continue
+        if task_dir.name not in ROUND_1_TASKS:
             continue
         for path in sorted(task_dir.glob("[!_]*.json")):
             if path.name.startswith(("base_", "gepa_")):
@@ -82,7 +88,14 @@ def test_round1_feature_e2e(task: str, canonical_id: str) -> None:
 
     # Use a stable rule-body prefix for matching (avoids quoting/escaping mismatches
     # when the rendered prompt JSON-encodes special chars).
-    rule_body = edits[0]["params"]["payload"]["content"]
+    # Coalition features may have a section node first (no "content"); skip to the
+    # first rule edit that carries a content payload.
+    rule_edit = next(
+        (e for e in edits if "content" in e["params"]["payload"]),
+        None,
+    )
+    assert rule_edit is not None, f"{canonical_id}: no rule edit with content found"
+    rule_body = rule_edit["params"]["payload"]["content"]
     needle = rule_body[:60]
 
     # 1. Build BASE + this feature

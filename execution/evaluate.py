@@ -89,20 +89,38 @@ def evaluate_config(
     task: Any,
     *,
     scorer: str = "",
+    dataset: str = "",
     num_workers: int = _EVAL_WORKERS,
     on_conflict: OnConflict = OnConflict.SKIP,
 ) -> Dict[str, Any]:
-    """Score all unevaluated executions for one config (parallel)."""
+    """Score all unevaluated executions for one config (parallel).
+
+    When `dataset` is non-empty, only executions whose query.dataset
+    matches are scored. Required when multiple tasks share a config_id
+    (e.g. tasks with identical structural section sets) — without it,
+    the first task to evaluate scores all cross-dataset executions
+    using its own task.score(), which produces wrong scores.
+    """
     scorer = scorer or task.scorer
     conn = store._get_conn()
 
-    executions = conn.execute(
-        """SELECT e.execution_id, e.query_id, e.prediction, e.error
-           FROM execution e
-           LEFT JOIN evaluation ev ON e.execution_id = ev.execution_id AND ev.scorer = ?
-           WHERE e.config_id = ? AND e.model = ? AND ev.eval_id IS NULL""",
-        (scorer, config_id, model),
-    ).fetchall()
+    if dataset:
+        executions = conn.execute(
+            """SELECT e.execution_id, e.query_id, e.prediction, e.error
+               FROM execution e
+               JOIN query q ON q.query_id = e.query_id
+               LEFT JOIN evaluation ev ON e.execution_id = ev.execution_id AND ev.scorer = ?
+               WHERE e.config_id = ? AND e.model = ? AND q.dataset = ? AND ev.eval_id IS NULL""",
+            (scorer, config_id, model, dataset),
+        ).fetchall()
+    else:
+        executions = conn.execute(
+            """SELECT e.execution_id, e.query_id, e.prediction, e.error
+               FROM execution e
+               LEFT JOIN evaluation ev ON e.execution_id = ev.execution_id AND ev.scorer = ?
+               WHERE e.config_id = ? AND e.model = ? AND ev.eval_id IS NULL""",
+            (scorer, config_id, model),
+        ).fetchall()
 
     if not executions:
         return {"evaluated": 0, "skipped": 0, "errors": 0}

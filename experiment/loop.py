@@ -63,6 +63,7 @@ def run_experiment(
     max_iterations: int = 10,
     on_conflict: OnConflict = OnConflict.SKIP,
     example_pool: Optional[list] = None,
+    dataset: str = "",
 ) -> List[Dict[str, Any]]:
     """Run the iterative experiment loop.
 
@@ -98,7 +99,8 @@ def run_experiment(
         # ── run + eval (pipelined) ────────────────────────────────
         _run_and_eval_plan(store, plan, task_cls, model, llm_call,
                            num_workers=num_workers, eval_pool_size=eval_pool_size,
-                           on_conflict=on_conflict, example_pool=example_pool)
+                           on_conflict=on_conflict, example_pool=example_pool,
+                           dataset=dataset)
 
         # ── analyze ───────────────────────────────────────────────
         result = analyze_fn(store, model, scorer, iteration)
@@ -124,6 +126,7 @@ def _run_and_eval_plan(
     on_conflict: OnConflict = OnConflict.SKIP,
     example_pool: Optional[list] = None,
     phase: str | None = None,
+    dataset: str = "",
 ) -> None:
     """Run configs and evaluate them in a pipelined fashion.
 
@@ -190,6 +193,7 @@ def _run_and_eval_plan(
                 evaluate_config, store, cid, model, eval_task,
                 num_workers=eval_workers_per_config,
                 on_conflict=OnConflict.REPLACE,
+                dataset=dataset,
             )
             eval_futures.append(fut)
             logger.info("Config %d eval submitted to background", cid)
