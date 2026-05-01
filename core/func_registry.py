@@ -164,18 +164,26 @@ def _canonicalize_insert_node(params: dict) -> dict:
         }
     elif node_type == "rule":
         payload = {"content": payload.get("content", "").strip()}
+        if "ordinal" in params.get("payload", {}):
+            payload["ordinal"] = int(params["payload"].get("ordinal", 0))
     elif node_type == "input_field":
         payload = {
             "name":        payload.get("name", ""),
             "description": payload.get("description", ""),
         }
+        if "ordinal" in params.get("payload", {}):
+            payload["ordinal"] = int(params["payload"].get("ordinal", 0))
     elif node_type == "output_field":
         payload = {
             "name":        payload.get("name", ""),
             "description": payload.get("description", ""),
         }
+        if "ordinal" in params.get("payload", {}):
+            payload["ordinal"] = int(params["payload"].get("ordinal", 0))
     elif node_type == "example":
         payload = {"content": payload.get("content", "")}
+        if "ordinal" in params.get("payload", {}):
+            payload["ordinal"] = int(params["payload"].get("ordinal", 0))
 
     return {
         "node_type": node_type,
@@ -293,14 +301,24 @@ _TYPE_ORDER: Dict[str, int] = {
 }
 
 
+def _payload_ordinal(params: dict, default: int = 10_000) -> int:
+    payload = params.get("payload") or {}
+    if not isinstance(payload, dict) or "ordinal" not in payload:
+        return default
+    try:
+        return int(payload.get("ordinal", default))
+    except (TypeError, ValueError):
+        return default
+
+
 def _func_sort_key(func_id: str, func_type: str, params: dict) -> tuple:
-    """Sort key: (type_priority, node_type_priority, func_id)."""
+    """Sort key: (type_priority, node_type_priority, optional_payload_ordinal, func_id)."""
     type_prio = _TYPE_ORDER.get(func_type, 1)
     if func_type == "insert_node":
         nt = params.get("node_type", "rule")
         nt_prio = _NODE_TYPE_ORDER.get(nt, 1)
-        return (type_prio, nt_prio, func_id)
-    return (type_prio, 0, func_id)
+        return (type_prio, nt_prio, _payload_ordinal(params), func_id)
+    return (type_prio, 0, 10_000, func_id)
 
 
 # ── apply config ──────────────────────────────────────────────────────

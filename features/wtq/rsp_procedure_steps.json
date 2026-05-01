@@ -22,7 +22,8 @@
         "parent_id": "__root__",
         "payload": {
           "name": "step_1_question_analysis",
-          "description": "Question type, expected answer type, and operation needed to answer the table question."
+          "description": "Question type, expected answer type, and operation needed to answer the table question.",
+          "ordinal": 10
         }
       }
     },
@@ -33,7 +34,8 @@
         "parent_id": "__root__",
         "payload": {
           "name": "step_2_relevant_columns",
-          "description": "Columns that determine row conditions and columns that provide the final answer."
+          "description": "Columns that determine row conditions and columns that provide the final answer.",
+          "ordinal": 20
         }
       }
     },
@@ -44,7 +46,8 @@
         "parent_id": "__root__",
         "payload": {
           "name": "step_3_row_selection",
-          "description": "Rows considered relevant, with the condition each selected row satisfies."
+          "description": "Rows considered relevant, with the condition each selected row satisfies.",
+          "ordinal": 30
         }
       }
     },
@@ -55,7 +58,8 @@
         "parent_id": "__root__",
         "payload": {
           "name": "step_4_operation",
-          "description": "Exact lookup, filtering, counting, comparison, superlative, list construction, or arithmetic used to derive the answer."
+          "description": "Exact lookup, filtering, counting, comparison, superlative, list construction, or arithmetic used to derive the answer.",
+          "ordinal": 40
         }
       }
     },
@@ -65,7 +69,8 @@
         "node_type": "rule",
         "parent_id": "0408c65f2e17",
         "payload": {
-          "content": "Follow the numbered procedure fields in order before writing `answer`: (1) In `step_1_question_analysis`, classify the question as lookup, filter, count, comparison, superlative, arithmetic, or list construction, and state the expected answer type. (2) In `step_2_relevant_columns`, name the condition column(s) and answer column(s), including mappings from question phrases to headers or cell values. (3) In `step_3_row_selection`, list only rows that satisfy the question condition; if no row filter is needed, say the whole table or relevant column is considered. (4) In `step_4_operation`, perform the exact table operation: copy the cell value, count rows, compare values, choose the extreme value, construct a list, or do arithmetic."
+          "content": "Follow the numbered procedure fields in order before writing `answer`: (1) In `step_1_question_analysis`, classify the question as lookup, filter, count, comparison, superlative, arithmetic, or list construction, and state the expected answer type. (2) In `step_2_relevant_columns`, name the condition column(s) and answer column(s), including mappings from question phrases to headers or cell values. (3) In `step_3_row_selection`, list only rows that satisfy the question condition; if no row filter is needed, say the whole table or relevant column is considered. (4) In `step_4_operation`, perform the exact table operation: copy the cell value, count rows, compare values, choose the extreme value, construct a list, or do arithmetic.",
+          "ordinal": 10
         }
       }
     },
@@ -75,7 +80,8 @@
         "node_type": "rule",
         "parent_id": "0408c65f2e17",
         "payload": {
-          "content": "Do not skip any numbered procedure field, even for simple lookup questions."
+          "content": "Do not skip any numbered procedure field, even for simple lookup questions.",
+          "ordinal": 20
         }
       }
     },
@@ -85,7 +91,8 @@
         "node_type": "rule",
         "parent_id": "0408c65f2e17",
         "payload": {
-          "content": "Keep `answer` concise: no procedure, no row citations, no explanation."
+          "content": "Keep `answer` concise: no procedure, no row citations, no explanation.",
+          "ordinal": 30
         }
       }
     }
