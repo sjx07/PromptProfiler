@@ -21,8 +21,41 @@
         "node_type": "output_field",
         "parent_id": "__root__",
         "payload": {
-          "name": "steps",
-          "description": "Numbered procedure used to verify the statement against the table."
+          "name": "step_1_claim_parts",
+          "description": "Atomic components of the statement that must be checked against the table."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "step_2_evidence_mapping",
+          "description": "Rows, cells, and values mapped to each claim component."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "step_3_component_decisions",
+          "description": "Per-component labels: supported, contradicted, or not found."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "step_4_decision_rule",
+          "description": "How the component decisions determine the final True/False verdict."
         }
       }
     },
@@ -32,7 +65,17 @@
         "node_type": "rule",
         "parent_id": "0408c65f2e17",
         "payload": {
-          "content": "Use the `steps` field to follow this ordered procedure: split the statement into claim components, map each component to table rows or cells, decide whether the evidence supports or contradicts each component, then write the final True/False label in `verdict` only."
+          "content": "Follow the numbered procedure fields in order before writing `verdict`: (1) In `step_1_claim_parts`, split the statement into atomic components, where each component contains one table-checkable relation, comparison, count, date, entity, or attribute. (2) In `step_2_evidence_mapping`, map each component to specific table row(s), column(s), and cell value(s); mark evidence as missing when no supporting row or cell exists. (3) In `step_3_component_decisions`, label every component as supported, contradicted, or not found; contradicted evidence overrides partial support. (4) In `step_4_decision_rule`, apply this policy: the statement is True only if every required component is supported and no component is contradicted; otherwise it is False."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Do not skip any numbered procedure field, even for simple statements."
         }
       }
     },
@@ -47,5 +90,5 @@
       }
     }
   ],
-  "rationale": "Pilot scaffold package for TabFact procedure reasoning. The dedicated `steps` field creates schema pressure for an ordered verification process while preserving direct `verdict` scoring."
+  "rationale": "Pilot scaffold package for TabFact procedure reasoning. Dedicated aux fields create schema pressure for claim decomposition, evidence mapping, component decisions, and final decision policy while preserving direct `verdict` scoring."
 }

@@ -21,8 +21,41 @@
         "node_type": "output_field",
         "parent_id": "__root__",
         "payload": {
-          "name": "steps",
-          "description": "Numbered procedure used to answer the table question."
+          "name": "step_1_question_analysis",
+          "description": "Question type, expected answer type, and operation needed to answer the table question."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "step_2_relevant_columns",
+          "description": "Columns that determine row conditions and columns that provide the final answer."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "step_3_row_selection",
+          "description": "Rows considered relevant, with the condition each selected row satisfies."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "step_4_operation",
+          "description": "Exact lookup, filtering, counting, comparison, superlative, list construction, or arithmetic used to derive the answer."
         }
       }
     },
@@ -32,7 +65,17 @@
         "node_type": "rule",
         "parent_id": "0408c65f2e17",
         "payload": {
-          "content": "Use the `steps` field to follow this ordered procedure: identify the question type, identify the relevant columns, inspect the relevant rows, perform any needed extraction or computation, then write the final value in `answer` only."
+          "content": "Follow the numbered procedure fields in order before writing `answer`: (1) In `step_1_question_analysis`, classify the question as lookup, filter, count, comparison, superlative, arithmetic, or list construction, and state the expected answer type. (2) In `step_2_relevant_columns`, name the condition column(s) and answer column(s), including mappings from question phrases to headers or cell values. (3) In `step_3_row_selection`, list only rows that satisfy the question condition; if no row filter is needed, say the whole table or relevant column is considered. (4) In `step_4_operation`, perform the exact table operation: copy the cell value, count rows, compare values, choose the extreme value, construct a list, or do arithmetic."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Do not skip any numbered procedure field, even for simple lookup questions."
         }
       }
     },
@@ -47,5 +90,5 @@
       }
     }
   ],
-  "rationale": "Pilot scaffold package for WTQ procedure reasoning. The dedicated `steps` field creates schema pressure for an ordered process while preserving direct `answer` scoring."
+  "rationale": "Pilot scaffold package for WTQ procedure reasoning. Dedicated aux fields create schema pressure for question analysis, column grounding, row selection, and table operation while preserving direct `answer` scoring."
 }
