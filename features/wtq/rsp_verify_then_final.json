@@ -1,0 +1,62 @@
+{
+  "canonical_id": "rsp_verify_then_final",
+  "task": "wtq",
+  "target_module": "rules",
+  "axis": "reasoning_scaffold_package",
+  "value": "verification",
+  "theme": "reasoning-scaffold-package",
+  "tier": "pilot",
+  "provenance": "table_task_taxonomy_infra_round_2",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [
+    "rsp_procedure_steps",
+    "rsp_evidence_then_answer"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "draft_answer",
+          "description": "Initial candidate answer before verification."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "verification",
+          "description": "Checks that the candidate answer is grounded in the table and matches the question."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Use `draft_answer` for your initial answer candidate. Then use `verification` to check that the candidate uses the right row(s), column(s), answer type, units, and question wording."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "After verification, write only the corrected final value in `answer`; do not include the draft or verification text in `answer`."
+        }
+      }
+    }
+  ],
+  "rationale": "Pilot scaffold package for WTQ answer-check-final reasoning. The final parser field remains `answer`; verification is auxiliary."
+}

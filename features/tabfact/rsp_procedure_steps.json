@@ -1,0 +1,51 @@
+{
+  "canonical_id": "rsp_procedure_steps",
+  "task": "tabfact",
+  "target_module": "rules",
+  "axis": "reasoning_scaffold_package",
+  "value": "procedure",
+  "theme": "reasoning-scaffold-package",
+  "tier": "pilot",
+  "provenance": "table_task_taxonomy_infra_round_2",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [
+    "rsp_evidence_then_answer",
+    "rsp_verify_then_final"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "steps",
+          "description": "Numbered procedure used to verify the statement against the table."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Use the `steps` field to follow this ordered procedure: split the statement into claim components, map each component to table rows or cells, decide whether the evidence supports or contradicts each component, then write the final True/False label in `verdict` only."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Keep `verdict` to the final label only: True or False."
+        }
+      }
+    }
+  ],
+  "rationale": "Pilot scaffold package for TabFact procedure reasoning. The dedicated `steps` field creates schema pressure for an ordered verification process while preserving direct `verdict` scoring."
+}

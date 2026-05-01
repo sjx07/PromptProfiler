@@ -1,0 +1,48 @@
+{
+  "experiment_type": "explicit_coalitions",
+  "task": "tabfact",
+  "split": "validation",
+  "max_queries": 200,
+  "sample_seed": 7,
+  "max_tokens": 4096,
+  "temperature": 0,
+  "top_p": 1.0,
+  "sampling_top_k": -1,
+  "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "ports": [
+    8000,
+    8001,
+    8002,
+    8003
+  ],
+  "num_workers": 768,
+  "db_path": "/data/users/jsu323/facet/table_taxonomy_rsp_tabfact.db",
+  "vllm_db": "/data/users/jsu323/facet/table_taxonomy_rsp_tabfact_vllm.db",
+  "phase": "table_taxonomy_rsp_tabfact_smoke",
+  "base_features": [
+    "_section_role",
+    "_section_task",
+    "_section_table_handling",
+    "_section_strategy",
+    "_section_reasoning",
+    "_section_rules",
+    "_section_format_fix",
+    "rt_rules_cot_combined"
+  ],
+  "experiment_features": [
+    "rsp_procedure_steps",
+    "rsp_evidence_then_answer",
+    "rsp_verify_then_final"
+  ],
+  "coalitions": {
+    "procedure": [
+      "rsp_procedure_steps"
+    ],
+    "evidence_then_answer": [
+      "rsp_evidence_then_answer"
+    ],
+    "verify_then_final": [
+      "rsp_verify_then_final"
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "canonical_id": "rsp_procedure_steps",
+  "task": "wtq",
+  "target_module": "rules",
+  "axis": "reasoning_scaffold_package",
+  "value": "procedure",
+  "theme": "reasoning-scaffold-package",
+  "tier": "pilot",
+  "provenance": "table_task_taxonomy_infra_round_2",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [
+    "rsp_evidence_then_answer",
+    "rsp_verify_then_final"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "steps",
+          "description": "Numbered procedure used to answer the table question."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Use the `steps` field to follow this ordered procedure: identify the question type, identify the relevant columns, inspect the relevant rows, perform any needed extraction or computation, then write the final value in `answer` only."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Keep `answer` concise: no procedure, no row citations, no explanation."
+        }
+      }
+    }
+  ],
+  "rationale": "Pilot scaffold package for WTQ procedure reasoning. The dedicated `steps` field creates schema pressure for an ordered process while preserving direct `answer` scoring."
+}

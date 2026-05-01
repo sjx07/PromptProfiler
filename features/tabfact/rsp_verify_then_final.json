@@ -1,0 +1,62 @@
+{
+  "canonical_id": "rsp_verify_then_final",
+  "task": "tabfact",
+  "target_module": "rules",
+  "axis": "reasoning_scaffold_package",
+  "value": "verification",
+  "theme": "reasoning-scaffold-package",
+  "tier": "pilot",
+  "provenance": "table_task_taxonomy_infra_round_2",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [
+    "rsp_procedure_steps",
+    "rsp_evidence_then_answer"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "draft_verdict",
+          "description": "Initial True/False verdict before verification."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "verification",
+          "description": "Checks that the draft verdict covers every claim component and possible counterevidence."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Use `draft_verdict` for your initial True/False label. Then use `verification` to check every statement component against the table and explicitly look for counterevidence."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "After verification, write only the corrected final label in `verdict`: True or False."
+        }
+      }
+    }
+  ],
+  "rationale": "Pilot scaffold package for TabFact draft-check-final reasoning. The final parser field remains `verdict`; verification is auxiliary."
+}
