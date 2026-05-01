@@ -854,13 +854,12 @@ class MarkdownStyle(FormatStyle):
         *,
         level: int,
     ) -> str:
-        lines: List[str] = []
-
         def fmt_section_title(sec: "RuleSection", lvl: int) -> str:
             title = _safe_strip(getattr(sec, "title", "")) or "Untitled Section"
             return f"{'#' * (lvl + 1)} {title}"
 
-        def emit_rule_nodes(nodes: List[Any], indent: str) -> None:
+        def render_rule_nodes(nodes: List[Any], indent: str) -> List[str]:
+            out: List[str] = []
             num = 1
             for node in nodes:
                 kind = _node_kind(node)
@@ -872,43 +871,58 @@ class MarkdownStyle(FormatStyle):
                     if not txt:
                         continue
                     if kind == "number":
-                        lines.append(f"{indent}{num}. {txt}")
+                        out.append(f"{indent}{num}. {txt}")
                         num += 1
                     else:
-                        lines.append(f"{indent}- {txt}")
+                        out.append(f"{indent}- {txt}")
 
                 elif isinstance(node, RuleGroup):
                     if node.group_id and not tree.is_enabled(node.group_id):
                         continue
                     title = _safe_strip(getattr(node, "title", "")) or "Untitled Group"
                     if kind == "number":
-                        lines.append(f"{indent}{num}. {title}")
+                        out.append(f"{indent}{num}. {title}")
                         num += 1
                     else:
-                        lines.append(f"{indent}- {title}")
+                        out.append(f"{indent}- {title}")
 
                     child_rules = node.children
                     if child_rules:
-                        emit_rule_nodes(child_rules, indent + "  ")
+                        out.extend(render_rule_nodes(child_rules, indent + "  "))
+            return out
 
-        for sec in sections or []:
-            sid = sec.metadata.get("id") or sec.metadata.get("path") if sec.metadata else None
-            if sid and not tree.is_enabled(sid):
-                continue
-            lines.append(fmt_section_title(sec, level))
-
+        def render_section(sec: "RuleSection", lvl: int) -> List[str]:
             content = _safe_strip(getattr(sec, "content", ""))
             subs = [c for c in sec.children if isinstance(c, RuleSection)]
-
             nodes = list(sec.iter_rule_children() or [])
+
+            rule_lines = render_rule_nodes(nodes, indent="")
+            sub_blocks = [
+                block
+                for sub in subs
+                if (block := render_section(sub, lvl + 1))
+            ]
+
+            if not rule_lines and not content and not sub_blocks:
+                return []
+
+            out = [fmt_section_title(sec, lvl)]
             if nodes:
-                emit_rule_nodes(nodes, indent="")
+                out.extend(rule_lines)
             elif content and not subs:
-                lines.append(content)
+                out.append(content)
 
-            if subs:
-                lines.append(self._format_rule_sections_impl(subs, level=level + 1, tree=tree))
+            for block in sub_blocks:
+                out.append("")
+                out.extend(block)
+            return out
 
+        lines: List[str] = []
+        for sec in sections or []:
+            block = render_section(sec, level)
+            if not block:
+                continue
+            lines.extend(block)
             lines.append("")  # spacing
 
         return "\n".join(lines).rstrip()

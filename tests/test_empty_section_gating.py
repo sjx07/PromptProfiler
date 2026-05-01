@@ -80,6 +80,47 @@ def test_empty_section_not_rendered():
         os.unlink(db)
 
 
+def test_markdown_empty_section_not_rendered():
+    """Markdown renderer must also suppress empty section headers."""
+    db = _temp_store()
+    try:
+        store = CubeStore(db)
+
+        sec_role_params = _sec("role", 0, min_rules=1, max_rules=3)
+        sec_empty_params = _sec("empty_section", 99, min_rules=0, max_rules=5)
+
+        sec_role_id = make_func_id("insert_node", sec_role_params)
+        sec_empty_id = make_func_id("insert_node", sec_empty_params)
+
+        rule_params = {
+            "node_type": "rule",
+            "parent_id": sec_role_id,
+            "payload": {"content": "You are an expert analyst."},
+        }
+
+        specs = [
+            {"func_id": sec_role_id, "func_type": "insert_node", "params": sec_role_params, "meta": {}},
+            {"func_id": sec_empty_id, "func_type": "insert_node", "params": sec_empty_params, "meta": {}},
+            {"func_id": make_func_id("insert_node", rule_params),
+             "func_type": "insert_node", "params": rule_params, "meta": {}},
+        ]
+        store.upsert_funcs(specs, on_conflict=OnConflict.SKIP)
+
+        state = apply_config([s["func_id"] for s in specs], store)
+        state.format_style = "markdown"
+        rendered = state.to_prompt_state()._build_system_content()
+        store.close()
+
+        assert "## empty_section" not in rendered, (
+            f"empty_section appeared in Markdown output:\n{rendered}"
+        )
+        assert "## role" in rendered, (
+            f"role section missing from Markdown output:\n{rendered}"
+        )
+    finally:
+        os.unlink(db)
+
+
 def test_section_with_rules_is_rendered():
     """Section with at least one rule must appear in rendered output."""
     db = _temp_store()
