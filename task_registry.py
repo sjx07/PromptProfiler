@@ -49,6 +49,67 @@ def _seed_tabfact(store: Any, cfg: Dict[str, Any], split: str) -> None:
     _seed_predicates(store, dataset="tab_fact")
 
 
+def _seed_tablebench(store: Any, cfg: Dict[str, Any], split: str) -> None:
+    from tasks.tablebench.loaders import seed_queries_tablebench
+    import tasks.tablebench.predicates  # noqa: F401 — registers extractors on import
+    max_queries = int(cfg.get("max_queries", 0) or 0)
+    sample_seed = int(cfg.get("sample_seed", 0) or 0)
+    dataset_revision = cfg.get("dataset_revision")
+    hf_cache_dir = cfg.get("hf_cache_dir") or cfg.get("cache_dir")
+    train_revision = cfg.get("train_dataset_revision")
+    train_instruction_types = cfg.get("train_instruction_types")
+    train_data_path = cfg.get("train_data_path")
+    include_visualization = bool(cfg.get("include_visualization", False))
+    seed_queries_tablebench(
+        store,
+        split,
+        revision=dataset_revision,
+        cache_dir=hf_cache_dir,
+        train_revision=train_revision,
+        train_instruction_types=train_instruction_types,
+        train_data_path=train_data_path,
+        include_visualization=include_visualization,
+        max_queries=max_queries,
+        sample_seed=sample_seed,
+    )
+    _seed_predicates(store, dataset="tablebench")
+
+
+def _seed_tablebench_repro(store: Any, cfg: Dict[str, Any], split: str) -> None:
+    """Seed all 4 variant queries (DP/TCoT/SCoT/PoT) so one cube holds the full
+    reproduction set. Each variant gets distinct query_ids (variant is part of
+    the id key)."""
+    from tasks.tablebench.repro import seed_queries_tablebench_repro
+    import tasks.tablebench.predicates  # noqa: F401 — registers extractors on import
+    from experiment.query_cohorts import register_extractor
+    import json as _json
+
+    @register_extractor("variant")
+    def _variant_extractor(query: dict) -> str:
+        meta = query.get("meta", {})
+        if isinstance(meta, str):
+            meta = _json.loads(meta)
+        return meta.get("variant", "unknown")
+
+    max_queries = int(cfg.get("max_queries", 0) or 0)
+    sample_seed = int(cfg.get("sample_seed", 0) or 0)
+    dataset_revision = cfg.get("dataset_revision")
+    hf_cache_dir = cfg.get("hf_cache_dir") or cfg.get("cache_dir")
+    include_visualization = bool(cfg.get("include_visualization", False))
+    variants = cfg.get("variants") or ["DP", "TCoT", "SCoT", "PoT"]
+    if isinstance(variants, str):
+        variants = [variants]
+    for v in variants:
+        seed_queries_tablebench_repro(
+            store, split, variant=v,
+            revision=dataset_revision,
+            cache_dir=hf_cache_dir,
+            include_visualization=include_visualization,
+            max_queries=max_queries, sample_seed=sample_seed,
+        )
+    _seed_predicates(store, dataset="tablebench_repro")
+
+
 def _seed_sql_generation(store: Any, cfg: Dict[str, Any], split: str) -> None:
     from tasks.nl2sql.loaders import seed_queries_bird, seed_queries_spider
     dataset = cfg.get("dataset", "bird")
@@ -155,6 +216,8 @@ def _seed_spider(store: Any, cfg: Dict[str, Any], split: str) -> None:
 def _build_registry() -> Dict[str, TaskEntry]:
     from tasks.wtq.table_qa import TableQA
     from tasks.tabfact.fact_verification import FactVerification
+    from tasks.tablebench.table_bench import TableBench
+    from tasks.tablebench.repro import TableBenchRepro
     from tasks.nl2sql.sql_generation import SqlGeneration
     from tasks.nl2sql.sql_repair import SqlRepair
     from tasks.pupa.pupa import PupaPrivacyDelegationTask
@@ -231,6 +294,16 @@ def _build_registry() -> Dict[str, TaskEntry]:
             task_cls=SequentialQA,
             seeder_fn=_seed_sequential_qa,
             dataset_key_fn=lambda cfg: "sqa",
+        ),
+        "tablebench": TaskEntry(
+            task_cls=TableBench,
+            seeder_fn=_seed_tablebench,
+            dataset_key_fn=lambda cfg: "tablebench",
+        ),
+        "tablebench_repro": TaskEntry(
+            task_cls=TableBenchRepro,
+            seeder_fn=_seed_tablebench_repro,
+            dataset_key_fn=lambda cfg: "tablebench_repro",
         ),
     }
 
