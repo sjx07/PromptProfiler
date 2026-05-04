@@ -78,7 +78,7 @@ DB_PATH="$(python3 -c "import json; print(json.load(open('$CONFIG')).get('db_pat
 # ── create run directory under ./experiments/ ────────────────────────
 
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-RUN_DIR="experiments/${TASK}_${TIMESTAMP}"
+RUN_DIR="Obsidian/facet_exp/${TASK}/experiments/${TIMESTAMP}"
 mkdir -p "$RUN_DIR"
 
 # ── snapshot inputs: preflight + config verbatim ─────────────────────

@@ -1,318 +1,97 @@
-"""Task registry — maps task names to classes, seeders, and dataset keys."""
+"""Task registry core.
+
+This module is intentionally task-agnostic. Concrete tasks register themselves
+from ``tasks.<task_package>.registration`` via the ``register_task`` decorator.
+"""
 from __future__ import annotations
 
+import importlib
+import logging
+import pkgutil
 from dataclasses import dataclass
 from typing import Any, Callable, Dict
 
+logger = logging.getLogger(__name__)
 
-@dataclass
+
+@dataclass(frozen=True)
 class TaskEntry:
     task_cls: type
     seeder_fn: Callable  # (store, cfg, split) -> None
     dataset_key_fn: Callable  # (cfg) -> str
 
 
-# ── Seeders ──────────────────────────────────────────────────────────
-# Each seeder inserts queries AND seeds predicates (via registered
-# extractors). Predicate seeding is idempotent — calls on an already-
-# seeded cube insert zero new rows. This removes the manual
-# `seed_predicates` step that previously had to run before any predicate-
-# aware analysis.
+_REGISTRY: Dict[str, TaskEntry] = {}
+_DISCOVERED = False
 
 
-def _seed_predicates(store: Any, dataset: str) -> None:
-    """Run all registered predicate extractors for a dataset (idempotent)."""
+def register_task(
+    name: str,
+    *,
+    seeder_fn: Callable,
+    dataset_key_fn: Callable,
+) -> Callable[[type], type]:
+    """Register a task class under ``name``.
+
+    Used by task-owned registration modules:
+
+    ``register_task("wtq", seeder_fn=..., dataset_key_fn=...)(TableQA)``
+    """
+    def decorator(task_cls: type) -> type:
+        entry = TaskEntry(
+            task_cls=task_cls,
+            seeder_fn=seeder_fn,
+            dataset_key_fn=dataset_key_fn,
+        )
+        existing = _REGISTRY.get(name)
+        if existing is not None and existing != entry:
+            raise ValueError(f"duplicate task registration for {name!r}")
+        _REGISTRY[name] = entry
+        return task_cls
+
+    return decorator
+
+
+def seed_predicates_for_dataset(store: Any, dataset: str) -> None:
+    """Run registered predicate extractors for a dataset, idempotently."""
     from experiment.query_cohorts import seed_predicates
+
     n = seed_predicates(store, dataset=dataset)
     if n:
-        import logging
-        logging.getLogger(__name__).info(
-            "Seeded %d predicate rows for dataset=%s", n, dataset,
-        )
+        logger.info("Seeded %d predicate rows for dataset=%s", n, dataset)
 
 
-def _seed_table_qa(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from tasks.wtq.loaders import seed_queries_wtq
-    import tasks.wtq.predicates  # noqa: F401 — registers extractors on import
-    max_queries = int(cfg.get("max_queries", 0) or 0)
-    sample_seed = int(cfg.get("sample_seed", 0) or 0)
-    seed_queries_wtq(store, split, max_queries=max_queries, sample_seed=sample_seed)
-    _seed_predicates(store, dataset="wtq")
+def discover_task_registrations() -> None:
+    """Import all task-owned registration modules exactly once."""
+    global _DISCOVERED
+    if _DISCOVERED:
+        return
 
+    import tasks
 
-def _seed_tabfact(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from tasks.tabfact.loaders import seed_queries_tabfact
-    import tasks.tabfact.predicates  # noqa: F401 — registers extractors on import
-    max_queries = int(cfg.get("max_queries", 0) or 0)
-    sample_seed = int(cfg.get("sample_seed", 0) or 0)
-    seed_queries_tabfact(store, split, max_queries=max_queries, sample_seed=sample_seed)
-    _seed_predicates(store, dataset="tab_fact")
+    for module_info in pkgutil.iter_modules(tasks.__path__, prefix="tasks."):
+        if not module_info.ispkg:
+            continue
+        module_name = f"{module_info.name}.registration"
+        try:
+            importlib.import_module(module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name == module_name:
+                continue
+            raise
 
-
-def _seed_tablebench(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from tasks.tablebench.loaders import seed_queries_tablebench
-    import tasks.tablebench.predicates  # noqa: F401 — registers extractors on import
-    max_queries = int(cfg.get("max_queries", 0) or 0)
-    sample_seed = int(cfg.get("sample_seed", 0) or 0)
-    dataset_revision = cfg.get("dataset_revision")
-    hf_cache_dir = cfg.get("hf_cache_dir") or cfg.get("cache_dir")
-    train_revision = cfg.get("train_dataset_revision")
-    train_instruction_types = cfg.get("train_instruction_types")
-    train_data_path = cfg.get("train_data_path")
-    include_visualization = bool(cfg.get("include_visualization", False))
-    seed_queries_tablebench(
-        store,
-        split,
-        revision=dataset_revision,
-        cache_dir=hf_cache_dir,
-        train_revision=train_revision,
-        train_instruction_types=train_instruction_types,
-        train_data_path=train_data_path,
-        include_visualization=include_visualization,
-        max_queries=max_queries,
-        sample_seed=sample_seed,
-    )
-    _seed_predicates(store, dataset="tablebench")
-
-
-def _seed_tablebench_repro(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    """Seed all 4 variant queries (DP/TCoT/SCoT/PoT) so one cube holds the full
-    reproduction set. Each variant gets distinct query_ids (variant is part of
-    the id key)."""
-    from tasks.tablebench.repro import seed_queries_tablebench_repro
-    import tasks.tablebench.predicates  # noqa: F401 — registers extractors on import
-    from experiment.query_cohorts import register_extractor
-    import json as _json
-
-    @register_extractor("variant")
-    def _variant_extractor(query: dict) -> str:
-        meta = query.get("meta", {})
-        if isinstance(meta, str):
-            meta = _json.loads(meta)
-        return meta.get("variant", "unknown")
-
-    max_queries = int(cfg.get("max_queries", 0) or 0)
-    sample_seed = int(cfg.get("sample_seed", 0) or 0)
-    dataset_revision = cfg.get("dataset_revision")
-    hf_cache_dir = cfg.get("hf_cache_dir") or cfg.get("cache_dir")
-    include_visualization = bool(cfg.get("include_visualization", False))
-    variants = cfg.get("variants") or ["DP", "TCoT", "SCoT", "PoT"]
-    if isinstance(variants, str):
-        variants = [variants]
-    for v in variants:
-        seed_queries_tablebench_repro(
-            store, split, variant=v,
-            revision=dataset_revision,
-            cache_dir=hf_cache_dir,
-            include_visualization=include_visualization,
-            max_queries=max_queries, sample_seed=sample_seed,
-        )
-    _seed_predicates(store, dataset="tablebench_repro")
-
-
-def _seed_sql_generation(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from tasks.nl2sql.loaders import seed_queries_bird, seed_queries_spider
-    dataset = cfg.get("dataset", "bird")
-    data_dir = cfg.get("data_dir", "")
-    max_queries = int(cfg.get("max_queries", 0) or 0)
-    sample_seed = int(cfg.get("sample_seed", 0) or 0)
-    if dataset == "bird":
-        seed_queries_bird(store, data_dir, split,
-                          max_queries=max_queries, sample_seed=sample_seed)
-    elif dataset == "spider":
-        seed_queries_spider(store, data_dir, split,
-                            max_queries=max_queries, sample_seed=sample_seed)
-    # nl2sql predicates are DB-introspection based; if a predicates module
-    # exists, importing it registers extractors. Skip gracefully otherwise.
-    try:
-        import tasks.nl2sql.predicates  # noqa: F401
-        _seed_predicates(store, dataset=dataset)
-    except ImportError:
-        pass
-
-
-def _seed_sql_repair(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    # Repair dataset is pre-curated via curate_repair_dataset.py.
-    # The seeder just checks that queries exist.
-    conn = store._get_conn()
-    n = conn.execute("SELECT COUNT(*) FROM query").fetchone()[0]
-    if n == 0:
-        raise ValueError(
-            "Repair dataset not curated yet. Run curate_repair_dataset.py first."
-        )
-
-
-def _seed_pupa(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from tasks.pupa.loaders import seed_queries_pupa
-    data_path = cfg.get("data_path") or cfg.get("pupa_data_path")
-    if not data_path:
-        raise ValueError(
-            "PUPA requires cfg.data_path pointing to a local PAPILLON/PUPA JSON or JSONL file."
-        )
-    seed_queries_pupa(store, data_path, split)
-
-
-def _seed_hotpotqa_context(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from tasks.hotpotqa_context.loaders import seed_queries_hotpotqa_context
-    data_path = cfg.get("data_path") or cfg.get("hotpotqa_data_path")
-    max_queries = int(cfg.get("max_queries", 0) or 0)
-    split_mode = str(cfg.get("split_mode") or cfg.get("hotpotqa_split_mode") or "dataset")
-    sample_seed = int(cfg.get("hotpotqa_sample_seed") or 1)
-    seed_queries_hotpotqa_context(
-        store,
-        split,
-        data_path=data_path,
-        max_queries=max_queries,
-        split_mode=split_mode,
-        sample_seed=sample_seed,
-    )
-
-
-def _seed_hover_context(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from tasks.hover_context.loaders import seed_queries_hover
-    data_path = cfg.get("data_path") or cfg.get("hover_data_path")
-    max_queries = int(cfg.get("max_queries", 0) or 0)
-    sample_seed = int(cfg.get("hover_sample_seed") or cfg.get("sample_seed") or 1)
-    seed_queries_hover(
-        store,
-        split,
-        data_path=data_path,
-        max_queries=max_queries,
-        sample_seed=sample_seed,
-    )
-
-
-def _seed_sequential_qa(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    from tasks.sqa.loaders import seed_queries_sqa, DEFAULT_DATA_DIR
-    import tasks.sqa.predicates  # noqa: F401 — registers extractors on import
-    data_dir = cfg.get("data_dir") or cfg.get("sqa_data_dir") or DEFAULT_DATA_DIR
-    max_queries = int(cfg.get("max_queries", 0) or 0)
-    sample_seed = int(cfg.get("sample_seed", 0) or 0)
-    seed_queries_sqa(store, split, data_dir=data_dir,
-                     max_queries=max_queries, sample_seed=sample_seed)
-    _seed_predicates(store, dataset="sqa")
-
-
-# ── round-MC: dataset-named aliases ──────────────────────────────────
-# The factory authors features under features/<dataset>/, so we register
-# each cell as its own task name. Seeders hard-code the right dataset.
-
-def _seed_bird(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    cfg_b = dict(cfg)
-    cfg_b["dataset"] = "bird"
-    cfg_b.setdefault("data_dir", "/data/users/jsu323/nl2sql/bird")
-    _seed_sql_generation(store, cfg_b, split)
-
-
-def _seed_spider(store: Any, cfg: Dict[str, Any], split: str) -> None:
-    cfg_s = dict(cfg)
-    cfg_s["dataset"] = "spider"
-    cfg_s.setdefault("data_dir", "/data/users/jsu323/nl2sql/spider")
-    _seed_sql_generation(store, cfg_s, split)
-
-
-# ── Registry ─────────────────────────────────────────────────────────
-
-def _build_registry() -> Dict[str, TaskEntry]:
-    from tasks.wtq.table_qa import TableQA
-    from tasks.tabfact.fact_verification import FactVerification
-    from tasks.tablebench.table_bench import TableBench
-    from tasks.tablebench.repro import TableBenchRepro
-    from tasks.nl2sql.sql_generation import SqlGeneration
-    from tasks.nl2sql.sql_repair import SqlRepair
-    from tasks.pupa.pupa import PupaPrivacyDelegationTask
-    from tasks.hotpotqa_context.hotpotqa_context import HotpotQAContextTask
-    from tasks.hover_context.hover_context import HoverContextTask
-    from tasks.sqa.sequential_qa import SequentialQA
-
-    return {
-        "table_qa": TaskEntry(
-            task_cls=TableQA,
-            seeder_fn=_seed_table_qa,
-            dataset_key_fn=lambda cfg: "wtq",
-        ),
-        "fact_verification": TaskEntry(
-            task_cls=FactVerification,
-            seeder_fn=_seed_tabfact,
-            dataset_key_fn=lambda cfg: "tab_fact",
-        ),
-        "sql_generation": TaskEntry(
-            task_cls=SqlGeneration,
-            seeder_fn=_seed_sql_generation,
-            dataset_key_fn=lambda cfg: cfg.get("dataset", "bird"),
-        ),
-        "sql_repair": TaskEntry(
-            task_cls=SqlRepair,
-            seeder_fn=_seed_sql_repair,
-            dataset_key_fn=lambda cfg: cfg.get("dataset", "sql_repair_bird"),
-        ),
-        "pupa": TaskEntry(
-            task_cls=PupaPrivacyDelegationTask,
-            seeder_fn=_seed_pupa,
-            dataset_key_fn=lambda cfg: "pupa",
-        ),
-        "hotpotqa_context": TaskEntry(
-            task_cls=HotpotQAContextTask,
-            seeder_fn=_seed_hotpotqa_context,
-            dataset_key_fn=lambda cfg: "hotpotqa_context",
-        ),
-        "hover_context": TaskEntry(
-            task_cls=HoverContextTask,
-            seeder_fn=_seed_hover_context,
-            dataset_key_fn=lambda cfg: "hover_context",
-        ),
-        "sequential_qa": TaskEntry(
-            task_cls=SequentialQA,
-            seeder_fn=_seed_sequential_qa,
-            dataset_key_fn=lambda cfg: "sqa",
-        ),
-        # Dataset-named aliases (round-MC: factory authors features per
-        # dataset, so feature dirs are features/<bird|spider|wtq|tabfact|sqa>/.
-        # Configs use these names so FeatureRegistry.load(task=cfg.task) finds
-        # the right dir.)
-        "bird": TaskEntry(
-            task_cls=SqlGeneration,
-            seeder_fn=_seed_bird,
-            dataset_key_fn=lambda cfg: "bird",
-        ),
-        "spider": TaskEntry(
-            task_cls=SqlGeneration,
-            seeder_fn=_seed_spider,
-            dataset_key_fn=lambda cfg: "spider",
-        ),
-        "wtq": TaskEntry(
-            task_cls=TableQA,
-            seeder_fn=_seed_table_qa,
-            dataset_key_fn=lambda cfg: "wtq",
-        ),
-        "tabfact": TaskEntry(
-            task_cls=FactVerification,
-            seeder_fn=_seed_tabfact,
-            dataset_key_fn=lambda cfg: "tab_fact",
-        ),
-        "sqa": TaskEntry(
-            task_cls=SequentialQA,
-            seeder_fn=_seed_sequential_qa,
-            dataset_key_fn=lambda cfg: "sqa",
-        ),
-        "tablebench": TaskEntry(
-            task_cls=TableBench,
-            seeder_fn=_seed_tablebench,
-            dataset_key_fn=lambda cfg: "tablebench",
-        ),
-        "tablebench_repro": TaskEntry(
-            task_cls=TableBenchRepro,
-            seeder_fn=_seed_tablebench_repro,
-            dataset_key_fn=lambda cfg: "tablebench_repro",
-        ),
-    }
-
-
-_registry: Dict[str, TaskEntry] | None = None
+    _DISCOVERED = True
 
 
 def get_registry() -> Dict[str, TaskEntry]:
-    global _registry
-    if _registry is None:
-        _registry = _build_registry()
-    return _registry
+    discover_task_registrations()
+    return _REGISTRY
+
+
+__all__ = [
+    "TaskEntry",
+    "discover_task_registrations",
+    "get_registry",
+    "register_task",
+    "seed_predicates_for_dataset",
+]
