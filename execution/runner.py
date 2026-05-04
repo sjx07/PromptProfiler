@@ -15,12 +15,18 @@ from __future__ import annotations
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import nullcontext
 from typing import Any, Callable, Dict, List
 
 from core.store import CubeStore, OnConflict
 from task import CompoundTask, ModuleRuntime
 
 logger = logging.getLogger(__name__)
+
+try:
+    from tqdm.auto import tqdm
+except Exception:  # pragma: no cover - tqdm is optional runtime sugar.
+    tqdm = None
 
 
 def run_config(
@@ -150,11 +156,18 @@ def run_config(
             on_conflict=on_conflict,
         )
 
+    progress = _make_progress_bar(
+        total=len(uncached),
+        desc=f"config {config_id}",
+    )
     if num_workers <= 1:
-        for q in uncached:
-            _run_one(q)
+        with progress as pbar:
+            for q in uncached:
+                _run_one(q)
+                if pbar is not None:
+                    pbar.update(1)
     else:
-        with ThreadPoolExecutor(max_workers=num_workers) as pool:
+        with progress as pbar, ThreadPoolExecutor(max_workers=num_workers) as pool:
             futures = {pool.submit(_run_one, q): q for q in uncached}
             for future in as_completed(futures):
                 try:
@@ -162,6 +175,9 @@ def run_config(
                 except Exception as exc:
                     q = futures[future]
                     logger.error("Query %s failed: %s", q["query_id"], exc)
+                finally:
+                    if pbar is not None:
+                        pbar.update(1)
 
     elapsed = time.time() - t0
     rate = len(uncached) / max(elapsed, 0.1)
@@ -171,6 +187,12 @@ def run_config(
     )
 
     return _progress(config_id, len(cached) + len(uncached), len(queries), len(uncached))
+
+
+def _make_progress_bar(total: int, desc: str):
+    if tqdm is None:
+        return nullcontext(None)
+    return tqdm(total=total, desc=desc, unit="q", dynamic_ncols=True)
 
 
 def _progress(config_id: int, done: int, total: int, newly_executed: int) -> Dict[str, Any]:
