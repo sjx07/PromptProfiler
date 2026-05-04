@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 import json
+import textwrap
 from typing import Any, Callable, Dict
 
 PARSER_REGISTRY: Dict[str, Callable[[str, Any], str]] = {}
@@ -35,17 +36,20 @@ def register_parser(field_name: str) -> Callable:
 @register_parser("code")
 def parse_code_field(response_text: str, task: Any) -> str:
     """Extract Python code from LLM response; tag with __CODE__ prefix for executor."""
+    fenced = _last_markdown_block(response_text)
+    if fenced:
+        return f"__CODE__{_clean_code(fenced)}"
     if task._prompt_state is not None:
         parsed = task._prompt_state.parse_output(response_text)
         if parsed:
             code = str(parsed.get("code", "")).strip()
             if code:
-                return f"__CODE__{code}"
+                return f"__CODE__{_clean_code(code)}"
     # Fallback: strip markdown code block
     inner = _strip_markdown_block(response_text)
     if inner:
-        return f"__CODE__{inner}"
-    return f"__CODE__{response_text.strip()}"
+        return f"__CODE__{_clean_code(inner)}"
+    return f"__CODE__{_clean_code(response_text)}"
 
 
 @register_parser("sql")
@@ -86,6 +90,40 @@ def _strip_markdown_block(text: str) -> str:
         if lines[end].strip() == "```":
             return "\n".join(lines[1:end]).strip()
     return ""
+
+
+def _clean_code(text: str) -> str:
+    """Normalize generated code without flattening real block indentation."""
+    code = textwrap.dedent((text or "").strip())
+    lines = code.splitlines()
+    if len(lines) <= 1:
+        return code
+
+    # JSON-string outputs often preserve a single accidental indent on every
+    # top-level line after the first. Remove the common post-first indent while
+    # preserving relative indentation inside blocks.
+    rest = [line for line in lines[1:] if line.strip()]
+    first_code_line = lines[0].rstrip()
+    if rest and not first_code_line.endswith(":") and all(line[:1].isspace() for line in rest):
+        min_indent = min(len(line) - len(line.lstrip()) for line in rest)
+        if min_indent > 0:
+            lines = [lines[0]] + [
+                line[min_indent:] if line.strip() else line
+                for line in lines[1:]
+            ]
+    return "\n".join(lines).strip()
+
+
+def _last_markdown_block(text: str) -> str:
+    """Return the inner text of the last fenced block anywhere in the response."""
+    matches = list(re.finditer(
+        r"```(?:[a-zA-Z0-9_+-]*)\s*\n?(.*?)```",
+        text or "",
+        re.DOTALL,
+    ))
+    if not matches:
+        return ""
+    return matches[-1].group(1).strip()
 
 
 def _extract_answer_fallback(text: str) -> str:

@@ -75,6 +75,34 @@ def table_to_json_records(header: List[str], rows: List[List[str]], name: str = 
     return json.dumps(obj, indent=1)
 
 
+def table_to_json_columns_data(header: List[str], rows: List[List[str]], name: str = "") -> str:
+    """TableBench-style JSON object with columns and row data arrays.
+
+    Compact (no indent) and numeric-coerced to match the official TableBench
+    rendering, which is critical for cross-row scanning on long tables.
+    """
+    import json
+
+    def coerce(v):
+        if not isinstance(v, str):
+            return v
+        s = v.strip()
+        if not s:
+            return v
+        try:
+            if "." in s or "e" in s or "E" in s:
+                return float(s)
+            return int(s)
+        except ValueError:
+            return v
+
+    padded_rows = []
+    for row in rows:
+        padded = row + [""] * (len(header) - len(row))
+        padded_rows.append([coerce(x) for x in padded[:len(header)]])
+    return json.dumps({"columns": header, "data": padded_rows}, separators=(", ", ": "))
+
+
 # ── registry ─────────────────────────────────────────────────────────
 
 TABLE_FORMATS = {
@@ -82,6 +110,7 @@ TABLE_FORMATS = {
     "csv": table_to_csv,
     "html": table_to_html,
     "json_records": table_to_json_records,
+    "json_columns_data": table_to_json_columns_data,
 }
 
 
