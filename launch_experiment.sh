@@ -222,9 +222,13 @@ echo "╚═══════════════════════�
 
 if [[ "${WAIT_FOR_COMPLETION:-0}" == "1" ]]; then
     echo "Waiting for PID $PID to finish..."
+    tail -n +1 -f "$RUN_DIR/nohup.log" &
+    TAIL_PID=$!
     set +e
     wait "$PID"
     STATUS=$?
+    kill "$TAIL_PID" 2>/dev/null || true
+    wait "$TAIL_PID" 2>/dev/null || true
     set -e
     echo "Experiment PID $PID exited with status $STATUS"
     exit "$STATUS"

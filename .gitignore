@@ -1,4 +1,5 @@
 __pycache/
+*.db
 __pycache__/
 /features/
 /factory/
