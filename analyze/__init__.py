@@ -51,6 +51,20 @@ from analyze.compare import (
 # ── export (error reports for downstream LLM loops) ───────────────────
 from analyze.export import flipped_responses
 
+# ── cube visualizer operations ────────────────────────────────────────
+from analyze.cube_ops import (
+    cube_summary,
+    list_configs_detailed,
+    list_query_meta_fields,
+    slice_scores,
+    compare_configs,
+    comparison_examples,
+    examples,
+    execution_artifact,
+    diagnostics,
+    plan_delete,
+)
+
 # ── monitor ───────────────────────────────────────────────────────────
 from analyze.monitor import ProgressMonitor
 
@@ -85,6 +99,17 @@ __all__ = [
     "SourceHandle",
     # export
     "flipped_responses",
+    # cube visualizer operations
+    "cube_summary",
+    "list_configs_detailed",
+    "list_query_meta_fields",
+    "slice_scores",
+    "compare_configs",
+    "comparison_examples",
+    "examples",
+    "execution_artifact",
+    "diagnostics",
+    "plan_delete",
     # monitor
     "ProgressMonitor",
 ]
