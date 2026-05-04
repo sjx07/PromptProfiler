@@ -413,7 +413,8 @@ class PlainStyle(FormatStyle):
         # Rules — each section rendered as a sibling block
         if semantic.rule_sections:
             rules_text = self.format_rule_sections(semantic.rule_sections, semantic.tree)
-            parts.append(rules_text)
+            if rules_text.strip():
+                parts.append(rules_text)
 
         # Contexts
         if semantic.contexts:
@@ -424,9 +425,9 @@ class PlainStyle(FormatStyle):
             structure = self.format_structure_template(semantic.input_fields, semantic.output_fields)
             parts.append(structure)
 
-        # Final instruction
-        instruction_text = semantic.instruction.text if semantic.instruction else "complete the task"
-        parts.append(f'Instruction: {instruction_text}')
+        # # Final instruction
+        # instruction_text = semantic.instruction.text if semantic.instruction else "complete the task"
+        # parts.append(f'Instruction: {instruction_text}')
 
         return self.get_section_delimiter().join(parts)
 
@@ -455,8 +456,9 @@ class PlainStyle(FormatStyle):
             title = (getattr(sec, "title", "") or "").strip() or "Untitled Section"
             return f"{title}"
         
-        def emit_rule_nodes(nodes: List[Any], indent: str) -> None:
+        def render_rule_nodes(nodes: List[Any], indent: str) -> List[str]:
             # number needs local counter per block
+            out: List[str] = []
             num = 1
             for node in nodes:
                 kind = _node_kind(node)
@@ -467,10 +469,10 @@ class PlainStyle(FormatStyle):
                     if not txt:
                         continue
                     if kind == "number":
-                        lines.append(f"{indent}{_emit_prefix('number', num)} {txt}")
+                        out.append(f"{indent}{_emit_prefix('number', num)} {txt}")
                         num += 1
                     else:
-                        lines.append(f"{indent}{_emit_prefix(kind)} {txt}")
+                        out.append(f"{indent}{_emit_prefix(kind)} {txt}")
 
                 elif isinstance(node, RuleGroup):
                     if node.group_id and not tree.is_enabled(node.group_id):
@@ -478,33 +480,37 @@ class PlainStyle(FormatStyle):
                     title = _safe_strip(getattr(node, "title", "")) or "Untitled Group"
                     # group itself is also an item in the same environment
                     if kind == "number":
-                        lines.append(f"{indent}{_emit_prefix('number', num)} {title}")
+                        out.append(f"{indent}{_emit_prefix('number', num)} {title}")
                         num += 1
                     else:
-                        lines.append(f"{indent}{_emit_prefix(kind)} {title}")
+                        out.append(f"{indent}{_emit_prefix(kind)} {title}")
 
                     # children indented one step
                     child_rules = node.children
                     if child_rules:
-                        emit_rule_nodes(child_rules, indent + "  ")
+                        out.extend(render_rule_nodes(child_rules, indent + "  "))
+            return out
 
         for sec in sections or []:
             sid = sec.metadata.get("id") or sec.metadata.get("path") if sec.metadata else None
             if sid and not tree.is_enabled(sid):
                 continue
-            lines.append(fmt_section_title(sec, level))
 
             content = (getattr(sec, "content", "") or "").strip()
             subs = [c for c in sec.children if isinstance(c, RuleSection)]
+            sub_block = self._format_rule_sections_impl(subs, level=level + 1, tree=tree) if subs else ""
+            rule_lines = render_rule_nodes(list(sec.iter_rule_children() or []), indent="  ")
 
-            if subs:
-                lines.append(self._format_rule_sections_impl(subs, level=level + 1, tree=tree))
-            
-            nodes = list(sec.iter_rule_children() or [])
-            if nodes:
-                emit_rule_nodes(nodes, indent="  ")
-            elif content and not subs:
+            if not rule_lines and not content and not sub_block.strip():
+                continue
+
+            lines.append(fmt_section_title(sec, level))
+            if content:
                 lines.append(f"  {content}")
+            if sub_block.strip():
+                lines.append(sub_block)
+            if rule_lines:
+                lines.extend(rule_lines)
                 
             lines.append("\n")
 
@@ -529,8 +535,8 @@ class PlainStyle(FormatStyle):
         for name in output_fields.keys():
             lines.append(f"{name}: <your_answer_here>")
 
-        lines.append("")
-        lines.append("Important: Provide only the output fields above, nothing else.")
+        # lines.append("")
+        # lines.append("Important: Provide only the output fields above, nothing else.")
         return "\n".join(lines)
 
     def render_output(self, output: Dict[str, Any]) -> str:
@@ -692,10 +698,11 @@ class YAMLStyle(FormatStyle):
 
             items = emit_items_in_order(sec, base_indent=base_indent + 1)
 
+            if content:
+                out.append(f"{pad(base_indent + 1)}- {content}")
+
             if items:
                 out.extend(items)
-            elif content and not subs:
-                out.append(f"{pad(base_indent + 1)}- {content}")
 
             if subs:
                 out.append(f"{pad(base_indent + 1)}Subsections:")
@@ -907,10 +914,10 @@ class MarkdownStyle(FormatStyle):
                 return []
 
             out = [fmt_section_title(sec, lvl)]
-            if nodes:
-                out.extend(rule_lines)
-            elif content and not subs:
+            if content:
                 out.append(content)
+            if rule_lines:
+                out.extend(rule_lines)
 
             for block in sub_blocks:
                 out.append("")
@@ -1133,6 +1140,9 @@ class JSONStyle(FormatStyle):
                     if gobj:
                         items.append(gobj)
 
+            if content:
+                obj["content"] = content
+
             if items and subs:
                 obj["items"] = items
                 obj["subsections"] = [section_obj(s) for s in subs]
@@ -1140,8 +1150,6 @@ class JSONStyle(FormatStyle):
                 obj["items"] = items
             elif subs:
                 obj["subsections"] = [section_obj(s) for s in subs]
-            elif content:
-                obj["content"] = content
 
             return obj
 
@@ -1355,6 +1363,9 @@ class CodeBlockStyle(FormatStyle):
             title = _safe_strip(getattr(s, "title", ""))
             if title:
                 out.append(f"## {title}")
+            content = _safe_strip(getattr(s, "content", ""))
+            if content:
+                out.append(content)
             for child in getattr(s, "children", []) or []:
                 if isinstance(child, RuleItem):
                     txt = _safe_strip(getattr(child, "text", ""))
