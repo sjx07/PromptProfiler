@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Feature editor</title>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+  :root { --border:#d4d4d4; --bg-soft:#f7f7f8; --accent:#2962ff; --danger:#c62828; --good:#2e7d32; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; font: 14px/1.45 system-ui, sans-serif; color:#1c1c1c; }
+  .layout { display:grid; grid-template-columns:200px 280px 1fr 1fr; height:100vh; }
+  .col { border-right:1px solid var(--border); overflow:auto; }
+  .col:last-child { border-right:none; }
+  h2, h3 { margin: 0 0 8px; }
+  .pad { padding:10px 12px; }
+  .item { padding:6px 12px; cursor:pointer; border-bottom:1px solid #f0f0f0; }
+  .item:hover { background:var(--bg-soft); }
+  .item.active { background:#e3f2fd; }
+  .item .meta { font-size:11px; color:#777; }
+  button { font:inherit; padding:5px 10px; border:1px solid var(--border); background:#fff; border-radius:4px; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.danger { color:var(--danger); border-color:var(--danger); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  input[type=text], textarea { font:inherit; padding:5px 8px; border:1px solid var(--border); border-radius:4px; width:100%; }
+  textarea { font-family: ui-monospace, monospace; font-size:12px; resize:vertical; }
+  .row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .row label { width:120px; flex-shrink:0; color:#555; }
+  .edit-card { border:1px solid var(--border); padding:8px; margin-bottom:8px; border-radius:4px; background:#fff; }
+  .edit-card .head { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+  .edit-card .head .ftype { font-weight:600; font-size:12px; padding:2px 6px; background:#eef; border-radius:3px; }
+  .edit-card .head .summary { flex:1; font-size:12px; color:#666; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pre { white-space:pre-wrap; font-family:ui-monospace,monospace; font-size:12px; background:var(--bg-soft); padding:8px; border-radius:4px; max-height:46vh; overflow:auto; }
+  .toast { position:fixed; bottom:14px; right:14px; padding:10px 14px; border-radius:5px; font-weight:500; box-shadow:0 2px 8px rgba(0,0,0,.15); z-index:99; }
+  .toast.ok { background:#e8f5e9; color:var(--good); border:1px solid var(--good); }
+  .toast.err { background:#ffebee; color:var(--danger); border:1px solid var(--danger); white-space:pre-wrap; max-width:540px; }
+  .stripe-section { background:#fafafa; }
+</style>
+</head>
+<body x-data="app()" x-init="init()">
+
+<div class="layout">
+  <!-- Tasks -->
+  <div class="col">
+    <div class="pad"><h3>Tasks</h3></div>
+    <template x-for="t in tasks" :key="t">
+      <div class="item" :class="{active: t===task}" @click="selectTask(t)" x-text="t"></div>
+    </template>
+  </div>
+
+  <!-- Features -->
+  <div class="col">
+    <div class="pad" style="display:flex; justify-content:space-between; align-items:center;">
+      <h3 x-text="task ? task : 'Pick a task'"></h3>
+      <button class="primary" @click="newFeature()" :disabled="!task">+ new</button>
+    </div>
+    <template x-for="f in features" :key="f.name">
+      <div class="item" :class="{active: f.name===featureName, 'stripe-section': f.is_section}" @click="selectFeature(f.name)">
+        <div x-text="f.canonical_id"></div>
+        <div class="meta">
+          <span x-text="f.name"></span>
+          <template x-if="f.n_edits != null"> · <span x-text="f.n_edits + ' edits'"></span></template>
+          <template x-if="f.error"> · <span style="color:var(--danger)">parse err</span></template>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Editor -->
+  <div class="col">
+    <div class="pad" x-show="!spec">
+      <em>Pick a feature to edit, or create a new one.</em>
+    </div>
+
+    <div class="pad" x-show="spec">
+      <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+        <button class="primary" @click="save()">Save</button>
+        <button @click="reload()">Reload from disk</button>
+        <button @click="renderPreview()" :disabled="!task">Render preview →</button>
+        <button class="danger" @click="deleteFeature()" style="margin-left:auto;">Delete</button>
+      </div>
+
+      <div class="row"><label>canonical_id</label><input type="text" x-model="spec.canonical_id" /></div>
+      <div class="row"><label>task</label><input type="text" x-model="spec.task" /></div>
+      <div class="row"><label>requires</label><input type="text" :value="(spec.requires||[]).join(', ')" @change="spec.requires = $event.target.value.split(',').map(s=>s.trim()).filter(Boolean)" /></div>
+      <div class="row"><label>conflicts_with</label><input type="text" :value="(spec.conflicts_with||[]).join(', ')" @change="spec.conflicts_with = $event.target.value.split(',').map(s=>s.trim()).filter(Boolean)" /></div>
+      <div class="row" style="align-items:flex-start;"><label>rationale</label><textarea rows="2" x-model="spec.rationale"></textarea></div>
+
+      <h3 style="margin-top:16px;">primitive_edits (<span x-text="(spec.primitive_edits||[]).length"></span>)</h3>
+      <template x-for="(edit, i) in spec.primitive_edits" :key="i">
+        <div class="edit-card">
+          <div class="head">
+            <span class="ftype" x-text="edit.func_type"></span>
+            <span class="summary" x-text="summarize(edit)"></span>
+            <button @click="moveEdit(i, -1)" :disabled="i===0">↑</button>
+            <button @click="moveEdit(i, 1)" :disabled="i===spec.primitive_edits.length-1">↓</button>
+            <button class="danger" @click="removeEdit(i)">×</button>
+          </div>
+          <div class="row" style="margin-bottom:4px;">
+            <label style="width:80px;">func_type</label>
+            <select x-model="edit.func_type" style="padding:4px;">
+              <option>insert_node</option>
+              <option>update_node</option>
+              <option>input_transform</option>
+              <option>set_format</option>
+              <option>set_table_format</option>
+              <option>add_example</option>
+            </select>
+          </div>
+          <textarea
+            rows="6"
+            :value="JSON.stringify(edit.params, null, 2)"
+            @change="updateEditParams(i, $event.target.value)"></textarea>
+        </div>
+      </template>
+      <button @click="addEdit()">+ primitive edit</button>
+
+      <details style="margin-top:14px;">
+        <summary>Raw JSON</summary>
+        <textarea rows="14" :value="JSON.stringify(spec, null, 2)" @change="loadRaw($event.target.value)"></textarea>
+      </details>
+    </div>
+  </div>
+
+  <!-- Preview -->
+  <div class="col">
+    <div class="pad">
+      <h3>Render preview</h3>
+      <label style="display:block; font-size:12px; margin-bottom:8px;">
+        <input type="checkbox" x-model="applyRuntimeHook" />
+        apply task runtime hook (per-record mutation; default off shows authored view)
+      </label>
+      <div x-show="!preview"><em>Click "Render preview →" to materialize this feature against task sample input.</em></div>
+      <div x-show="preview">
+        <div style="font-size:12px; color:#555; margin-bottom:6px;">
+          n_specs=<span x-text="preview && preview.n_specs"></span> ·
+          sample: <em x-text="preview && preview.sample_question"></em>
+        </div>
+        <h4>SYSTEM</h4>
+        <div class="pre" x-text="preview && preview.system_prompt"></div>
+        <h4>USER</h4>
+        <div class="pre" x-text="preview && preview.user_content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast ok" x-show="toast.kind==='ok'" x-text="toast.msg"></div>
+<div class="toast err" x-show="toast.kind==='err'" x-text="toast.msg"></div>
+
+<script>
+function app() {
+  return {
+    tasks: [],
+    task: null,
+    features: [],
+    featureName: null,
+    spec: null,
+    preview: null,
+    applyRuntimeHook: false,
+    toast: { kind:null, msg:'' },
+
+    async init() {
+      this.tasks = await fetch('/api/tasks').then(r => r.json());
+    },
+    async selectTask(t) {
+      this.task = t;
+      this.featureName = null;
+      this.spec = null;
+      this.preview = null;
+      this.features = await fetch(`/api/tasks/${t}/features`).then(r => r.json());
+    },
+    async selectFeature(name) {
+      this.featureName = name;
+      this.preview = null;
+      this.spec = await fetch(`/api/tasks/${this.task}/features/${name}`).then(r => r.json());
+      // ensure arrays exist
+      this.spec.requires = this.spec.requires || [];
+      this.spec.conflicts_with = this.spec.conflicts_with || [];
+      this.spec.primitive_edits = this.spec.primitive_edits || [];
+    },
+    summarize(edit) {
+      const p = edit.params || {};
+      const nt = p.node_type ? `[${p.node_type}]` : '';
+      const pl = p.payload || {};
+      const c = pl.content || pl.title || pl.name || pl.description || '';
+      const more = p.format ? ` format=${p.format}` : (p.style ? ` style=${p.style}` : '');
+      return `${nt} ${String(c).slice(0, 90)}${more}`;
+    },
+    addEdit() {
+      this.spec.primitive_edits.push({ func_type: 'insert_node', params: { node_type: 'rule', parent_id: '', payload: { content: '', ordinal: 10 } } });
+    },
+    removeEdit(i) {
+      if (!confirm('Remove this primitive edit?')) return;
+      this.spec.primitive_edits.splice(i, 1);
+    },
+    moveEdit(i, dir) {
+      const arr = this.spec.primitive_edits;
+      const j = i + dir;
+      if (j < 0 || j >= arr.length) return;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    },
+    updateEditParams(i, txt) {
+      try {
+        this.spec.primitive_edits[i].params = JSON.parse(txt);
+      } catch (e) {
+        this.flash('err', `bad JSON: ${e.message}`);
+      }
+    },
+    loadRaw(txt) {
+      try { this.spec = JSON.parse(txt); }
+      catch (e) { this.flash('err', `bad JSON: ${e.message}`); }
+    },
+    async save() {
+      const body = JSON.stringify({ spec: this.spec, skip_validation: false });
+      const res = await fetch(`/api/tasks/${this.task}/features/${this.featureName}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { this.flash('err', j.detail || `save failed: ${res.status}`); return; }
+      this.flash('ok', `saved ${j.path}`);
+      // refresh list to reflect n_edits / canonical_id changes
+      this.features = await fetch(`/api/tasks/${this.task}/features`).then(r => r.json());
+    },
+    async reload() {
+      if (this.featureName) await this.selectFeature(this.featureName);
+    },
+    async deleteFeature() {
+      if (!confirm(`Delete ${this.featureName}? This is irreversible.`)) return;
+      const res = await fetch(`/api/tasks/${this.task}/features/${this.featureName}`, { method: 'DELETE' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { this.flash('err', j.detail || `delete failed`); return; }
+      this.flash('ok', 'deleted');
+      this.spec = null; this.featureName = null;
+      this.features = await fetch(`/api/tasks/${this.task}/features`).then(r => r.json());
+    },
+    async newFeature() {
+      const id = prompt('canonical_id for new feature (no .json):');
+      if (!id) return;
+      const spec = {
+        canonical_id: id, task: this.task,
+        requires: [], conflicts_with: [],
+        primitive_edits: [], rationale: ''
+      };
+      const res = await fetch(`/api/tasks/${this.task}/features`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ spec, skip_validation: true }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { this.flash('err', j.detail || 'create failed'); return; }
+      this.features = await fetch(`/api/tasks/${this.task}/features`).then(r => r.json());
+      await this.selectFeature(j.name);
+      this.flash('ok', `created ${j.name}`);
+    },
+    async renderPreview() {
+      // Save first (so on-disk reflects edits) — but skip validation so a partial WIP can still render
+      const saveRes = await fetch(`/api/tasks/${this.task}/features/${this.featureName}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ spec: this.spec, skip_validation: true }),
+      });
+      if (!saveRes.ok) { const j = await saveRes.json().catch(()=>({})); this.flash('err', j.detail || 'pre-render save failed'); return; }
+      const res = await fetch(`/api/tasks/${this.task}/render`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ canonical_id: this.spec.canonical_id, apply_runtime_hook: this.applyRuntimeHook }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { this.flash('err', j.detail || `render failed: ${res.status}`); return; }
+      this.preview = j;
+    },
+    flash(kind, msg) {
+      this.toast = { kind, msg };
+      setTimeout(() => { if (this.toast.msg === msg) this.toast = { kind:null, msg:'' }; }, kind==='err' ? 7000 : 2500);
+    },
+  };
+}
+</script>
+</body>
+</html>
