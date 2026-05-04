@@ -196,14 +196,7 @@ class CompoundTask:
             raise RuntimeError(f"Module {module_name!r} not bound — call bind_modules() first")
 
         messages = self._module_prompt_states[module_name].build_messages(record)
-        system_prompt = ""
-        user_content = ""
-        for msg in messages:
-            if msg["role"] == "system":
-                system_prompt = msg["content"]
-            elif msg["role"] == "user":
-                user_content = msg["content"]
-        return system_prompt, user_content
+        return _collapse_messages_to_system_user(messages)
 
     def run(self, query: dict, runtime: ModuleRuntime) -> Any:
         raise NotImplementedError
@@ -440,6 +433,22 @@ class BaseTask:
             **{k: v for k, v in raw.items() if k not in ("question", "schema")},
         }
 
+    def configure_prompt_state_for_record(
+        self,
+        prompt_state: PromptState,
+        record: dict,
+        meta: dict,
+        raw: dict,
+    ) -> PromptState:
+        """Return the prompt state to render for one record.
+
+        Subclasses may override this to specialize descriptions or rules using
+        task metadata without adding that metadata to the rendered input record.
+        Implementations that modify state should return a clone so the bound
+        config remains reusable across records and worker threads.
+        """
+        return prompt_state
+
     def build_prompt(self, query: dict) -> tuple[str, str]:
         """Build LLM prompt from bound state + query."""
         if self._prompt_state is None:
@@ -453,15 +462,14 @@ class BaseTask:
         record = self.build_record(query, meta, raw)
         record = self._apply_record_transforms(record)
 
-        messages = self._prompt_state.build_messages(record)
-        system_prompt = ""
-        user_content = ""
-        for msg in messages:
-            if msg["role"] == "system":
-                system_prompt = msg["content"]
-            elif msg["role"] == "user":
-                user_content = msg["content"]
-        return system_prompt, user_content
+        prompt_state = self.configure_prompt_state_for_record(
+            self._prompt_state,
+            record,
+            meta,
+            raw,
+        )
+        messages = prompt_state.build_messages(record)
+        return _collapse_messages_to_system_user(messages)
 
     def parse_response(self, raw_response: str) -> str:
         """Dispatch to the registered parser for the single dispatch output_field.
@@ -481,3 +489,47 @@ class BaseTask:
 
     def score(self, prediction: str, query_meta: dict) -> tuple[float, dict]:
         raise NotImplementedError
+
+
+def _collapse_messages_to_system_user(messages: list[dict]) -> tuple[str, str]:
+    """Collapse multi-turn prompt messages for the current two-message client.
+
+    PooledLLMCall accepts only (system_prompt, user_content). When few-shot
+    examples are enabled, PromptState emits user/assistant demo turns before the
+    final user turn. Preserve those turns by rendering them into the user content
+    instead of silently overwriting them with the last user message.
+    """
+    system_parts: list[str] = []
+    dialogue: list[dict] = []
+    for msg in messages:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role == "system":
+            system_parts.append(content)
+        else:
+            dialogue.append({"role": role, "content": content})
+
+    system_prompt = "\n\n".join(part for part in system_parts if part)
+    if not dialogue:
+        return system_prompt, ""
+    if len(dialogue) == 1:
+        return system_prompt, dialogue[0]["content"]
+
+    parts: list[str] = []
+    example_idx = 1
+    for msg in dialogue[:-1]:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role == "user":
+            label = f"Example {example_idx} input"
+        elif role == "assistant":
+            label = f"Example {example_idx} output"
+            example_idx += 1
+        else:
+            label = f"Example {example_idx} {role or 'message'}"
+        parts.append(f"## {label}\n\n{content}")
+
+    final = dialogue[-1]
+    final_label = "Current input" if final.get("role") == "user" else "Current message"
+    parts.append(f"## {final_label}\n\n{final.get('content', '')}")
+    return system_prompt, "\n\n".join(parts)
