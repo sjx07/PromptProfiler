@@ -114,6 +114,7 @@ class PromptBuildState:
             ]
             rule_sections.append(RuleSection(
                 title=sec_meta.get("title", ""),
+                content=sec_meta.get("content", ""),
                 level=1,
                 children=children,
                 node_id=sid,
@@ -162,6 +163,9 @@ def _canonicalize_insert_node(params: dict) -> dict:
             "min_rules": int(payload.get("min_rules", 0)),
             "max_rules": int(payload.get("max_rules", 10)),
         }
+        content = params.get("payload", {}).get("content", "").strip()
+        if content:
+            payload["content"] = content
     elif node_type == "rule":
         payload = {"content": payload.get("content", "").strip()}
         if "ordinal" in params.get("payload", {}):
@@ -217,6 +221,7 @@ def _apply_insert_node(state: PromptBuildState, params: dict) -> None:
         # whose parent is itself a subsection is not (MVP).
         state.sections[section_id] = {
             "title":     payload["title"],
+            "content":   payload.get("content", ""),
             "ordinal":   payload["ordinal"],
             "is_system": payload["is_system"],
             "min_rules": payload["min_rules"],

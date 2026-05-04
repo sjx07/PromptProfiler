@@ -114,6 +114,28 @@ def _llm_sampling_kwargs(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return kwargs
 
 
+def _example_seed_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a seeder config for example_split without reusing eval max_queries.
+
+    Eval configs often cap ``max_queries`` for fast runs. Few-shot/example pools
+    should be controlled independently, otherwise a 10-query smoke run silently
+    leaves only 10 train examples.
+    """
+    out = dict(cfg)
+    out["max_queries"] = int(
+        cfg.get("max_example_queries",
+                cfg.get("max_train_queries",
+                        cfg.get("example_max_queries",
+                                cfg.get("max_queries", 0)))) or 0
+    )
+    out["sample_seed"] = int(
+        cfg.get("example_sample_seed",
+                cfg.get("train_sample_seed",
+                        cfg.get("sample_seed", 0))) or 0
+    )
+    return out
+
+
 # ── feature materialization ───────────────────────────────────────────
 
 def _build_feature_bundles(
@@ -273,6 +295,14 @@ def main():
     logger.info("Seeded %d func specs (base_features=%d, experiment_features=%d)",
                 len(full_specs), len(base_features), len(experiment_features))
 
+    has_examples = any(s["func_type"] == "add_example" for s in full_specs)
+    if has_examples:
+        if not example_split:
+            raise ValueError("'example_split' required when any feature uses add_example")
+        if example_split == split:
+            raise ValueError(f"example_split must differ from split (both are {example_split!r})")
+        task_entry.seeder_fn(store, _example_seed_cfg(cfg), example_split)
+
     # ── base config ──────────────────────────────────────────────────
     base_cid = store.get_or_create_config(
         base_ids,
@@ -299,13 +329,8 @@ def main():
     logger.info("Queries: %d (dataset=%s split=%s)", len(queries), dataset_key, split)
 
     # ── example pool ─────────────────────────────────────────────────
-    has_examples = any(s["func_type"] == "add_example" for s in full_specs)
     example_pool = None
     if has_examples:
-        if not example_split:
-            raise ValueError("'example_split' required when any feature uses add_example")
-        if example_split == split:
-            raise ValueError(f"example_split must differ from split (both are {example_split!r})")
         pool_rows = conn.execute(
             "SELECT * FROM query WHERE dataset = ? AND json_extract(meta, '$.split') = ?",
             (dataset_key, example_split),

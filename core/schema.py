@@ -175,6 +175,7 @@ VIEWS: list[str] = [
     CREATE VIEW IF NOT EXISTS section_view AS
     SELECT func_id                                               AS section_id,
            json_extract(params, '$.payload.title')               AS title,
+           json_extract(params, '$.payload.content')             AS content,
            json_extract(params, '$.payload.ordinal')             AS ordinal,
            json_extract(params, '$.payload.is_system')           AS is_system,
            json_extract(params, '$.payload.min_rules')           AS min_rules,
@@ -370,5 +371,4 @@ def make_query_id(dataset: str, content: str, context: str = "") -> str:
     """
     payload = f"{dataset}:{context}:{content.strip()}"
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
-
 
