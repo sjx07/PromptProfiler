@@ -1,8 +1,8 @@
-"""TabFact / FactVerification parser registry.
+"""SQA parser registry.
 
 Dispatch fields:
-  "code"    — model returns Python boolean expression; executor evaluates it
-  "verdict" — model returns True/False verdict string directly
+  "code"   - model returns Python code; executor runs it against the table
+  "answer" - model returns a direct answer string
 """
 from __future__ import annotations
 
@@ -11,12 +11,10 @@ import textwrap
 from typing import Any, Callable, Dict
 
 PARSER_REGISTRY: Dict[str, Callable[[str, Any], str]] = {}
-
-DISPATCH_FIELDS = frozenset({"code", "verdict"})
+DISPATCH_FIELDS = frozenset({"code", "answer"})
 
 
 def register_parser(field_name: str) -> Callable:
-    """Decorator — register a parser for a single dispatch output_field."""
     def decorator(fn: Callable[[str, Any], str]) -> Callable[[str, Any], str]:
         PARSER_REGISTRY[field_name] = fn
         return fn
@@ -25,7 +23,6 @@ def register_parser(field_name: str) -> Callable:
 
 @register_parser("code")
 def parse_code_field(response_text: str, task: Any) -> str:
-    """Extract Python boolean expression; tag with __CODE__ prefix for executor."""
     fenced = _last_markdown_block(response_text)
     if fenced:
         return f"__CODE__{_clean_code(fenced)}"
@@ -38,17 +35,21 @@ def parse_code_field(response_text: str, task: Any) -> str:
     return f"__CODE__{_clean_code(response_text)}"
 
 
-@register_parser("verdict")
-def parse_verdict_field(response_text: str, task: Any) -> str:
-    """Extract True/False verdict from LLM response."""
-    from tasks.tabfact.fact_verification import _extract_verdict
+@register_parser("answer")
+def parse_answer_field(response_text: str, task: Any) -> str:
+    from tasks.sqa.sequential_qa import _extract_answer
+
     if task._prompt_state is not None:
         parsed = task._prompt_state.parse_output(response_text)
         if parsed:
-            verdict = str(parsed.get("verdict", "")).strip()
-            if verdict:
-                return _extract_verdict(verdict)
-    return _extract_verdict(response_text)
+            val = parsed.get("answer", "")
+            if isinstance(val, list):
+                answer = ", ".join(str(v) for v in val).strip()
+            else:
+                answer = str(val).strip()
+            if answer:
+                return answer
+    return _extract_answer(response_text)
 
 
 def _last_markdown_block(text: str) -> str:

@@ -30,10 +30,9 @@ class FactVerification(BaseTask):
         "verdict": "True if the statement is supported by the table, False otherwise",
     }
     code_field_description: str = (
-        "Python expression using `df` (pandas DataFrame with typed columns) "
-        "that verifies the statement against the table data and evaluates to True or False. "
-        "You MUST reference `df` in your expression — do NOT output a bare True/False literal. "
-        "Example: `df[df['wins'] > 0].shape[0] >= 3`"
+        "Python code using `df` (pandas DataFrame with typed columns) that verifies "
+        "the statement against the table data and produces True or False. Reference "
+        "`df`; for multi-statement code, set `answer` or print the final boolean."
     )
 
     def bind(self, state, **kwargs) -> None:
@@ -158,15 +157,47 @@ def _execute_verdict_code(code: str, raw: dict) -> bool | None:
             except (ValueError, TypeError):
                 pass
 
-        local_vars: dict = {"df": df, "pd": pd, "len": len, "sum": sum,
-                           "min": min, "max": max, "abs": abs, "round": round,
-                           "sorted": sorted, "str": str, "int": int, "float": float,
-                           "bool": bool, "True": True, "False": False}
-        exec(f"__result__ = ({code})", {"__builtins__": {}}, local_vars)
-        result = local_vars.get("__result__")
-        return bool(result)
+        safe_globals: dict = {
+            "df": df, "pd": pd, "len": len, "sum": sum,
+            "min": min, "max": max, "abs": abs, "round": round,
+            "sorted": sorted, "str": str, "int": int, "float": float,
+            "bool": bool, "any": any, "all": all, "True": True, "False": False,
+        }
+        try:
+            return bool(eval(code, safe_globals))
+        except Exception:
+            pass
+
+        import contextlib as _contextlib
+        import io as _io
+
+        local_vars: dict = {}
+        stdout_buf = _io.StringIO()
+        with _contextlib.redirect_stdout(stdout_buf):
+            exec(code, safe_globals, local_vars)
+
+        for key in ("answer", "result", "__result__"):
+            if key in local_vars:
+                return _coerce_bool(local_vars[key])
+
+        captured = stdout_buf.getvalue().strip()
+        if captured:
+            return _coerce_bool(captured.splitlines()[-1].strip())
+
+        return None
     except Exception:
         return None
+
+
+def _coerce_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    lower = str(value).strip().lower()
+    if lower in ("true", "1", "yes", "entailed", "supported"):
+        return True
+    if lower in ("false", "0", "no", "refuted", "not supported"):
+        return False
+    return None
 
 
 def _extract_verdict(text: str) -> str:

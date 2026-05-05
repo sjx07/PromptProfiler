@@ -1,6 +1,7 @@
-"""Sequential Question Answering task — parse answers, score via denotation accuracy."""
+"""HiTab table QA task."""
 from __future__ import annotations
 
+import ast
 import json
 import re
 from typing import Any, Dict, List
@@ -8,8 +9,66 @@ from typing import Any, Dict, List
 from task import BaseTask
 
 
+class HiTabQA(BaseTask):
+    name = "hitab_qa"
+    scorer = "denotation_acc"
+    _parser_module_path = "tasks.hitab.parsers"
+    default_input_fields: Dict[str, str] = {
+        "table": "The hierarchical table data to answer the question about",
+        "question": "The question to answer using the table",
+    }
+    default_output_fields: Dict[str, str] = {
+        "answer": "The answer extracted from the table",
+    }
+
+    def _gold_output(self, meta: dict, raw: dict) -> dict:
+        answer = raw.get("answer", meta.get("gold_answer", "[]"))
+        values = _parse_answer_string(answer)
+        return {"answer": ", ".join(str(v) for v in values)}
+
+    def build_record(self, query: dict, meta: dict, raw: dict) -> dict:
+        from tasks.hitab.loaders import table_content_to_markdown
+
+        table_content = raw.get("table_content", {})
+        question = raw.get("question", query.get("content", ""))
+        table_md = table_content_to_markdown(table_content)
+        return {
+            "table": table_md,
+            "question": question,
+        }
+
+    def parse_response(self, raw_response: str) -> str:
+        return super().parse_response(raw_response)
+
+    def score(self, prediction: str, query_meta: dict) -> tuple[float, dict]:
+        if isinstance(query_meta, str):
+            query_meta = json.loads(query_meta)
+
+        raw = query_meta.get("_raw", {})
+        gold_answer_str = raw.get("answer", query_meta.get("gold_answer", "[]"))
+
+        if prediction.startswith("__CODE__"):
+            code_result = _execute_code(prediction[len("__CODE__"):].strip(), raw)
+            prediction = "" if code_result is None else str(code_result)
+
+        gold_values = _parse_answer_string(gold_answer_str)
+        pred_values = _normalize_answer_list(prediction)
+
+        gold_norm = [_normalize_value(str(v)) for v in gold_values]
+        pred_norm = [_normalize_value(v) for v in pred_values]
+
+        score_val = 1.0 if set(pred_norm) == set(gold_norm) else 0.0
+        return score_val, {
+            "status": "ok",
+            "prediction": prediction,
+            "pred_normalized": pred_norm,
+            "gold": gold_values,
+            "gold_normalized": gold_norm,
+        }
+
+
 def _execute_code(code: str, raw: dict) -> Any:
-    """Execute SQA Python code with table and conversation context in scope."""
+    """Execute HiTab Python code with flattened and raw table context."""
     import contextlib as _contextlib
     import datetime as _dt
     import io as _io
@@ -18,9 +77,10 @@ def _execute_code(code: str, raw: dict) -> Any:
 
     import pandas as pd
 
-    table_data = raw.get("table", {})
-    header = list(table_data.get("headers", []))
-    rows = [list(r) for r in table_data.get("rows", [])]
+    from tasks.hitab.loaders import table_content_to_records
+
+    table_content = raw.get("table_content", {})
+    header, rows = table_content_to_records(table_content)
     if not header:
         return None
 
@@ -35,16 +95,14 @@ def _execute_code(code: str, raw: dict) -> Any:
         except (ValueError, TypeError):
             pass
 
-    history = raw.get("history", [])
     table = df.to_dict("records")
-    data = {"rows": table, "history": history}
-
+    data = {"rows": table, "table_content": table_content}
     safe_globals = {
         "df": df,
         "pd": pd,
         "data": data,
         "table": table,
-        "history": history,
+        "table_content": table_content,
         "header": header,
         "re": re,
         "datetime": _dt.datetime,
@@ -92,93 +150,30 @@ def _execute_code(code: str, raw: dict) -> Any:
     return None
 
 
-class SequentialQA(BaseTask):
-    name = "sequential_qa"
-    scorer = "denotation_acc"
-    _parser_module_path = "tasks.sqa.parsers"
-    default_input_fields: Dict[str, str] = {
-        "table": "The table data to answer the question about",
-        "conversation_history": "Previous questions and answers in this conversation",
-        "question": "The current question to answer using the table",
-    }
-    default_output_fields: Dict[str, str] = {
-        "answer": "The answer extracted from the table",
-    }
-
-    def _gold_output(self, meta: dict, raw: dict) -> dict:
-        answer_text = raw.get("answer_text", meta.get("gold_answer", []))
-        if isinstance(answer_text, str):
-            answer_text = [answer_text]
-        return {"answer": ", ".join(str(v) for v in answer_text)}
-
-    def build_record(self, query: dict, meta: dict, raw: dict) -> dict:
-        from tasks.sqa.loaders import table_to_markdown
-
-        table = raw.get("table", {})
-        question = raw.get("question", query.get("content", ""))
-        history = raw.get("history", [])
-
-        table_md = table_to_markdown(table)
-
-        history_str = ""
-        if history:
-            parts = []
-            for turn in history:
-                q = turn.get("question", "")
-                a = turn.get("answer", [])
-                a_str = ", ".join(str(v) for v in a) if isinstance(a, list) else str(a)
-                parts.append(f"Q: {q}\nA: {a_str}")
-            history_str = "\n".join(parts)
-
-        return {
-            "table": table_md,
-            "conversation_history": history_str,
-            "question": question,
-        }
-
-    def parse_response(self, raw_response: str) -> str:
-        return super().parse_response(raw_response)
-
-    def score(self, prediction: str, query_meta: dict) -> tuple[float, dict]:
-        if isinstance(query_meta, str):
-            query_meta = json.loads(query_meta)
-
-        raw = query_meta.get("_raw", {})
-        gold_answer = raw.get("answer_text", query_meta.get("gold_answer", []))
-        if isinstance(gold_answer, str):
-            gold_answer = [gold_answer]
-
-        if prediction.startswith("__CODE__"):
-            code_result = _execute_code(prediction[len("__CODE__"):].strip(), raw)
-            prediction = "" if code_result is None else str(code_result)
-
-        gold_norm = {_normalize(str(v)) for v in gold_answer}
-        pred_values = _parse_prediction(prediction)
-        pred_norm = {_normalize(v) for v in pred_values}
-
-        match = pred_norm == gold_norm
-        score_val = 1.0 if match else 0.0
-
-        return score_val, {
-            "status": "ok",
-            "prediction": prediction,
-            "pred_normalized": sorted(pred_norm),
-            "gold": gold_answer,
-            "gold_normalized": sorted(gold_norm),
-        }
-
-
-# ── helpers ──────────────────────────────────────────────────────────
+def _parse_answer_string(answer: str) -> List[str]:
+    answer = str(answer).strip()
+    try:
+        parsed = json.loads(answer)
+        if isinstance(parsed, list):
+            return [str(v) for v in parsed]
+        return [str(parsed)]
+    except (json.JSONDecodeError, TypeError):
+        pass
+    try:
+        parsed = ast.literal_eval(answer)
+        if isinstance(parsed, list):
+            return [str(v) for v in parsed]
+        return [str(parsed)]
+    except (ValueError, SyntaxError):
+        pass
+    stripped = answer.strip("[]")
+    if "," in stripped:
+        return [p.strip().strip("'\"") for p in stripped.split(",") if p.strip()]
+    return [stripped] if stripped else []
 
 
 def _extract_answer(text: str) -> str:
-    """Extract answer from LLM response.
-
-    Tries JSON, then a labeled `answer:` pattern, then a last-line
-    heuristic with common prefixes.
-    """
     text = text.strip()
-
     try:
         parsed = json.loads(text)
         if isinstance(parsed, dict):
@@ -204,7 +199,7 @@ def _extract_answer(text: str) -> str:
     lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
     if lines:
         last = lines[-1]
-        for prefix in ["The answer is", "Answer:", "Therefore,", "So,", "Thus,"]:
+        for prefix in ["The answer is", "Answer:", "Therefore,", "So,", "Thus,", "The result is"]:
             if last.lower().startswith(prefix.lower()):
                 return last[len(prefix):].strip().rstrip(".")
         if len(last) < 200:
@@ -213,13 +208,13 @@ def _extract_answer(text: str) -> str:
     return text
 
 
-def _normalize(v: str) -> str:
-    """Normalize an answer value for set-comparison."""
+def _normalize_value(v: str) -> str:
     v = v.strip().lower()
     v = v.strip(".,;:!?\"'")
     v = re.sub(r"\s+", " ", v)
     v = v.replace("\xa0", " ")
     v = v.replace(",", "")
+    v = v.replace("%", "")
     try:
         num = float(v)
         if num == int(num):
@@ -231,14 +226,12 @@ def _normalize(v: str) -> str:
     return v
 
 
-def _parse_prediction(prediction: str) -> List[str]:
-    """Parse a prediction string into a list of values."""
+def _normalize_answer_list(prediction: str) -> List[str]:
     prediction = prediction.strip()
-
     try:
         parsed = json.loads(prediction)
         if isinstance(parsed, list):
-            return [str(v).strip() for v in parsed]
+            return [_normalize_value(str(v)) for v in parsed]
     except (json.JSONDecodeError, TypeError):
         pass
 
@@ -250,5 +243,4 @@ def _parse_prediction(prediction: str) -> List[str]:
         parts = prediction.split("\n")
     else:
         parts = [prediction]
-
-    return [p.strip() for p in parts if p.strip()]
+    return [_normalize_value(p) for p in parts if p.strip()]
