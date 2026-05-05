@@ -31,22 +31,39 @@ def list_configs_detailed(
     *,
     model: Optional[str] = None,
     scorer: Optional[str] = None,
+    dataset: Optional[str] = None,
+    split: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Configs with parsed metadata plus execution/evaluation score counts."""
     conn = store._get_conn()
-    exec_join = "LEFT JOIN execution e ON e.config_id = c.config_id"
-    params: List[Any] = []
+    exec_where = ["1=1"]
+    exec_params: List[Any] = []
     if model:
-        exec_join += " AND e.model = ?"
-        params.append(model)
+        exec_where.append("e.model = ?")
+        exec_params.append(model)
+    if dataset:
+        exec_where.append("q.dataset = ?")
+        exec_params.append(dataset)
+    if split:
+        split_clause, split_params = _split_filter_clause("q", split)
+        exec_where.append(split_clause)
+        exec_params.extend(split_params)
+
     eval_join = "LEFT JOIN evaluation ev ON ev.execution_id = e.execution_id"
+    eval_params: List[Any] = []
     if scorer:
         eval_join += " AND ev.scorer = ?"
-        params.append(scorer)
+        eval_params.append(scorer)
 
     rows = conn.execute(
         f"""
-        WITH feature_names AS (
+        WITH filtered_execution AS (
+            SELECT e.*
+            FROM execution e
+            JOIN query q ON q.query_id = e.query_id
+            WHERE {' AND '.join(exec_where)}
+        ),
+        feature_names AS (
             SELECT cf.config_id,
                    GROUP_CONCAT(f.canonical_id, '|') AS resolved_canonical_ids
             FROM config_feature cf
@@ -63,13 +80,13 @@ def list_configs_detailed(
                MIN(e.created_at) AS first_execution_at,
                MAX(e.created_at) AS last_execution_at
         FROM config c
-        {exec_join}
+        LEFT JOIN filtered_execution e ON e.config_id = c.config_id
         {eval_join}
         LEFT JOIN feature_names fn ON fn.config_id = c.config_id
         GROUP BY c.config_id
         ORDER BY c.config_id
         """,
-        tuple(params),
+        tuple(exec_params + eval_params),
     ).fetchall()
 
     out: List[Dict[str, Any]] = []
@@ -77,10 +94,12 @@ def list_configs_detailed(
         meta = _json_loads(r["meta"], {})
         func_ids = _json_loads(r["func_ids"], [])
         resolved = [x for x in (r["resolved_canonical_ids"] or "").split("|") if x]
+        meta_canonical_ids = _string_list(meta.get("canonical_ids"))
+        all_canonical_ids = meta_canonical_ids or resolved
         canonical = (
-            meta.get("canonical_id")
-            or _first(meta.get("canonical_ids"))
-            or _first(resolved)
+            meta.get("label")
+            or meta.get("canonical_id")
+            or _display_feature_set(all_canonical_ids, kind=meta.get("kind"), has_funcs=bool(func_ids))
             or ("base" if not func_ids else None)
         )
         out.append({
@@ -90,6 +109,7 @@ def list_configs_detailed(
             "funcIds": func_ids,
             "nFuncs": len(func_ids),
             "featureIds": meta.get("feature_ids", []),
+            "canonicalIds": all_canonical_ids,
             "resolvedCanonicalIds": resolved,
             "nExecutions": int(r["n_executions"] or 0),
             "nEvaluations": int(r["n_evaluations"] or 0),
@@ -127,6 +147,34 @@ def list_query_meta_fields(store: CubeStore, *, limit: int = 2000) -> List[Dict[
         }
         for key, n in counts.most_common()
     ]
+
+
+def list_predicate_fields(store: CubeStore) -> List[Dict[str, Any]]:
+    """Predicate names available for slicing, with value counts and samples."""
+    rows = store._get_conn().execute(
+        """
+        SELECT name,
+               COUNT(*) AS n_rows,
+               COUNT(DISTINCT query_id) AS n_queries,
+               COUNT(DISTINCT value) AS n_values,
+               GROUP_CONCAT(DISTINCT value) AS sample_values
+        FROM predicate
+        GROUP BY name
+        ORDER BY name
+        """
+    ).fetchall()
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        values = [v for v in str(r["sample_values"] or "").split(",") if v]
+        out.append({
+            "field": f"predicate.{r['name']}",
+            "name": r["name"],
+            "nRows": int(r["n_rows"] or 0),
+            "nQueries": int(r["n_queries"] or 0),
+            "nValues": int(r["n_values"] or 0),
+            "samples": values[:8],
+        })
+    return out
 
 
 def slice_scores(
@@ -212,6 +260,130 @@ def slice_scores(
                 else row["avgScore"] - base_score
             )
     return result
+
+
+def feature_label_analysis(
+    store: CubeStore,
+    *,
+    model: str,
+    scorer: str,
+    config_ids: Optional[Sequence[int]] = None,
+    predicate_name: Optional[str] = None,
+    base_config_id: Optional[int] = None,
+    filters: Optional[Sequence[FilterSpec]] = None,
+    limit: int = 500,
+) -> List[Dict[str, Any]]:
+    """Aggregate evaluated rows by semantic feature label.
+
+    The label tables are component metadata, but the measured unit remains a
+    rendered config/query score. If multiple components with the same label are
+    present in one config, this query counts that config/query score once for
+    the label to avoid duplicate fan-out.
+    """
+    compiler = _QueryCompiler()
+    filter_where, filter_params = compiler.compile_filters(filters or [])
+    where_params: List[Any] = [model, scorer]
+    where = [
+        "e.model = ?",
+        "ev.scorer = ?",
+        "(e.error IS NULL OR e.error = '')",
+        "ev.score IS NOT NULL",
+    ]
+    if config_ids is not None:
+        ids = [int(c) for c in config_ids]
+        if not ids:
+            return []
+        where.append(f"e.config_id IN ({','.join('?' * len(ids))})")
+        where_params.extend(ids)
+    where.extend(filter_where)
+    where_params.extend(filter_params)
+
+    pred_select = "NULL AS predicate_value"
+    pred_join = ""
+    pred_params: List[Any] = []
+    pred_group = ""
+    pred_order = ""
+    if predicate_name:
+        pred_select = "p.value AS predicate_value"
+        pred_join = "JOIN predicate p ON p.query_id = e.query_id AND p.name = ?"
+        pred_params.append(predicate_name)
+        pred_group = ", predicate_value"
+        pred_order = ", predicate_value"
+
+    sql = f"""
+        WITH scored_labels AS (
+            SELECT DISTINCT
+                   flm.label_id,
+                   flm.role,
+                   e.config_id,
+                   e.query_id,
+                   ev.score,
+                   {pred_select}
+            FROM evaluation ev
+            JOIN execution e ON e.execution_id = ev.execution_id
+            JOIN query q ON q.query_id = e.query_id
+            JOIN config_feature cf ON cf.config_id = e.config_id
+            JOIN feature f ON f.feature_id = cf.feature_id
+            JOIN feature_label_membership flm ON flm.feature_id = f.feature_id
+            {compiler.join_sql()}
+            {pred_join}
+            WHERE {' AND '.join(where)}
+        )
+        SELECT label_id,
+               role,
+               predicate_value,
+               COUNT(DISTINCT config_id) AS n_configs,
+               COUNT(DISTINCT query_id) AS n_queries,
+               COUNT(*) AS n,
+               AVG(score) AS avg_score
+        FROM scored_labels
+        GROUP BY label_id, role{pred_group}
+        ORDER BY label_id, role{pred_order}
+        LIMIT ?
+    """
+    rows = store._get_conn().execute(
+        sql,
+        tuple(pred_params + where_params + [int(limit)]),
+    ).fetchall()
+
+    component_map = _label_components(store)
+    base_scores = (
+        _base_scores_by_predicate(
+            store,
+            model=model,
+            scorer=scorer,
+            base_config_id=int(base_config_id),
+            predicate_name=predicate_name,
+            filters=filters,
+        )
+        if base_config_id is not None
+        else {}
+    )
+
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        pred_value = _normalize_sql_value(r["predicate_value"])
+        base_score = base_scores.get(pred_value if predicate_name else None)
+        avg_score = _float_or_none(r["avg_score"])
+        components = component_map.get((r["label_id"], r["role"]), [])
+        out.append({
+            "labelId": r["label_id"],
+            "role": r["role"],
+            "predicateName": predicate_name,
+            "predicateValue": pred_value,
+            "nConfigs": int(r["n_configs"] or 0),
+            "nQueries": int(r["n_queries"] or 0),
+            "n": int(r["n"] or 0),
+            "avgScore": avg_score,
+            "baseScore": base_score,
+            "deltaVsBase": (
+                None
+                if base_score is None or avg_score is None
+                else avg_score - base_score
+            ),
+            "components": components,
+        })
+    return out
 
 
 def compare_configs(
@@ -552,6 +724,8 @@ class _QueryCompiler:
         kind, value = _parse_field(field)
         if kind == "dataset":
             return "q.dataset"
+        if kind == "query_split":
+            return "COALESCE(json_extract(q.meta, '$.split'), '(no split)')"
         if kind == "query_id":
             return "q.query_id"
         if kind == "query_meta":
@@ -601,6 +775,8 @@ class _QueryCompiler:
         kind, value = _parse_field(field)
         if kind == "dataset":
             return "q.dataset"
+        if kind == "query_split":
+            return "json_extract(q.meta, '$.split')"
         if kind == "query_id":
             return "q.query_id"
         if kind == "config_id":
@@ -732,9 +908,87 @@ def _example_from_row(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
+def _label_components(store: CubeStore) -> Dict[Tuple[str, str], List[str]]:
+    rows = store._get_conn().execute(
+        """
+        SELECT flm.label_id,
+               flm.role,
+               f.canonical_id
+        FROM feature_label_membership flm
+        JOIN feature f ON f.feature_id = flm.feature_id
+        ORDER BY flm.label_id, flm.role, f.canonical_id
+        """
+    ).fetchall()
+    out: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+    for r in rows:
+        key = (r["label_id"], r["role"])
+        canonical_id = r["canonical_id"]
+        if canonical_id not in out[key]:
+            out[key].append(canonical_id)
+    return out
+
+
+def _base_scores_by_predicate(
+    store: CubeStore,
+    *,
+    model: str,
+    scorer: str,
+    base_config_id: int,
+    predicate_name: Optional[str],
+    filters: Optional[Sequence[FilterSpec]] = None,
+) -> Dict[Any, Optional[float]]:
+    compiler = _QueryCompiler()
+    where, params = compiler.compile_filters(filters or [])
+    extra_where = f" AND {' AND '.join(where)}" if where else ""
+    if predicate_name:
+        rows = store._get_conn().execute(
+            f"""
+            SELECT p.value AS predicate_value,
+                   AVG(ev.score) AS avg_score
+            FROM execution e
+            JOIN evaluation ev ON ev.execution_id = e.execution_id
+            JOIN query q ON q.query_id = e.query_id
+            JOIN predicate p ON p.query_id = e.query_id AND p.name = ?
+            {compiler.join_sql()}
+            WHERE e.config_id = ?
+              AND e.model = ?
+              AND ev.scorer = ?
+              AND (e.error IS NULL OR e.error = '')
+              AND ev.score IS NOT NULL
+              {extra_where}
+            GROUP BY p.value
+            """,
+            tuple([predicate_name, int(base_config_id), model, scorer] + params),
+        ).fetchall()
+        return {
+            _normalize_sql_value(r["predicate_value"]): _float_or_none(r["avg_score"])
+            for r in rows
+        }
+
+    row = store._get_conn().execute(
+        f"""
+        SELECT AVG(ev.score) AS avg_score
+        FROM execution e
+        JOIN evaluation ev ON ev.execution_id = e.execution_id
+        JOIN query q ON q.query_id = e.query_id
+        {compiler.join_sql()}
+        WHERE e.config_id = ?
+          AND e.model = ?
+          AND ev.scorer = ?
+          AND (e.error IS NULL OR e.error = '')
+          AND ev.score IS NOT NULL
+          {extra_where}
+        """,
+        tuple([int(base_config_id), model, scorer] + params),
+    ).fetchone()
+    return {None: _float_or_none(row["avg_score"]) if row else None}
+
+
 def _parse_field(field: str) -> Tuple[str, str]:
     if field in {"dataset", "query.dataset"}:
         return "dataset", ""
+    if field in {"split", "query.split", "benchmark.split"}:
+        return "query_split", ""
     if field in {"query_id", "query.query_id"}:
         return "query_id", ""
     if field in {"config_id", "config.config_id"}:
@@ -748,6 +1002,13 @@ def _parse_field(field: str) -> Tuple[str, str]:
     if field.startswith("predicate."):
         return "predicate", field[len("predicate."):]
     raise ValueError(f"unsupported field: {field!r}")
+
+
+def _split_filter_clause(query_alias: str, split: str) -> Tuple[str, List[Any]]:
+    expr = f"json_extract({query_alias}.meta, '$.split')"
+    if split == "(no split)":
+        return f"({expr} IS NULL OR {expr} = '')", []
+    return f"{expr} = ?", [split]
 
 
 def _json_path(key: str) -> str:
@@ -782,6 +1043,32 @@ def _first(value: Any) -> Any:
     if isinstance(value, list) and value:
         return value[0]
     return value
+
+
+def _string_list(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(v) for v in value if v is not None and str(v)]
+
+
+def _display_feature_set(
+    canonical_ids: Sequence[str],
+    *,
+    kind: Optional[str],
+    has_funcs: bool,
+) -> Optional[str]:
+    ids = [str(v) for v in canonical_ids if str(v)]
+    if not ids:
+        return None
+    if kind == "base":
+        non_sections = [v for v in ids if not v.startswith("_section_")]
+        shown = non_sections or ids
+        return "base: " + ", ".join(shown)
+    if len(ids) <= 3:
+        return ", ".join(ids)
+    if not has_funcs:
+        return ", ".join(ids)
+    return f"{len(ids)} features: " + ", ".join(ids[:3]) + ", ..."
 
 
 def _float_or_none(value: Any) -> Optional[float]:

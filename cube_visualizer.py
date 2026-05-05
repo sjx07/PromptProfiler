@@ -65,10 +65,15 @@ def make_handler(app: CubeApp):
                     app.store,
                     model=_first_qs(qs, "model"),
                     scorer=_first_qs(qs, "scorer"),
+                    dataset=_first_qs(qs, "dataset"),
+                    split=_first_qs(qs, "split"),
                 ))
                 return
             if parsed.path == "/api/meta-fields":
                 self._api(lambda _body, _qs: cube_ops.list_query_meta_fields(app.store))
+                return
+            if parsed.path == "/api/predicates":
+                self._api(lambda _body, _qs: cube_ops.list_predicate_fields(app.store))
                 return
             if parsed.path == "/api/artifact":
                 self._api(lambda _body, qs: _not_none(
@@ -89,6 +94,7 @@ def make_handler(app: CubeApp):
                 "/api/compare": _post_compare,
                 "/api/compare-examples": _post_compare_examples,
                 "/api/diagnostics": _post_diagnostics,
+                "/api/feature-labels": _post_feature_labels,
                 "/api/plan-delete": _post_plan_delete,
             }
             route = routes.get(parsed.path)
@@ -207,6 +213,18 @@ def make_handler(app: CubeApp):
             config_ids=_int_list(body.get("configIds")),
             filters=body.get("filters") or [],
             limit=int(body.get("limit") or 5000),
+        )
+
+    def _post_feature_labels(body: Dict[str, Any], _qs: Dict[str, list]) -> Any:
+        return cube_ops.feature_label_analysis(
+            app.store,
+            model=_required(body, "model"),
+            scorer=_required(body, "scorer"),
+            config_ids=_int_list(body.get("configIds")),
+            predicate_name=body.get("predicateName") or None,
+            base_config_id=_maybe_int(body.get("baseConfigId")),
+            filters=body.get("filters") or [],
+            limit=int(body.get("limit") or 500),
         )
 
     def _post_plan_delete(body: Dict[str, Any], _qs: Dict[str, list]) -> Any:
@@ -565,6 +583,10 @@ INDEX_HTML = r"""<!doctype html>
         <select id="scorerSelect"></select>
       </div>
       <div class="field">
+        <label>Benchmark</label>
+        <select id="benchmarkSelect"></select>
+      </div>
+      <div class="field">
         <label>Configs</label>
         <select id="configSelect" multiple></select>
       </div>
@@ -582,11 +604,16 @@ INDEX_HTML = r"""<!doctype html>
         <label>Group by</label>
         <select id="groupBySelect" multiple></select>
       </div>
+      <div class="field">
+        <label>Label analysis predicate</label>
+        <select id="labelPredicateSelect"></select>
+      </div>
       <div class="split-actions">
         <button class="primary" id="refreshBtn">Refresh</button>
         <button id="sliceBtn">Slice</button>
         <button id="compareBtn">Compare</button>
         <button id="diagBtn">Diagnostics</button>
+        <button id="labelsBtn">Labels</button>
         <button id="planBtn">Plan Delete</button>
       </div>
       <div id="status" class="status"></div>
@@ -637,6 +664,7 @@ INDEX_HTML = r"""<!doctype html>
       summary: null,
       configs: [],
       metaFields: [],
+      predicates: [],
       selectedSlice: null,
       selectedExampleId: null,
       artifact: null,
@@ -692,6 +720,7 @@ INDEX_HTML = r"""<!doctype html>
       return {
         model: $('modelSelect').value,
         scorer: $('scorerSelect').value,
+        benchmark: currentBenchmark(),
         configIds: selectedConfigIds(),
         baseConfigId: Number($('baseSelect').value || 0) || null,
         targetConfigId: Number($('targetSelect').value || 0) || null,
@@ -709,8 +738,12 @@ INDEX_HTML = r"""<!doctype html>
       state.summary = data.summary;
       $('cubePath').textContent = data.cubePath;
       populateScopeControls();
-      state.metaFields = await api('/api/meta-fields');
+      [state.metaFields, state.predicates] = await Promise.all([
+        api('/api/meta-fields'),
+        api('/api/predicates')
+      ]);
       populateGroupBy();
+      populateLabelPredicate();
       await refreshConfigs();
       renderSummary();
       setStatus('Ready');
@@ -721,22 +754,71 @@ INDEX_HTML = r"""<!doctype html>
       const scorers = state.summary.scorers || [];
       $('modelSelect').innerHTML = models.map((r, i) => option(`${r.model} (${r.n_executions})`, r.model, i === 0)).join('');
       $('scorerSelect').innerHTML = scorers.map((r, i) => option(`${r.scorer} (${r.n_evaluations})`, r.scorer, i === 0)).join('');
+      populateBenchmarkSelect();
+    }
+
+    function populateBenchmarkSelect() {
+      const datasets = state.summary.datasets || [];
+      const opts = [option('All benchmarks', '', true)];
+      datasets.forEach(ds => {
+        opts.push(option(`${ds.dataset} (all splits, ${ds.n_queries})`, `${ds.dataset}\t`));
+        Object.entries(ds.splits || {}).forEach(([split, n]) => {
+          opts.push(option(`${ds.dataset} / ${split} (${n})`, `${ds.dataset}\t${split}`));
+        });
+      });
+      $('benchmarkSelect').innerHTML = opts.join('');
+    }
+
+    function currentBenchmark() {
+      const raw = $('benchmarkSelect').value || '';
+      if (!raw) return {dataset: '', split: ''};
+      const parts = raw.split('\t');
+      return {dataset: parts[0] || '', split: parts[1] || ''};
+    }
+
+    function benchmarkFilters() {
+      const b = currentBenchmark();
+      if (!b.dataset) return [];
+      const filters = [{field: 'dataset', op: '=', value: b.dataset}];
+      if (b.split) {
+        if (b.split === '(no split)') {
+          filters.push({field: 'split', op: 'is_empty'});
+        } else {
+          filters.push({field: 'split', op: '=', value: b.split});
+        }
+      }
+      return filters;
+    }
+
+    function analysisFilters(extra = []) {
+      return [...benchmarkFilters(), ...(extra || [])];
     }
 
     function populateGroupBy() {
       const preferred = ['query.meta.qtype', 'query.meta.qsubtype'];
       const fields = [
         {field: 'dataset', key: 'dataset'},
-        ...state.metaFields
+        {field: 'split', key: 'split'},
+        ...state.metaFields,
+        ...state.predicates.map(p => ({field: p.field, key: p.name}))
       ];
       $('groupBySelect').innerHTML = fields.map(f =>
         option(f.field, f.field, preferred.includes(f.field))
       ).join('');
     }
 
+    function populateLabelPredicate() {
+      $('labelPredicateSelect').innerHTML = [
+        option('overall', '', true),
+        ...state.predicates.map(p => option(`${p.name} (${p.nValues} values)`, p.name))
+      ].join('');
+    }
+
     async function refreshConfigs() {
       const scope = currentScope();
       const q = new URLSearchParams({model: scope.model || '', scorer: scope.scorer || ''});
+      if (scope.benchmark.dataset) q.set('dataset', scope.benchmark.dataset);
+      if (scope.benchmark.split) q.set('split', scope.benchmark.split);
       state.configs = await api('/api/configs?' + q.toString());
       renderConfigControls();
       renderConfigsTable();
@@ -746,12 +828,21 @@ INDEX_HTML = r"""<!doctype html>
       const rows = state.configs;
       const selectedDefaults = new Set(rows.map(r => r.configId));
       $('configSelect').innerHTML = rows.map(r => {
-        const label = `${r.configId} ${r.canonicalId || r.kind || ''} score=${fmtScore(r.avgScore)}`;
+        const label = `${r.configId} ${configDisplayName(r)} score=${fmtScore(r.avgScore)}`;
         return option(label, r.configId, selectedDefaults.has(r.configId));
       }).join('');
-      $('baseSelect').innerHTML = rows.map((r, i) => option(`${r.configId} ${r.canonicalId || ''}`, r.configId, i === 0)).join('');
-      $('targetSelect').innerHTML = rows.map((r, i) => option(`${r.configId} ${r.canonicalId || ''}`, r.configId, i === Math.min(1, rows.length - 1))).join('');
+      $('baseSelect').innerHTML = rows.map((r, i) => option(`${r.configId} ${configDisplayName(r)}`, r.configId, i === 0)).join('');
+      $('targetSelect').innerHTML = rows.map((r, i) => option(`${r.configId} ${configDisplayName(r)}`, r.configId, i === Math.min(1, rows.length - 1))).join('');
       $('configCount').textContent = `${rows.length} configs`;
+    }
+
+    function configDisplayName(row) {
+      return row.canonicalId || row.label || row.kind || '';
+    }
+
+    function configFeatureTitle(row) {
+      const ids = row.canonicalIds || row.resolvedCanonicalIds || [];
+      return ids.join(', ');
     }
 
     function renderSummary() {
@@ -784,7 +875,7 @@ INDEX_HTML = r"""<!doctype html>
         <tbody>
           ${rows.map(r => `<tr>
             <td class="mono">${r.configId}</td>
-            <td title="${esc((r.resolvedCanonicalIds || []).join(', '))}">${esc(r.canonicalId || (r.resolvedCanonicalIds || []).join(', '))}</td>
+            <td title="${esc(configFeatureTitle(r))}">${esc(configDisplayName(r))}</td>
             <td>${esc(r.kind || '')}</td>
             <td>${r.nExecutions}</td>
             <td>${r.nEvaluations}</td>
@@ -804,6 +895,7 @@ INDEX_HTML = r"""<!doctype html>
           configIds: scope.configIds,
           baseConfigId: scope.baseConfigId,
           groupBy: scope.groupBy,
+          filters: benchmarkFilters(),
           limit: 1000
         }
       });
@@ -861,7 +953,7 @@ INDEX_HTML = r"""<!doctype html>
           model: scope.model,
           scorer: scope.scorer,
           configIds: [slice.configId],
-          filters: filtersFromGroup(slice.group),
+          filters: analysisFilters(filtersFromGroup(slice.group)),
           scoreOrder: 'asc',
           limit: 100
         }
@@ -943,7 +1035,8 @@ INDEX_HTML = r"""<!doctype html>
           model: scope.model,
           scorer: scope.scorer,
           baseConfigId: scope.baseConfigId,
-          targetConfigId: scope.targetConfigId
+          targetConfigId: scope.targetConfigId,
+          filters: benchmarkFilters()
         }
       });
       const rows = await api('/api/compare-examples', {
@@ -953,6 +1046,7 @@ INDEX_HTML = r"""<!doctype html>
           baseConfigId: scope.baseConfigId,
           targetConfigId: scope.targetConfigId,
           direction: 'both',
+          filters: benchmarkFilters(),
           limit: 80
         }
       });
@@ -987,6 +1081,7 @@ INDEX_HTML = r"""<!doctype html>
           model: scope.model,
           scorer: scope.scorer,
           configIds: scope.configIds,
+          filters: benchmarkFilters(),
           limit: 5000
         }
       });
@@ -999,13 +1094,83 @@ INDEX_HTML = r"""<!doctype html>
       setStatus('Diagnostics loaded');
     }
 
+    async function runFeatureLabels() {
+      const scope = currentScope();
+      setStatus('Loading feature labels...');
+      const rows = await api('/api/feature-labels', {
+        body: {
+          model: scope.model,
+          scorer: scope.scorer,
+          configIds: scope.configIds,
+          baseConfigId: scope.baseConfigId,
+          predicateName: $('labelPredicateSelect').value || null,
+          filters: benchmarkFilters(),
+          limit: 1000
+        }
+      });
+      renderFeatureLabels(rows);
+      setStatus(`Loaded ${rows.length} label rows`);
+    }
+
+    function renderFeatureLabels(rows) {
+      const byLabel = new Map();
+      rows.forEach(r => {
+        const key = `${r.labelId}|${r.role}`;
+        if (!byLabel.has(key)) byLabel.set(key, []);
+        byLabel.get(key).push(r);
+      });
+      const summaryRows = Array.from(byLabel.entries()).map(([key, values]) => {
+        const first = values[0] || {};
+        const n = values.reduce((acc, r) => acc + Number(r.n || 0), 0);
+        const weighted = values.reduce((acc, r) => acc + Number(r.avgScore || 0) * Number(r.n || 0), 0);
+        const avg = n ? weighted / n : null;
+        return {...first, n, avgScore: avg, nSlices: values.length};
+      }).sort((a, b) => String(a.labelId).localeCompare(String(b.labelId)));
+      const summary = `
+        <div class="metric-strip">
+          <div class="metric"><div class="k">labels</div><div class="v">${summaryRows.length}</div></div>
+          <div class="metric"><div class="k">rows</div><div class="v">${rows.length}</div></div>
+          <div class="metric"><div class="k">predicate</div><div class="v" style="font-size:14px">${esc($('labelPredicateSelect').value || 'overall')}</div></div>
+          <div class="metric"><div class="k">configs</div><div class="v">${selectedConfigIds().length}</div></div>
+        </div>`;
+      const tableRows = rows.map(r => {
+        const delta = r.deltaVsBase;
+        const cls = delta > 0 ? 'good' : delta < 0 ? 'bad' : '';
+        const slice = r.predicateName ? `${r.predicateName}=${r.predicateValue ?? '(null)'}` : '(overall)';
+        return `<tr>
+          <td title="${esc((r.components || []).join(', '))}">${esc(r.labelId)}</td>
+          <td>${esc(r.role || '')}</td>
+          <td title="${esc(slice)}">${esc(slice)}</td>
+          <td>${r.nConfigs}</td>
+          <td>${r.n}</td>
+          <td>${fmtScore(r.avgScore)}</td>
+          <td class="${cls}">${fmtDelta(delta)}</td>
+        </tr>`;
+      }).join('');
+      const labelSummary = summaryRows.map(r =>
+        `<span class="pill" title="${esc((r.components || []).join(', '))}">${esc(r.labelId)} ${fmtScore(r.avgScore)}</span>`
+      ).join(' ');
+      $('analysisPane').innerHTML = `
+        ${summary}
+        <div style="padding:8px 10px">${labelSummary || '<span class="muted">No evaluated label rows.</span>'}</div>
+        <table>
+          <thead><tr>
+            <th>label</th><th style="width:120px">role</th><th>slice</th>
+            <th style="width:72px">cfgs</th><th style="width:72px">n</th>
+            <th style="width:82px">score</th><th style="width:82px">delta</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>`;
+    }
+
     async function runPlanDelete() {
       const scope = currentScope();
       setStatus('Building dry-run delete plan...');
       const data = await api('/api/plan-delete', {
         body: {
           model: scope.model,
-          configIds: scope.configIds
+          configIds: scope.configIds,
+          filters: benchmarkFilters()
         }
       });
       $('analysisPane').innerHTML = `<pre>${esc(JSON.stringify(data, null, 2))}</pre>`;
@@ -1024,9 +1189,11 @@ INDEX_HTML = r"""<!doctype html>
     $('sliceBtn').addEventListener('click', () => runSlices().catch(err => setStatus(err.message, 'bad')));
     $('compareBtn').addEventListener('click', () => runCompare().catch(err => setStatus(err.message, 'bad')));
     $('diagBtn').addEventListener('click', () => runDiagnostics().catch(err => setStatus(err.message, 'bad')));
+    $('labelsBtn').addEventListener('click', () => runFeatureLabels().catch(err => setStatus(err.message, 'bad')));
     $('planBtn').addEventListener('click', () => runPlanDelete().catch(err => setStatus(err.message, 'bad')));
     $('modelSelect').addEventListener('change', () => refreshConfigs().catch(err => setStatus(err.message, 'bad')));
     $('scorerSelect').addEventListener('change', () => refreshConfigs().catch(err => setStatus(err.message, 'bad')));
+    $('benchmarkSelect').addEventListener('change', () => refreshConfigs().catch(err => setStatus(err.message, 'bad')));
 
     loadBoot().catch(err => setStatus(err.message, 'bad'));
   </script>
