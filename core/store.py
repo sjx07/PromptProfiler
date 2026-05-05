@@ -31,6 +31,7 @@ _SQL_CLAUSE = {
 }
 
 from core.schema import (
+    ADDITIVE_COLUMNS,
     INDEXES,
     META_TABLE,
     MIGRATIONS,
@@ -76,7 +77,7 @@ class CubeStore:
 
     # Additive upgrades that can be applied silently on open — no data
     # transformation, just new tables + backfills. Ranges inclusive.
-    _AUTO_UPGRADE_FROM = (7,)
+    _AUTO_UPGRADE_FROM = (7, 8)
 
     def _check_schema_version(self, conn: sqlite3.Connection) -> None:
         """Raise RuntimeError if cube is at an older schema version and not read_only.
@@ -115,6 +116,7 @@ class CubeStore:
         self._check_schema_version(conn)
         for ddl in TABLES:
             conn.execute(ddl)
+        self._ensure_additive_columns(conn)
         for view in VIEWS:
             conn.execute(view)
         for idx in INDEXES:
@@ -134,6 +136,23 @@ class CubeStore:
         )
         conn.commit()
         logger.info("CubeStore ready: %s", self._db_path)
+
+    def _ensure_additive_columns(self, conn: sqlite3.Connection) -> None:
+        """Add columns needed by additive schema upgrades.
+
+        SQLite's CREATE TABLE IF NOT EXISTS does not add columns to existing
+        tables, and SQLite has no ADD COLUMN IF NOT EXISTS syntax. Keep this
+        small and explicit so old cubes can be opened without destructive
+        migrations.
+        """
+        for table, columns in ADDITIVE_COLUMNS.items():
+            existing = {
+                str(row["name"])
+                for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+            }
+            for name, ddl in columns:
+                if name not in existing:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
 
     def close(self) -> None:
         if self._conn:
@@ -486,18 +505,33 @@ class CubeStore:
         Args:
             feature_rows: List of dicts with keys:
                 feature_id, canonical_id, task, requires_json, conflicts_json,
-                primitive_spec, rationale (optional), source_path (optional).
+                primitive_spec, semantic_labels_json (optional), scope_json
+                (optional), rationale (optional), source_path (optional).
+                Rows may also include label_rows and label_memberships to sync
+                feature_label / feature_label_membership exactly for that feature_id.
 
         Returns:
             {"synced": <count of rows processed>}
         """
         with self._cursor() as cur:
             cur.executemany(
-                """INSERT OR REPLACE INTO feature
+                """INSERT INTO feature
                    (feature_id, canonical_id, task,
                     requires_json, conflicts_json, primitive_spec,
+                    semantic_labels_json, scope_json,
                     rationale, source_path, synced_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                   ON CONFLICT(feature_id) DO UPDATE SET
+                       canonical_id = excluded.canonical_id,
+                       task = excluded.task,
+                       requires_json = excluded.requires_json,
+                       conflicts_json = excluded.conflicts_json,
+                       primitive_spec = excluded.primitive_spec,
+                       semantic_labels_json = excluded.semantic_labels_json,
+                       scope_json = excluded.scope_json,
+                       rationale = excluded.rationale,
+                       source_path = excluded.source_path,
+                       synced_at = datetime('now')""",
                 [
                     (
                         r["feature_id"],
@@ -506,12 +540,58 @@ class CubeStore:
                         r.get("requires_json", "[]"),
                         r.get("conflicts_json", "[]"),
                         r["primitive_spec"],
+                        r.get("semantic_labels_json", "[]"),
+                        r.get("scope_json", "{}"),
                         r.get("rationale"),
                         r.get("source_path"),
                     )
                     for r in feature_rows
                 ],
             )
+
+            labeled_rows = [r for r in feature_rows if "label_memberships" in r]
+            if labeled_rows:
+                label_rows: Dict[str, Dict[str, Any]] = {}
+                membership_rows: List[Dict[str, Any]] = []
+                for row in labeled_rows:
+                    cur.execute(
+                        "DELETE FROM feature_label_membership WHERE feature_id = ?",
+                        (row["feature_id"],),
+                    )
+                    for label in row.get("label_rows", []):
+                        label_rows[label["label_id"]] = label
+                    membership_rows.extend(row.get("label_memberships", []))
+
+                if label_rows:
+                    cur.executemany(
+                        """INSERT INTO feature_label
+                           (label_id, description)
+                           VALUES (?, ?)
+                           ON CONFLICT(label_id) DO UPDATE SET
+                               description = excluded.description""",
+                        [
+                            (
+                                r["label_id"],
+                                r.get("description"),
+                            )
+                            for r in label_rows.values()
+                        ],
+                    )
+
+                if membership_rows:
+                    cur.executemany(
+                        """INSERT OR REPLACE INTO feature_label_membership
+                           (feature_id, label_id, role)
+                           VALUES (?, ?, ?)""",
+                        [
+                            (
+                                r["feature_id"],
+                                r["label_id"],
+                                r.get("role", "implements"),
+                            )
+                            for r in membership_rows
+                        ],
+                    )
         return {"synced": len(feature_rows)}
 
     def feature_effect_df(self):

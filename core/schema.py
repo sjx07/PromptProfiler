@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 8   # v8 (analysis R5): + config_feature join table
+SCHEMA_VERSION = 9   # v9: + semantic feature-label metadata and joins
 
 TABLES: list[str] = [
     # ── reference tables ──────────────────────────────────────────────
@@ -125,6 +125,12 @@ TABLES: list[str] = [
     # canonical_id = human-facing label (e.g. "enable_cot"); stable across
     #                tasks and versions; cross-task aggregation key.
     # primitive_spec = JSON array of primitive_edit dicts (insert_node, etc.)
+    # semantic_labels_json = raw optional semantic_labels metadata from the
+    #                        feature JSON. Used for auditability; normalized
+    #                        joins live in feature_label_membership.
+    # scope_json = optional component-level applicability metadata. It belongs
+    #              to the concrete materialized component, not to semantic
+    #              label descriptions.
     # source_path  = absolute path to the feature JSON file on disk (NULL for
     #                in-memory / programmatically constructed features).
     #
@@ -139,6 +145,8 @@ TABLES: list[str] = [
         requires_json    TEXT NOT NULL DEFAULT '[]',
         conflicts_json   TEXT NOT NULL DEFAULT '[]',
         primitive_spec   TEXT NOT NULL,
+        semantic_labels_json TEXT NOT NULL DEFAULT '[]',
+        scope_json       TEXT NOT NULL DEFAULT '{}',
         rationale        TEXT,
         source_path      TEXT,
         synced_at        TEXT NOT NULL DEFAULT (datetime('now'))
@@ -167,7 +175,39 @@ TABLES: list[str] = [
     )
     """,
 
+    # ── semantic feature labels (schema v9) ──────────────────────────
+    #
+    # Concrete feature/component rows remain the materialization truth.
+    # Labels are an analysis layer: one component can have many labels,
+    # and many task-specific components can share one label.
+    """
+    CREATE TABLE IF NOT EXISTS feature_label (
+        label_id      TEXT PRIMARY KEY,
+        description   TEXT,
+        created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+
+    """
+    CREATE TABLE IF NOT EXISTS feature_label_membership (
+        feature_id    TEXT NOT NULL REFERENCES feature(feature_id) ON DELETE CASCADE,
+        label_id      TEXT NOT NULL REFERENCES feature_label(label_id),
+        role          TEXT NOT NULL DEFAULT 'implements',
+        created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (feature_id, label_id, role)
+    )
+    """,
+
 ]
+
+ADDITIVE_COLUMNS: dict[str, list[tuple[str, str]]] = {
+    # Existing v8 feature tables need these columns added on open. Fresh v9
+    # cubes get them from the CREATE TABLE statement above.
+    "feature": [
+        ("semantic_labels_json", "TEXT NOT NULL DEFAULT '[]'"),
+        ("scope_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ],
+}
 
 VIEWS: list[str] = [
     # Sections projected from insert_node(section) funcs.
@@ -250,6 +290,47 @@ VIEWS: list[str] = [
     JOIN feature    f   ON f.feature_id = fid.value
     """,
 
+    # Semantic label effect — same concrete execution/evaluation rows, but
+    # grouped through feature_label_membership instead of only component IDs.
+    """
+    CREATE VIEW IF NOT EXISTS feature_label_effect AS
+    SELECT
+        flm.label_id,
+        fl.description AS label_description,
+        flm.role,
+        f.feature_id,
+        f.canonical_id,
+        f.task AS feature_task,
+        f.scope_json AS component_scope_json,
+        q.dataset,
+        json_extract(q.meta, '$.qtype') AS qtype,
+        json_extract(q.meta, '$.qsubtype') AS qsubtype,
+        e.config_id,
+        e.model,
+        q.query_id,
+        ev.score,
+        ev.scorer
+    FROM evaluation ev
+    JOIN execution  e   USING (execution_id)
+    JOIN query      q   ON q.query_id = e.query_id
+    JOIN config_feature cf ON cf.config_id = e.config_id
+    JOIN feature    f   ON f.feature_id = cf.feature_id
+    JOIN feature_label_membership flm ON flm.feature_id = f.feature_id
+    JOIN feature_label fl ON fl.label_id = flm.label_id
+    """,
+
+    # Predicate fan-out for slice analysis by any seeded predicate
+    # (qtype/qsubtype, answer type, table shape, etc.).
+    """
+    CREATE VIEW IF NOT EXISTS feature_label_predicate_effect AS
+    SELECT
+        fle.*,
+        p.name AS predicate_name,
+        p.value AS predicate_value
+    FROM feature_label_effect fle
+    JOIN predicate p ON p.query_id = fle.query_id
+    """,
+
     # ── analysis-fork R5 views ───────────────────────────────────────
     #
     # Promotes the canonical 3-way join used throughout `analyze/` into
@@ -318,19 +399,25 @@ INDEXES: list[str] = [
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_exec_cache     ON execution(config_id, query_id, model)",
     "CREATE        INDEX IF NOT EXISTS idx_exec_query    ON execution(query_id)",
     "CREATE        INDEX IF NOT EXISTS idx_exec_model    ON execution(model)",
+    "CREATE        INDEX IF NOT EXISTS idx_exec_model_config_query ON execution(model, config_id, query_id)",
     # evaluation
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_eval_exec_scorer ON evaluation(execution_id, scorer)",
     "CREATE        INDEX IF NOT EXISTS idx_eval_exec     ON evaluation(execution_id)",
     "CREATE        INDEX IF NOT EXISTS idx_eval_scorer    ON evaluation(scorer)",
+    "CREATE        INDEX IF NOT EXISTS idx_eval_scorer_exec_score ON evaluation(scorer, execution_id, score)",
     # predicate
     "CREATE        INDEX IF NOT EXISTS idx_pred_name     ON predicate(name)",
     # query
     "CREATE        INDEX IF NOT EXISTS idx_query_dataset ON query(dataset)",
+    "CREATE        INDEX IF NOT EXISTS idx_query_dataset_split ON query(dataset, json_extract(meta, '$.split'))",
     # feature
     "CREATE        INDEX IF NOT EXISTS idx_feature_canonical ON feature(canonical_id)",
     "CREATE        INDEX IF NOT EXISTS idx_feature_task      ON feature(task)",
     # config_feature (v8) — PK covers config_id lookups; add feature side.
     "CREATE        INDEX IF NOT EXISTS idx_cf_feature        ON config_feature(feature_id)",
+    # semantic labels (v9)
+    "CREATE        INDEX IF NOT EXISTS idx_flm_label         ON feature_label_membership(label_id)",
+    "CREATE        INDEX IF NOT EXISTS idx_flm_feature       ON feature_label_membership(feature_id)",
 ]
 
 
@@ -371,4 +458,3 @@ def make_query_id(dataset: str, content: str, context: str = "") -> str:
     """
     payload = f"{dataset}:{context}:{content.strip()}"
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
-

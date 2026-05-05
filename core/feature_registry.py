@@ -18,8 +18,9 @@ from its ``primitive_edits`` list, including optional ``target_module`` values
 content and module target → same feature_id.  Different content or target →
 different feature_id (even if canonical_id is the same).
 
-``canonical_id`` is the stable human-facing label.  It is the key used in
-``validate_feature_set()`` and ``materialize()`` (user-facing API).
+``canonical_id`` is the stable human-facing component label.  It is the key used
+in ``validate_feature_set()`` and ``materialize()`` (user-facing API). Optional
+``semantic_labels`` metadata provides the cross-task analysis labels.
 
 Cross-task: two features with canonical_id="enable_cot" but different section
 parent_ids (because the sections live in different tasks) produce different
@@ -129,6 +130,68 @@ def compute_feature_id(primitive_edits: List[dict]) -> str:
         sort_keys=True,
     )
     return hashlib.sha256(canonical.encode()).hexdigest()[:12]
+
+
+def _json_dumps(value: Any) -> str:
+    return json.dumps(value, sort_keys=True)
+
+
+def _semantic_label_rows_and_memberships(
+    spec: dict,
+    feature_id: str,
+) -> tuple[list[dict], list[dict]]:
+    """Normalize optional semantic_labels metadata for cube sync.
+
+    Accepted forms:
+      - "reasoning.text_chain_of_thought"
+      - {"label": "style.explain_steps", "role": "style_rule", ...}
+
+    Label metadata does not participate in feature_id hashing or prompt
+    materialization. It is strictly an analysis layer. Applicability/scope lives
+    on the concrete component spec, not on semantic label memberships.
+    """
+    raw_labels = spec.get("semantic_labels", [])
+    if raw_labels is None:
+        raw_labels = []
+    if not isinstance(raw_labels, list):
+        raise ValueError("semantic_labels must be a list of strings or objects")
+
+    label_rows: list[dict] = []
+    memberships: list[dict] = []
+    for item in raw_labels:
+        if isinstance(item, str):
+            label_id = item
+            label_spec: dict[str, Any] = {}
+        elif isinstance(item, dict):
+            label_id = item.get("label") or item.get("label_id") or item.get("id")
+            label_spec = item
+        else:
+            raise ValueError("semantic_labels entries must be strings or objects")
+
+        if not isinstance(label_id, str) or not label_id.strip():
+            raise ValueError(f"semantic label entry is missing a label id: {item!r}")
+        label_id = label_id.strip()
+
+        label_rows.append({
+            "label_id": label_id,
+            "description": label_spec.get("description"),
+        })
+        memberships.append({
+            "feature_id": feature_id,
+            "label_id": label_id,
+            "role": label_spec.get("role") or "implements",
+        })
+
+    return label_rows, memberships
+
+
+def _component_scope(spec: dict) -> dict:
+    scope = spec.get("scope", {})
+    if scope is None:
+        scope = {}
+    if not isinstance(scope, dict):
+        raise ValueError("scope must be an object when provided")
+    return scope
 
 
 class FeatureRegistry:
@@ -389,6 +452,10 @@ class FeatureRegistry:
         rows = []
         for canonical_id, spec in self._by_canonical.items():
             feature_id = self._cid_to_fid[canonical_id]
+            label_rows, label_memberships = _semantic_label_rows_and_memberships(
+                spec,
+                feature_id,
+            )
             rows.append({
                 "feature_id":     feature_id,
                 "canonical_id":   canonical_id,
@@ -396,8 +463,12 @@ class FeatureRegistry:
                 "requires_json":  _json.dumps(spec.get("requires", [])),
                 "conflicts_json": _json.dumps(spec.get("conflicts_with", [])),
                 "primitive_spec": _json.dumps(_primitive_edits_for_hash(spec)),
+                "semantic_labels_json": _json.dumps(spec.get("semantic_labels") or []),
+                "scope_json":     _json_dumps(_component_scope(spec)),
                 "rationale":      spec.get("rationale"),
                 "source_path":    spec.get("_source_path"),
+                "label_rows":     label_rows,
+                "label_memberships": label_memberships,
             })
 
         return store.sync_features(rows)
