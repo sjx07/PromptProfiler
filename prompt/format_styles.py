@@ -518,12 +518,10 @@ class PlainStyle(FormatStyle):
 
     def format_field_descriptions(self, fields: Dict[str, str], label: str) -> str:
         """Format as natural language list."""
-        title = f"{label}"
-
-        field_parts = [title]
+        field_parts = []
         for name, desc in fields.items():
             field_parts.append(f"{name} ({desc})")
-        return f" {label}: " + ", ".join(field_parts) + "."
+        return f"{label}: " + ", ".join(field_parts) + "."
 
     def format_structure_template(self, input_fields: Dict[str, str], output_fields: Dict[str, str]) -> str:
         """Format as plain field: value pairs with explicit output instructions."""
@@ -1360,17 +1358,46 @@ class CodeBlockStyle(FormatStyle):
     def format_rule_sections(self, sections: List[RuleSection], tree: "RuleTree") -> str:
         out: List[str] = []
         for s in sections:
+            sid = _node_id_from_meta(getattr(s, "metadata", {}) or {}) or getattr(s, "node_id", None)
+            if sid and not tree.is_enabled(sid):
+                continue
+
             title = _safe_strip(getattr(s, "title", ""))
-            if title:
-                out.append(f"## {title}")
             content = _safe_strip(getattr(s, "content", ""))
-            if content:
-                out.append(content)
+            rule_lines: List[str] = []
             for child in getattr(s, "children", []) or []:
                 if isinstance(child, RuleItem):
+                    cid = _get_node_id(child)
+                    if cid and not tree.is_enabled(cid):
+                        continue
                     txt = _safe_strip(getattr(child, "text", ""))
                     if txt:
-                        out.append(f"- {txt}")
+                        rule_lines.append(f"- {txt}")
+                elif isinstance(child, RuleGroup):
+                    gid = _get_node_id(child)
+                    if gid and not tree.is_enabled(gid):
+                        continue
+                    group_title = _safe_strip(getattr(child, "title", ""))
+                    if group_title:
+                        rule_lines.append(f"- {group_title}")
+                    for group_child in getattr(child, "children", []) or []:
+                        if not isinstance(group_child, RuleItem):
+                            continue
+                        cid = _get_node_id(group_child)
+                        if cid and not tree.is_enabled(cid):
+                            continue
+                        txt = _safe_strip(getattr(group_child, "text", ""))
+                        if txt:
+                            rule_lines.append(f"  - {txt}")
+
+            if not content and not rule_lines:
+                continue
+
+            if title:
+                out.append(f"## {title}")
+            if content:
+                out.append(content)
+            out.extend(rule_lines)
             out.append("")
         return "\n".join(out).strip()
 
