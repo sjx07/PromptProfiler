@@ -27,12 +27,17 @@ _DEFAULT_EXEC_ROOT = Path("/data/users/jsu323/facet/tablebench_exec")
 
 
 def parse_final_answer(prediction: str) -> str:
-    """Match TableBench's DP parser: first single-line Final Answer wins."""
+    """Extract the last single-line ``Final Answer`` value.
+
+    TableBench/PoT responses often restate the answer-format rule before the
+    actual conclusion.  The actual answer is expected to be the final such
+    line, so choose the last match rather than the first prompt-template echo.
+    """
     try:
-        match = _FINAL_ANSWER_RE.search(prediction or "")
+        matches = _FINAL_ANSWER_RE.findall(prediction or "")
     except Exception:
         return ""
-    return _strip_answer_prefix(match.group(1)) if match else ""
+    return _strip_answer_prefix(matches[-1]) if matches else ""
 
 
 def parse_python_code(prediction: str) -> str:
