@@ -6,38 +6,63 @@ import re
 from typing import Any, Dict, List
 
 from task import BaseTask
+from tasks.code_result_utils import (
+    dataframe_to_records,
+    execute_python_code,
+    make_string_dataframe,
+    make_typed_dataframe,
+)
+
+
+_OUTPUT_TO_TABLE_FORMAT = {
+    "json": "json_records",
+    "markdown": "markdown",
+    "plain": "markdown",
+    "yaml": "markdown",
+    "code_block": "json_records",
+}
 
 
 def _execute_code(code: str, raw: dict) -> Any:
+    result, _error = _execute_code_with_error(code, raw)
+    return result
+
+
+def _execute_code_with_error(code: str, raw: dict) -> tuple[Any, str | None]:
     """Execute SQA Python code with table and conversation context in scope."""
-    import contextlib as _contextlib
-    import datetime as _dt
-    import io as _io
-    import math as _math
-    import collections as _collections
-
-    import pandas as pd
-
     table_data = raw.get("table", {})
     header = list(table_data.get("headers", []))
     rows = [list(r) for r in table_data.get("rows", [])]
     if not header:
-        return None
-
-    df = pd.DataFrame(rows, columns=header)
-    for col in df.columns:
-        cleaned = df[col].astype(str).str.replace(",", "", regex=False)
-        cleaned = cleaned.str.replace(r"[\$£€]", "", regex=True)
-        cleaned = cleaned.str.replace("%", "", regex=False)
-        cleaned = cleaned.str.strip()
-        try:
-            df[col] = pd.to_numeric(cleaned)
-        except (ValueError, TypeError):
-            pass
+        return None, None
 
     history = raw.get("history", [])
-    table = df.to_dict("records")
-    data = {"rows": table, "history": history}
+    typed_df = make_typed_dataframe(header, rows)
+    result, error = _execute_code_with_dataframe(code, raw, typed_df, header, history)
+    if error:
+        string_df = make_string_dataframe(header, rows)
+        fallback_result, fallback_error = _execute_code_with_dataframe(
+            code, raw, string_df, header, history
+        )
+        if fallback_error is None and fallback_result is not None:
+            return fallback_result, None
+    return result, error
+
+
+def _execute_code_with_dataframe(
+    code: str,
+    raw: dict,
+    df: Any,
+    header: list[str],
+    history: list[dict[str, Any]],
+) -> tuple[Any, str | None]:
+    import datetime as _dt
+    import math as _math
+    import collections as _collections
+    import pandas as pd
+
+    table = dataframe_to_records(df)
+    data = {"table": raw.get("table_file", ""), "rows": table, "history": history}
 
     safe_globals = {
         "df": df,
@@ -62,34 +87,8 @@ def _execute_code(code: str, raw: dict) -> Any:
         "isinstance": isinstance, "type": type,
     }
 
-    def _stringify(result: Any) -> Any:
-        if isinstance(result, (list, set, tuple)):
-            return ", ".join(str(v) for v in result)
-        return result
-
-    try:
-        return _stringify(eval(code, safe_globals))
-    except Exception:
-        pass
-
-    local_vars: dict = {}
-    stdout_buf = _io.StringIO()
-    try:
-        with _contextlib.redirect_stdout(stdout_buf):
-            exec(code, safe_globals, local_vars)
-    except Exception:
-        return None
-
-    if "answer" in local_vars:
-        return _stringify(local_vars["answer"])
-
-    captured = stdout_buf.getvalue().strip()
-    if captured:
-        last_line = captured.splitlines()[-1].strip()
-        if last_line:
-            return last_line
-
-    return None
+    outcome = execute_python_code(code, safe_globals)
+    return outcome.value, outcome.error
 
 
 class SequentialQA(BaseTask):
@@ -112,13 +111,24 @@ class SequentialQA(BaseTask):
         return {"answer": ", ".join(str(v) for v in answer_text)}
 
     def build_record(self, query: dict, meta: dict, raw: dict) -> dict:
-        from tasks.sqa.loaders import table_to_markdown
+        from tasks.wtq.table_formats import get_table_formatter
 
         table = raw.get("table", {})
         question = raw.get("question", query.get("content", ""))
         history = raw.get("history", [])
+        table_name = raw.get("table_file", "")
 
-        table_md = table_to_markdown(table)
+        header = list(table.get("headers", []))
+        rows = [list(r) for r in table.get("rows", [])]
+        fmt = "markdown"
+        if self._prompt_state is not None:
+            explicit = self._prompt_state.metadata.get("table_format")
+            if explicit:
+                fmt = explicit
+            else:
+                style = self._prompt_state.format_style_name
+                fmt = _OUTPUT_TO_TABLE_FORMAT.get(style, "markdown")
+        table_str = get_table_formatter(fmt)(header, rows, table_name)
 
         history_str = ""
         if history:
@@ -131,7 +141,7 @@ class SequentialQA(BaseTask):
             history_str = "\n".join(parts)
 
         return {
-            "table": table_md,
+            "table": table_str,
             "conversation_history": history_str,
             "question": question,
         }
@@ -148,8 +158,15 @@ class SequentialQA(BaseTask):
         if isinstance(gold_answer, str):
             gold_answer = [gold_answer]
 
+        code_result = None
+        code_error = None
+        code_attempted = False
         if prediction.startswith("__CODE__"):
-            code_result = _execute_code(prediction[len("__CODE__"):].strip(), raw)
+            code_attempted = True
+            code_result, code_error = _execute_code_with_error(
+                prediction[len("__CODE__"):].strip(),
+                raw,
+            )
             prediction = "" if code_result is None else str(code_result)
 
         gold_norm = {_normalize(str(v)) for v in gold_answer}
@@ -159,13 +176,21 @@ class SequentialQA(BaseTask):
         match = pred_norm == gold_norm
         score_val = 1.0 if match else 0.0
 
-        return score_val, {
+        metrics = {
             "status": "ok",
             "prediction": prediction,
             "pred_normalized": sorted(pred_norm),
             "gold": gold_answer,
             "gold_normalized": sorted(gold_norm),
         }
+        if code_attempted:
+            metrics["code_executed"] = code_error is None and code_result is not None
+            if code_result is not None:
+                metrics["code_result"] = str(code_result)
+            if code_error:
+                metrics["code_error"] = code_error
+
+        return score_val, metrics
 
 
 # ── helpers ──────────────────────────────────────────────────────────

@@ -6,6 +6,11 @@ import re
 from typing import Dict
 
 from task import BaseTask
+from tasks.code_result_utils import (
+    dataframe_to_records,
+    execute_python_code,
+    make_typed_dataframe,
+)
 
 
 # Default table format when not explicitly set — follows output format style
@@ -97,9 +102,13 @@ class FactVerification(BaseTask):
         gold_label = raw.get("label", query_meta.get("gold_label", None))
 
         # Execute code if present
+        code_result = None
+        code_error = None
+        code_attempted = False
         if prediction.startswith("__CODE__"):
+            code_attempted = True
             code_str = prediction[len("__CODE__"):].strip()
-            code_result = _execute_verdict_code(code_str, raw)
+            code_result, code_error = _execute_verdict_code_with_error(code_str, raw)
             if code_result is not None:
                 prediction = "True" if code_result else "False"
             else:
@@ -109,84 +118,88 @@ class FactVerification(BaseTask):
         gold_binary = int(gold_label) if gold_label is not None else None
 
         if pred_binary is None or gold_binary is None:
-            return 0.0, {
+            metrics = {
                 "status": "parse_error",
                 "prediction": prediction,
                 "gold": str(gold_label),
             }
+            if code_attempted:
+                metrics["code_executed"] = code_error is None and code_result is not None
+                if code_error:
+                    metrics["code_error"] = code_error
+            return 0.0, metrics
 
         score_val = 1.0 if pred_binary == gold_binary else 0.0
-        return score_val, {
+        metrics = {
             "status": "ok",
             "prediction": prediction,
             "gold": str(gold_label),
             "pred_binary": pred_binary,
             "gold_binary": gold_binary,
         }
+        if code_attempted:
+            metrics["code_executed"] = code_error is None and code_result is not None
+            if code_result is not None:
+                metrics["code_result"] = str(code_result)
+            if code_error:
+                metrics["code_error"] = code_error
+        return score_val, metrics
 
 
 def _execute_verdict_code(code: str, raw: dict) -> bool | None:
+    result, _error = _execute_verdict_code_with_error(code, raw)
+    return result
+
+
+def _execute_verdict_code_with_error(code: str, raw: dict) -> tuple[bool | None, str | None]:
     """Execute model-generated Python code for fact verification.
 
     Provides `df` (pandas DataFrame) from the table data.
     Returns True/False or None on failure.
     """
-    import pandas as pd
-
     table_text = raw.get("table_text", "")
     if not table_text:
-        return None
+        return None, None
 
     try:
         from tasks.tabfact.loaders import parse_table_text
         parsed = parse_table_text(table_text)
         header = list(parsed["headers"])
         rows = [list(r) for r in parsed["rows"]]
-    except Exception:
-        return None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {str(exc)[:500]}"
 
     if not header or not rows:
-        return None
+        return None, None
 
     try:
-        df = pd.DataFrame(rows, columns=header)
-        # Auto-coerce numeric columns
-        for col in df.columns:
-            try:
-                df[col] = pd.to_numeric(df[col])
-            except (ValueError, TypeError):
-                pass
+        import pandas as pd
 
+        df = make_typed_dataframe(header, rows)
+
+        table = dataframe_to_records(df)
+        data = {
+            "table": raw.get("table_caption") or raw.get("table_id", ""),
+            "rows": table,
+        }
         safe_globals: dict = {
-            "df": df, "pd": pd, "len": len, "sum": sum,
+            "df": df, "pd": pd, "data": data, "table": table, "header": header,
+            "len": len, "sum": sum,
             "min": min, "max": max, "abs": abs, "round": round,
             "sorted": sorted, "str": str, "int": int, "float": float,
             "bool": bool, "any": any, "all": all, "True": True, "False": False,
         }
-        try:
-            return bool(eval(code, safe_globals))
-        except Exception:
-            pass
-
-        import contextlib as _contextlib
-        import io as _io
-
-        local_vars: dict = {}
-        stdout_buf = _io.StringIO()
-        with _contextlib.redirect_stdout(stdout_buf):
-            exec(code, safe_globals, local_vars)
-
-        for key in ("answer", "result", "__result__"):
-            if key in local_vars:
-                return _coerce_bool(local_vars[key])
-
-        captured = stdout_buf.getvalue().strip()
-        if captured:
-            return _coerce_bool(captured.splitlines()[-1].strip())
-
-        return None
-    except Exception:
-        return None
+        outcome = execute_python_code(
+            code,
+            safe_globals,
+            result_keys=("answer", "result", "__result__"),
+            normalize=None,
+        )
+        if outcome.error:
+            return None, outcome.error
+        return _coerce_bool(outcome.value), None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {str(exc)[:500]}"
 
 
 def _coerce_bool(value: object) -> bool | None:

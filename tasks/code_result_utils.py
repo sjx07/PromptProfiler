@@ -1,9 +1,8 @@
 """Helpers for normalizing code-executor return values."""
 from __future__ import annotations
 
-import contextlib
-import io
 import ast
+import builtins
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
 
@@ -42,6 +41,13 @@ def make_typed_dataframe(headers: Sequence[str], rows: Sequence[Sequence[Any]]) 
     return df
 
 
+def make_string_dataframe(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> Any:
+    """Build a pandas DataFrame that preserves raw cell strings."""
+    import pandas as pd
+
+    return pd.DataFrame([list(row) for row in rows], columns=list(headers))
+
+
 def dataframe_to_records(df: Any) -> list[dict[str, Any]]:
     """Convert a DataFrame to records without dropping duplicate columns."""
     columns = _dedupe_columns([str(col) for col in df.columns])
@@ -65,17 +71,33 @@ def execute_python_code(
     execution and preserves assigned variables for result extraction.
     """
     env = dict(scope)
+    printed_parts: list[str] = []
+
+    def _capture_print(
+        *values: Any,
+        sep: str = " ",
+        end: str = "\n",
+        file: Any = None,
+        flush: bool = False,
+    ) -> None:
+        if file is not None:
+            builtins.print(*values, sep=sep, end=end, file=file, flush=flush)
+            return
+        printed_parts.append(sep.join(str(v) for v in values) + end)
+
+    env["print"] = _capture_print
 
     try:
         value = eval(code, env)
+        captured = _captured_stdout_value(printed_parts)
+        if value is None and captured is not None:
+            return PythonExecutionResult(_normalize(captured, normalize), None)
         return PythonExecutionResult(_normalize(value, normalize), None)
     except Exception:
         pass
 
-    stdout_buf = io.StringIO()
     try:
-        with contextlib.redirect_stdout(stdout_buf):
-            exec(code, env, env)
+        exec(code, env, env)
     except Exception as exc:
         return PythonExecutionResult(None, _format_error(exc))
 
@@ -83,14 +105,9 @@ def execute_python_code(
         if key in env:
             return PythonExecutionResult(_normalize(env[key], normalize), None)
 
-    captured = stdout_buf.getvalue().strip()
-    if captured:
-        last_line = captured.splitlines()[-1].strip()
-        if last_line:
-            return PythonExecutionResult(
-                _normalize(_parse_captured_stdout(last_line), normalize),
-                None,
-            )
+    captured = _captured_stdout_value(printed_parts)
+    if captured is not None:
+        return PythonExecutionResult(_normalize(captured, normalize), None)
 
     return PythonExecutionResult(None, None)
 
@@ -172,6 +189,16 @@ def _parse_captured_stdout(line: str) -> Any:
     if isinstance(parsed, (list, tuple, set)):
         return parsed
     return line
+
+
+def _captured_stdout_value(parts: Sequence[str]) -> Any | None:
+    captured = "".join(parts).strip()
+    if not captured:
+        return None
+    last_line = captured.splitlines()[-1].strip()
+    if not last_line:
+        return None
+    return _parse_captured_stdout(last_line)
 
 
 def _format_error(exc: BaseException) -> str:

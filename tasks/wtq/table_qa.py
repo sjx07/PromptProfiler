@@ -6,9 +6,19 @@ import re
 from typing import Any, Dict, List
 
 from task import BaseTask
+from tasks.code_result_utils import (
+    dataframe_to_records,
+    execute_python_code,
+    make_typed_dataframe,
+)
 
 
 def _execute_code(code: str, table_data: dict) -> Any:
+    result, _error = _execute_code_with_error(code, table_data)
+    return result
+
+
+def _execute_code_with_error(code: str, table_data: dict) -> tuple[Any, str | None]:
     """Execute model-generated Python code with the table exposed in scope.
 
     Scope provided:
@@ -23,26 +33,16 @@ def _execute_code(code: str, table_data: dict) -> Any:
 
     Returns the result or None on failure.
     """
-    import pandas as pd
     import datetime as _dt, math as _math, collections as _collections
+    import pandas as pd
 
     name = table_data.get("name", "")
     header = table_data.get("header", [])
     rows = table_data.get("rows", [])
-    df = pd.DataFrame(rows, columns=header)
-    # Clean and coerce: strip commas, %, $, whitespace, then try numeric
-    for col in df.columns:
-        cleaned = df[col].astype(str).str.replace(",", "", regex=False)
-        cleaned = cleaned.str.replace(r"[\$£€]", "", regex=True)
-        cleaned = cleaned.str.replace("%", "", regex=False)
-        cleaned = cleaned.str.strip()
-        try:
-            df[col] = pd.to_numeric(cleaned)
-        except (ValueError, TypeError):
-            df[col] = df[col]  # keep original
+    df = make_typed_dataframe(header, rows)
 
     # Legacy list-of-dicts (pre-round-5 shape).
-    table = df.to_dict("records")
+    table = dataframe_to_records(df)
     # New: JSON-shape dict that matches what the model sees in the prompt.
     data = {"table": name, "rows": table}
 
@@ -67,43 +67,8 @@ def _execute_code(code: str, table_data: dict) -> Any:
         "any": any, "all": all, "round": round,
         "isinstance": isinstance, "type": type,
     }
-    def _stringify(r: Any) -> Any:
-        if isinstance(r, (list, set, tuple)):
-            return ", ".join(str(v) for v in r)
-        return r
-
-    # 1. Try eval — for single-expression code.
-    try:
-        return _stringify(eval(code, safe_globals))
-    except Exception:
-        pass
-
-    # 2. Fall back to exec for multi-statement code.
-    #    Capture stdout so `print(answer)` (what the prompt instructs) is
-    #    observable; also honor an explicit `answer = ...` assignment.
-    import io as _io
-    import contextlib as _contextlib
-    local_vars: dict = {}
-    stdout_buf = _io.StringIO()
-    try:
-        with _contextlib.redirect_stdout(stdout_buf):
-            exec(code, safe_globals, local_vars)
-    except Exception:
-        return None
-
-    # Prefer explicit `answer = ...` if the model set one.
-    if "answer" in local_vars:
-        return _stringify(local_vars["answer"])
-
-    # Otherwise use the captured stdout (last non-empty line), since the
-    # prompt tells the model to print the final answer as the last statement.
-    captured = stdout_buf.getvalue().strip()
-    if captured:
-        last_line = captured.splitlines()[-1].strip()
-        if last_line:
-            return last_line
-
-    return None
+    outcome = execute_python_code(code, safe_globals)
+    return outcome.value, outcome.error
 
 
 def _execute_sql(sql: str, table_data: dict) -> Any:
@@ -259,10 +224,13 @@ class TableQA(BaseTask):
 
         # If prediction contains code or SQL, execute it
         code_result = None
+        code_error = None
+        code_attempted = False
         sql_result = None
         if prediction.startswith("__CODE__"):
+            code_attempted = True
             code_str = prediction[len("__CODE__"):].strip()
-            code_result = _execute_code(code_str, raw.get("table", {}))
+            code_result, code_error = _execute_code_with_error(code_str, raw.get("table", {}))
             prediction = str(code_result) if code_result is not None else ""
         elif prediction.startswith("__SQL__"):
             sql_str = prediction[len("__SQL__"):].strip()
@@ -289,9 +257,12 @@ class TableQA(BaseTask):
             "gold": gold_answers,
             "gold_normalized": gold_values,
         }
-        if code_result is not None:
-            metrics["code_executed"] = True
-            metrics["code_result"] = str(code_result)
+        if code_attempted:
+            metrics["code_executed"] = code_error is None and code_result is not None
+            if code_result is not None:
+                metrics["code_result"] = str(code_result)
+            if code_error:
+                metrics["code_error"] = code_error
         if sql_result is not None:
             metrics["sql_executed"] = True
             metrics["sql_result"] = str(sql_result)
