@@ -51,6 +51,31 @@ def test_structure_template_rejects_multiple_output_fields():
         style.format_structure_template({}, {"code": "d", "reasoning": "r"})
 
 
+def test_system_message_skips_empty_rule_sections():
+    from prompt.rules import RuleItem, RuleSection, RuleTree
+    from prompt.semantic_content import SemanticContent
+
+    empty = RuleSection(title="rules", node_id="empty")
+    nonempty = RuleSection(
+        title="reasoning",
+        children=[RuleItem(text="Write executable code.", node_id="r1")],
+        node_id="reasoning",
+    )
+    tree = RuleTree(roots=[empty, nonempty])
+    tree._rebuild_index()
+    semantic = SemanticContent(
+        rule_sections=[empty, nonempty],
+        tree=tree,
+        input_fields={"table": "The table."},
+        output_fields=CODE_FIELDS,
+    )
+
+    out = CodeBlockStyle().format_system_message(semantic)
+    assert "## rules" not in out
+    assert "## reasoning" in out
+    assert "- Write executable code." in out
+
+
 # ── parse_output ───────────────────────────────────────────────────────
 
 def test_parse_extracts_simple_fenced_block():

@@ -3,7 +3,7 @@ from pathlib import Path
 
 from core.func_registry import PromptBuildState, REGISTRY, _func_sort_key
 from core.feature_registry import FeatureRegistry
-from tasks.tablebench.official_parser import parse_code_output_prediction
+from tasks.tablebench.official_parser import parse_code_output_prediction, parse_final_answer
 from tasks.tablebench.official_scorer import score_one
 from tasks.tablebench.table_bench import TableBench
 from tasks.wtq.parsers import PARSER_REGISTRY
@@ -151,6 +151,18 @@ def test_tablebench_code_output_parser_strips_legacy_answer_prefixes():
     assert parse_code_output_prediction("Final: 3\n") == "3"
     assert parse_code_output_prediction("answer: 3\n") == "3"
     assert parse_code_output_prediction("debug\nFinal: 3\n") == "3"
+
+
+def test_tablebench_final_answer_parser_uses_last_match():
+    response = """
+The answer should follow this format:
+Final Answer: AnswerName1, AnswerName2...
+
+Reasoning...
+Final Answer: Strong positive correlation, 0.87
+"""
+
+    assert parse_final_answer(response) == "Strong positive correlation, 0.87"
 
 
 def test_tablebench_tcot_full_prompt_uses_facet_builder():
@@ -307,7 +319,7 @@ def test_tablebench_direct_answer_profiles_do_not_conflict_with_facet_output_con
 
         assert "Final Answer: AnswerName1" not in rule_text
         assert "last output line" not in rule_text
-        assert "directly in the `answer` field" in rule_text
+        assert "adapt the `answer` value to the subtype" not in rule_text
 
 
 def test_official_full_profiles_do_not_include_static_qsubtype_labels():
@@ -383,9 +395,9 @@ def test_tablebench_tcot_full_prompt_does_not_inline_qsubtype_contracts():
     assert "CausalAnalysis" not in rendered
     assert "DescriptiveAnalysis" not in rendered
     assert "StatisticalAnalysis" not in rendered
-    assert "anomalous rows/items" in rendered
+    assert "abnormal data with total number" in rendered
     assert "No anomalies are detected in the table" in rendered
-    assert "The three anomalies are row 5" not in rendered
+    assert "The three anomalies are row 5" in rendered
     assert "Higher interest positively influences deposit balances change" not in rendered
     assert "shooting accuracy of 8 different bullet types" not in rendered
 
@@ -437,16 +449,17 @@ def test_tablebench_tcot_full_selects_record_specific_dataanalysis_contracts():
     })
     correlation_rendered = correlation_system + "\n" + correlation_user
 
-    assert "causal conclusion" in causal_rendered
-    assert "key evidence/result" in causal_rendered
-    assert "Relation, Coefficient" not in causal_rendered
+    assert "Ensure answer should give the conclusion" in causal_rendered
+    assert "Higher interest positively influences deposit balances change" in causal_rendered
+    assert "CorrelationRelation, CorrelationCoefficient" not in causal_rendered
     assert "CausalAnalysis" not in causal_rendered
     assert "CorrelationAnalysis" not in causal_rendered
     assert causal_system.splitlines().count("format_fix") == 1
 
-    assert "Relation, Coefficient" in correlation_rendered
-    assert "coefficient rounded to two decimals" in correlation_rendered
-    assert "causal conclusion" not in correlation_rendered
+    assert "CorrelationRelation, CorrelationCoefficient" in correlation_rendered
+    assert "between +0.3 to +0.7" in correlation_rendered
+    assert "Strong positive correlation, 0.82" in correlation_rendered
+    assert "Higher interest positively influences deposit balances change" not in correlation_rendered
     assert "CausalAnalysis" not in correlation_rendered
     assert "CorrelationAnalysis" not in correlation_rendered
     assert correlation_system.splitlines().count("format_fix") == 1
@@ -490,8 +503,57 @@ def test_tablebench_record_specific_format_rules_do_not_duplicate_format_fix_sec
         })
 
         assert system_prompt.splitlines().count("format_fix") == 1
-        assert "Put the final answer directly in the `answer` field" in system_prompt
-        assert "In `answer`, give the impacted entity" in system_prompt
+        assert "AnswerName1, AnswerName2" in system_prompt
+        assert "No clear impact" in system_prompt
+        assert "Negtive impact" in system_prompt
+
+
+def test_tablebench_pot_anomaly_prompt_uses_example_contracts_without_wrapper_noise():
+    task = TableBench()
+    state, _ = _state_from_tablebench_features([
+        "_section_role",
+        "_section_task",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "_section_rules",
+        "tb_pot_fixed_scaffold",
+        "tb_pot_python_persona_rule",
+        "tb_pot_approach_then_code_rule",
+        "tb_pot_code_concise_rule",
+        "tb_pot_code_readable_rule",
+        "tb_pot_code_comment_rule",
+        "tb_pot_data_only_rule",
+        "tb_pot_executable_code_rule",
+    ])
+    task.bind(state)
+
+    system_prompt, _ = task.build_prompt({
+        "content": "Find anomalies.",
+        "meta": {
+            "_raw": {
+                "question": "Find anomalies.",
+                "answer": "No anomalies are detected in the table.",
+                "qtype": "DataAnalysis",
+                "qsubtype": "AnomalyDetection",
+                "table": {
+                    "header": ["name", "score"],
+                    "rows": [["a", "13"]],
+                },
+            },
+        },
+    })
+
+    assert "Input Fields: Input Fields" not in system_prompt
+    assert "Output Fields: Output Fields" not in system_prompt
+    assert "Output Fields: code (" in system_prompt
+    assert system_prompt.splitlines().count("format_fix") == 1
+    assert system_prompt.count("Set `answer` to") == 1
+    assert "Set `answer` to the requested result shaped as" not in system_prompt
+    assert "Set `answer` to the requested result shaped as: Examples" not in system_prompt
+    assert "The three anomalies are row 5" in system_prompt
+    assert "abnormal data with total number" in system_prompt
+    assert "No anomalies are detected in the table." in system_prompt
 
 
 def test_tablebench_tcot_full_counting_contract_is_behavioral_not_taxonomy_label():
@@ -566,7 +628,7 @@ def test_tablebench_metrics_include_normalized_answer_values():
 def test_tablebench_feature_directory_only_has_sections_and_official_full_profiles():
     reg = FeatureRegistry.load(task="tablebench")
 
-    assert set(reg.list_features()) == {
+    expected_sections_and_profiles = {
         "_section_format_fix",
         "_section_reasoning",
         "_section_role",
@@ -579,6 +641,52 @@ def test_tablebench_feature_directory_only_has_sections_and_official_full_profil
         "tb_official_scot_full",
         "tb_official_pot_full",
     }
+    expected_pot_components = {
+        "tb_pot_fixed_scaffold",
+        "tb_pot_reasoning_field",
+        "tb_pot_approach_then_code_rule",
+        "tb_pot_code_concise_rule",
+        "tb_pot_code_readable_rule",
+        "tb_pot_code_comment_rule",
+        "tb_pot_data_only_rule",
+        "tb_pot_executable_code_rule",
+        "tb_pot_python_persona_rule",
+    }
+    expected_tcot_components = {
+        "tb_tcot_fixed_scaffold",
+        "tb_tcot_step_by_step_rule",
+        "tb_tcot_table_only_rule",
+    }
+    expected_scot_components = {
+        "tb_scot_fixed_scaffold",
+        "tb_scot_pattern_intro_rule",
+        "tb_scot_thought_rule",
+        "tb_scot_action_python_rule",
+        "tb_scot_result_simulation_rule",
+        "tb_scot_repeat_rule",
+        "tb_scot_concluding_check_rule",
+    }
+    expected_pot_rescue_components = {
+        "tb_pot_rescue_no_dataframe_print",
+        "tb_pot_rescue_precision_units",
+        "tb_pot_rescue_answer_type_gate",
+        "tb_pot_rescue_numeric_normalization",
+        "tb_pot_rescue_column_row_binding",
+        "tb_pot_rescue_anomaly_conservative",
+        "tb_pot_rescue_causal_evidence_shape",
+        "tb_pot_rescue_minimum_delta_nonnegative",
+    }
+
+    features = set(reg.list_features())
+
+    assert expected_sections_and_profiles <= features
+    assert features <= (
+        expected_sections_and_profiles
+        | expected_pot_components
+        | expected_tcot_components
+        | expected_scot_components
+        | expected_pot_rescue_components
+    )
 
 
 def test_official_pot_full_feature_uses_executable_tablebench_guidelines():
@@ -600,9 +708,10 @@ def test_official_pot_full_feature_uses_executable_tablebench_guidelines():
     )
 
     assert "df = pd.read_csv('table.csv')" in rule_text
-    assert "first two executable lines" in rule_text
-    assert "pandas dtype ambiguity" in rule_text
-    assert "valid JSON object" in rule_text
+    assert "Code blocks need to strictly start with ```python and end with ```" in rule_text
+    assert "generate executable code" in rule_text
+    assert "print function" in rule_text
+    assert "JSON object with `columns` and `data`" in rule_text
 
 
 def test_official_full_profile_features_materialize():

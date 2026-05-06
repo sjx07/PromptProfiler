@@ -33,21 +33,14 @@ def list_configs_detailed(
     scorer: Optional[str] = None,
     dataset: Optional[str] = None,
     split: Optional[str] = None,
+    only_with_results: bool = False,
 ) -> List[Dict[str, Any]]:
     """Configs with parsed metadata plus execution/evaluation score counts."""
     conn = store._get_conn()
-    exec_where = ["1=1"]
-    exec_params: List[Any] = []
+    exec_where, exec_params = _query_scope_where("q", dataset=dataset, split=split)
     if model:
         exec_where.append("e.model = ?")
         exec_params.append(model)
-    if dataset:
-        exec_where.append("q.dataset = ?")
-        exec_params.append(dataset)
-    if split:
-        split_clause, split_params = _split_filter_clause("q", split)
-        exec_where.append(split_clause)
-        exec_params.extend(split_params)
 
     eval_join = "LEFT JOIN evaluation ev ON ev.execution_id = e.execution_id"
     eval_params: List[Any] = []
@@ -102,6 +95,12 @@ def list_configs_detailed(
             or _display_feature_set(all_canonical_ids, kind=meta.get("kind"), has_funcs=bool(func_ids))
             or ("base" if not func_ids else None)
         )
+        n_executions = int(r["n_executions"] or 0)
+        n_evaluations = int(r["n_evaluations"] or 0)
+        if only_with_results:
+            n_results = n_evaluations if scorer else n_executions
+            if n_results <= 0:
+                continue
         out.append({
             "configId": int(r["config_id"]),
             "canonicalId": canonical,
@@ -111,8 +110,8 @@ def list_configs_detailed(
             "featureIds": meta.get("feature_ids", []),
             "canonicalIds": all_canonical_ids,
             "resolvedCanonicalIds": resolved,
-            "nExecutions": int(r["n_executions"] or 0),
-            "nEvaluations": int(r["n_evaluations"] or 0),
+            "nExecutions": n_executions,
+            "nEvaluations": n_evaluations,
             "avgScore": _float_or_none(r["avg_score"]),
             "firstExecutionAt": r["first_execution_at"],
             "lastExecutionAt": r["last_execution_at"],
@@ -121,10 +120,33 @@ def list_configs_detailed(
     return out
 
 
-def list_query_meta_fields(store: CubeStore, *, limit: int = 2000) -> List[Dict[str, Any]]:
+def list_query_meta_fields(
+    store: CubeStore,
+    *,
+    dataset: Optional[str] = None,
+    split: Optional[str] = None,
+    model: Optional[str] = None,
+    scorer: Optional[str] = None,
+    only_with_results: bool = False,
+    limit: int = 2000,
+) -> List[Dict[str, Any]]:
     """Top-level query.meta keys with coverage and sample values."""
+    where, params = _query_scope_where("q", dataset=dataset, split=split)
+    result_join, result_params = _query_result_join(
+        "q",
+        model=model,
+        scorer=scorer,
+        only_with_results=only_with_results,
+    )
     rows = store._get_conn().execute(
-        "SELECT meta FROM query LIMIT ?", (int(limit),)
+        f"""
+        SELECT DISTINCT q.query_id, q.meta
+        FROM query q
+        {result_join}
+        WHERE {' AND '.join(where)}
+        LIMIT ?
+        """,
+        tuple(result_params + params + [int(limit)]),
     ).fetchall()
     counts: Counter[str] = Counter()
     samples: Dict[str, List[str]] = defaultdict(list)
@@ -149,19 +171,38 @@ def list_query_meta_fields(store: CubeStore, *, limit: int = 2000) -> List[Dict[
     ]
 
 
-def list_predicate_fields(store: CubeStore) -> List[Dict[str, Any]]:
+def list_predicate_fields(
+    store: CubeStore,
+    *,
+    dataset: Optional[str] = None,
+    split: Optional[str] = None,
+    model: Optional[str] = None,
+    scorer: Optional[str] = None,
+    only_with_results: bool = False,
+) -> List[Dict[str, Any]]:
     """Predicate names available for slicing, with value counts and samples."""
+    where, params = _query_scope_where("q", dataset=dataset, split=split)
+    result_join, result_params = _query_result_join(
+        "q",
+        model=model,
+        scorer=scorer,
+        only_with_results=only_with_results,
+    )
     rows = store._get_conn().execute(
-        """
-        SELECT name,
+        f"""
+        SELECT p.name,
                COUNT(*) AS n_rows,
-               COUNT(DISTINCT query_id) AS n_queries,
-               COUNT(DISTINCT value) AS n_values,
-               GROUP_CONCAT(DISTINCT value) AS sample_values
-        FROM predicate
-        GROUP BY name
-        ORDER BY name
-        """
+               COUNT(DISTINCT p.query_id) AS n_queries,
+               COUNT(DISTINCT p.value) AS n_values,
+               GROUP_CONCAT(DISTINCT p.value) AS sample_values
+        FROM predicate p
+        JOIN query q ON q.query_id = p.query_id
+        {result_join}
+        WHERE {' AND '.join(where)}
+        GROUP BY p.name
+        ORDER BY p.name
+        """,
+        tuple(result_params + params),
     ).fetchall()
     out: List[Dict[str, Any]] = []
     for r in rows:
@@ -1002,6 +1043,41 @@ def _parse_field(field: str) -> Tuple[str, str]:
     if field.startswith("predicate."):
         return "predicate", field[len("predicate."):]
     raise ValueError(f"unsupported field: {field!r}")
+
+
+def _query_scope_where(
+    query_alias: str,
+    *,
+    dataset: Optional[str] = None,
+    split: Optional[str] = None,
+) -> Tuple[List[str], List[Any]]:
+    where = ["1=1"]
+    params: List[Any] = []
+    if dataset:
+        where.append(f"{query_alias}.dataset = ?")
+        params.append(dataset)
+    if split:
+        split_clause, split_params = _split_filter_clause(query_alias, split)
+        where.append(split_clause)
+        params.extend(split_params)
+    return where, params
+
+
+def _query_result_join(
+    query_alias: str,
+    *,
+    model: Optional[str] = None,
+    scorer: Optional[str] = None,
+    only_with_results: bool = False,
+) -> Tuple[str, List[Any]]:
+    if not only_with_results or not model or not scorer:
+        return "", []
+    return (
+        "JOIN v_query_scores s_scope "
+        f"ON s_scope.query_id = {query_alias}.query_id "
+        "AND s_scope.model = ? AND s_scope.scorer = ?",
+        [model, scorer],
+    )
 
 
 def _split_filter_clause(query_alias: str, split: str) -> Tuple[str, List[Any]]:

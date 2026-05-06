@@ -67,13 +67,28 @@ def make_handler(app: CubeApp):
                     scorer=_first_qs(qs, "scorer"),
                     dataset=_first_qs(qs, "dataset"),
                     split=_first_qs(qs, "split"),
+                    only_with_results=_truthy_qs(qs, "onlyWithResults"),
                 ))
                 return
             if parsed.path == "/api/meta-fields":
-                self._api(lambda _body, _qs: cube_ops.list_query_meta_fields(app.store))
+                self._api(lambda _body, qs: cube_ops.list_query_meta_fields(
+                    app.store,
+                    dataset=_first_qs(qs, "dataset"),
+                    split=_first_qs(qs, "split"),
+                    model=_first_qs(qs, "model"),
+                    scorer=_first_qs(qs, "scorer"),
+                    only_with_results=_truthy_qs(qs, "onlyWithResults"),
+                ))
                 return
             if parsed.path == "/api/predicates":
-                self._api(lambda _body, _qs: cube_ops.list_predicate_fields(app.store))
+                self._api(lambda _body, qs: cube_ops.list_predicate_fields(
+                    app.store,
+                    dataset=_first_qs(qs, "dataset"),
+                    split=_first_qs(qs, "split"),
+                    model=_first_qs(qs, "model"),
+                    scorer=_first_qs(qs, "scorer"),
+                    only_with_results=_truthy_qs(qs, "onlyWithResults"),
+                ))
                 return
             if parsed.path == "/api/artifact":
                 self._api(lambda _body, qs: _not_none(
@@ -315,6 +330,11 @@ def _first_qs(qs: Dict[str, list], key: str) -> Optional[str]:
     if not values:
         return None
     return values[0] or None
+
+
+def _truthy_qs(qs: Dict[str, list], key: str) -> bool:
+    value = (_first_qs(qs, key) or "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def _not_none(value: Any, message: str) -> Any:
@@ -609,6 +629,7 @@ INDEX_HTML = r"""<!doctype html>
         <select id="labelPredicateSelect"></select>
       </div>
       <div class="split-actions">
+        <button id="applyFilterBtn">Apply Filter</button>
         <button class="primary" id="refreshBtn">Refresh</button>
         <button id="sliceBtn">Slice</button>
         <button id="compareBtn">Compare</button>
@@ -665,6 +686,7 @@ INDEX_HTML = r"""<!doctype html>
       configs: [],
       metaFields: [],
       predicates: [],
+      appliedBenchmark: {dataset: '', split: ''},
       selectedSlice: null,
       selectedExampleId: null,
       artifact: null,
@@ -720,7 +742,7 @@ INDEX_HTML = r"""<!doctype html>
       return {
         model: $('modelSelect').value,
         scorer: $('scorerSelect').value,
-        benchmark: currentBenchmark(),
+        benchmark: state.appliedBenchmark,
         configIds: selectedConfigIds(),
         baseConfigId: Number($('baseSelect').value || 0) || null,
         targetConfigId: Number($('targetSelect').value || 0) || null,
@@ -738,13 +760,8 @@ INDEX_HTML = r"""<!doctype html>
       state.summary = data.summary;
       $('cubePath').textContent = data.cubePath;
       populateScopeControls();
-      [state.metaFields, state.predicates] = await Promise.all([
-        api('/api/meta-fields'),
-        api('/api/predicates')
-      ]);
-      populateGroupBy();
-      populateLabelPredicate();
-      await refreshConfigs();
+      state.appliedBenchmark = currentBenchmark();
+      await refreshScopedControls();
       renderSummary();
       setStatus('Ready');
     }
@@ -776,8 +793,26 @@ INDEX_HTML = r"""<!doctype html>
       return {dataset: parts[0] || '', split: parts[1] || ''};
     }
 
+    function appliedBenchmarkLabel() {
+      const b = state.appliedBenchmark || {dataset: '', split: ''};
+      if (!b.dataset) return 'all benchmarks';
+      return b.split ? `${b.dataset} / ${b.split}` : `${b.dataset} / all splits`;
+    }
+
+    function appliedBenchmarkParams() {
+      const b = state.appliedBenchmark || {dataset: '', split: ''};
+      const q = new URLSearchParams({
+        model: $('modelSelect').value || '',
+        scorer: $('scorerSelect').value || ''
+      });
+      if (b.dataset) q.set('dataset', b.dataset);
+      if (b.split) q.set('split', b.split);
+      if (b.dataset) q.set('onlyWithResults', '1');
+      return q;
+    }
+
     function benchmarkFilters() {
-      const b = currentBenchmark();
+      const b = state.appliedBenchmark || {dataset: '', split: ''};
       if (!b.dataset) return [];
       const filters = [{field: 'dataset', op: '=', value: b.dataset}];
       if (b.split) {
@@ -792,6 +827,31 @@ INDEX_HTML = r"""<!doctype html>
 
     function analysisFilters(extra = []) {
       return [...benchmarkFilters(), ...(extra || [])];
+    }
+
+    async function refreshScopedControls() {
+      const q = appliedBenchmarkParams();
+      const suffix = q.toString() ? '?' + q.toString() : '';
+      [state.metaFields, state.predicates] = await Promise.all([
+        api('/api/meta-fields' + suffix),
+        api('/api/predicates' + suffix)
+      ]);
+      populateGroupBy();
+      populateLabelPredicate();
+      await refreshConfigs();
+      clearScopedOutputs();
+    }
+
+    function clearScopedOutputs() {
+      state.selectedSlice = null;
+      state.selectedExampleId = null;
+      state.artifact = null;
+      $('sliceCount').textContent = '';
+      $('exampleCount').textContent = '';
+      $('slicesTable').innerHTML = '';
+      $('examplesTable').innerHTML = '';
+      $('analysisPane').innerHTML = '<pre></pre>';
+      renderArtifact();
     }
 
     function populateGroupBy() {
@@ -817,8 +877,12 @@ INDEX_HTML = r"""<!doctype html>
     async function refreshConfigs() {
       const scope = currentScope();
       const q = new URLSearchParams({model: scope.model || '', scorer: scope.scorer || ''});
-      if (scope.benchmark.dataset) q.set('dataset', scope.benchmark.dataset);
-      if (scope.benchmark.split) q.set('split', scope.benchmark.split);
+      const b = scope.benchmark || {dataset: '', split: ''};
+      if (b.dataset) {
+        q.set('dataset', b.dataset);
+        q.set('onlyWithResults', '1');
+      }
+      if (b.split) q.set('split', b.split);
       state.configs = await api('/api/configs?' + q.toString());
       renderConfigControls();
       renderConfigsTable();
@@ -833,7 +897,7 @@ INDEX_HTML = r"""<!doctype html>
       }).join('');
       $('baseSelect').innerHTML = rows.map((r, i) => option(`${r.configId} ${configDisplayName(r)}`, r.configId, i === 0)).join('');
       $('targetSelect').innerHTML = rows.map((r, i) => option(`${r.configId} ${configDisplayName(r)}`, r.configId, i === Math.min(1, rows.length - 1))).join('');
-      $('configCount').textContent = `${rows.length} configs`;
+      $('configCount').textContent = `${rows.length} configs · ${appliedBenchmarkLabel()}`;
     }
 
     function configDisplayName(row) {
@@ -1177,23 +1241,32 @@ INDEX_HTML = r"""<!doctype html>
       setStatus('Dry-run plan loaded');
     }
 
+    async function applyBenchmarkFilter() {
+      state.appliedBenchmark = currentBenchmark();
+      setStatus('Applying benchmark filter...');
+      await refreshScopedControls();
+      renderSummary();
+      setStatus(`Filter applied: ${appliedBenchmarkLabel()}`);
+    }
+
     $('refreshBtn').addEventListener('click', async () => {
       try {
-        await refreshConfigs();
+        await refreshScopedControls();
         renderSummary();
-        setStatus('Refreshed');
+        setStatus(`Refreshed: ${appliedBenchmarkLabel()}`);
       } catch (err) {
         setStatus(err.message, 'bad');
       }
     });
+    $('applyFilterBtn').addEventListener('click', () => applyBenchmarkFilter().catch(err => setStatus(err.message, 'bad')));
     $('sliceBtn').addEventListener('click', () => runSlices().catch(err => setStatus(err.message, 'bad')));
     $('compareBtn').addEventListener('click', () => runCompare().catch(err => setStatus(err.message, 'bad')));
     $('diagBtn').addEventListener('click', () => runDiagnostics().catch(err => setStatus(err.message, 'bad')));
     $('labelsBtn').addEventListener('click', () => runFeatureLabels().catch(err => setStatus(err.message, 'bad')));
     $('planBtn').addEventListener('click', () => runPlanDelete().catch(err => setStatus(err.message, 'bad')));
-    $('modelSelect').addEventListener('change', () => refreshConfigs().catch(err => setStatus(err.message, 'bad')));
-    $('scorerSelect').addEventListener('change', () => refreshConfigs().catch(err => setStatus(err.message, 'bad')));
-    $('benchmarkSelect').addEventListener('change', () => refreshConfigs().catch(err => setStatus(err.message, 'bad')));
+    $('modelSelect').addEventListener('change', () => refreshScopedControls().catch(err => setStatus(err.message, 'bad')));
+    $('scorerSelect').addEventListener('change', () => refreshScopedControls().catch(err => setStatus(err.message, 'bad')));
+    $('benchmarkSelect').addEventListener('change', () => setStatus('Benchmark changed; click Apply Filter.'));
 
     loadBoot().catch(err => setStatus(err.message, 'bad'));
   </script>

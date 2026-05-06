@@ -214,6 +214,50 @@ def test_feature_effect_cross_task_both_appear():
         os.unlink(db_path)
 
 
+def test_feature_label_effect_view_basic_join():
+    """feature_label_effect joins scores through semantic label memberships."""
+    features = {
+        "enable_tcot": {
+            "canonical_id": "enable_tcot",
+            "task": "table_qa",
+            "semantic_labels": [
+                {"label": "reasoning.text_chain_of_thought", "role": "mechanism"},
+                "style.explain_steps",
+            ],
+            "scope": {"dataset": "table_qa"},
+            "requires": [],
+            "conflicts_with": [],
+            "primitive_edits": [
+                {"func_type": "insert_node",
+                 "params": {"node_type": "rule", "parent_id": ROOT_ID,
+                            "payload": {"content": "Think step by step."}}}
+            ],
+        }
+    }
+    reg = FeatureRegistry(task="table_qa", features=features)
+    store, db_path = _open_fresh_store()
+    try:
+        ids = _seed_full_pipeline(store, reg, "enable_tcot", score=0.75)
+        rows = store._get_conn().execute(
+            """SELECT feature_id, canonical_id, label_id, role,
+                      component_scope_json, dataset, score
+               FROM feature_label_effect
+               ORDER BY label_id"""
+        ).fetchall()
+        assert [(r["label_id"], r["role"]) for r in rows] == [
+            ("reasoning.text_chain_of_thought", "mechanism"),
+            ("style.explain_steps", "implements"),
+        ]
+        assert {r["feature_id"] for r in rows} == {ids["feature_id"]}
+        assert {r["canonical_id"] for r in rows} == {"enable_tcot"}
+        assert {json.loads(r["component_scope_json"])["dataset"] for r in rows} == {"table_qa"}
+        assert {r["dataset"] for r in rows} == {"test_ds"}
+        assert {r["score"] for r in rows} == {0.75}
+    finally:
+        store.close()
+        os.unlink(db_path)
+
+
 # ── pre-v7 config not joinable ────────────────────────────────────────
 
 def test_pre_v7_config_not_joinable():

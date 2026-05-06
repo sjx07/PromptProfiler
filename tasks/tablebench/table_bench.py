@@ -27,36 +27,45 @@ _OUTPUT_TO_TABLE_FORMAT = {
 
 _DATAANALYSIS_ANSWER_CONTRACTS = {
     "ImpactAnalysis": (
-        "Impacted entity or concise impact conclusion, such as `No clear impact`, `Negative impact`, or `Positive impact`.",
-        "In `answer`, give the impacted entity or a concise impact conclusion.",
-        "Use `No clear impact`, `Negative impact`, or `Positive impact` when that is the requested answer type.",
+        'Ensure the answer is in the "AnswerName1, AnswerName2..." form, no other form.',
+        "Ensure the answer is a entity name or a impact description(No clear impact, Negtive impact or Positive impact), as short as possible, without any explanation.",
     ),
     "AnomalyDetection": (
-        "Anomalous rows/items with total count and a brief reason for each, or `No anomalies are detected in the table.`",
-        "Point out the abnormal data with the total number of anomalies and briefly explain why each anomaly is abnormal.",
-        "If no anomaly is detected, use exactly `No anomalies are detected in the table.`",
+        "Answer should point out the abnormal data with total number then explain why for each anomaly as short as possible.",
+        'If no anomaly is detected, the answer should be "No anomalies are detected in the table."',
+        "Examples:",
+        "The three anomalies are row 5 with Tom having an unusually high score 101 in the Math column, row 7 with an unusually low score 3 in the English column, and row 9 with an unusually high score 200 in the Science column.",
+        "No anomalies are detected in the table.",
     ),
     "CorrelationAnalysis": (
-        "Correlation relation and coefficient as `Relation, Coefficient`, with the coefficient rounded to two decimals.",
-        "Use one of `No correlation`, `Weak positive correlation`, `Weak negative correlation`, `Strong positive correlation`, or `Strong negative correlation`.",
-        "Round the correlation coefficient to two decimal places.",
+        'Ensure the answer is in the "CorrelationRelation, CorrelationCoefficient." form, no other form.',
+        'Ensure that: the correlation coefficient should be a float number with two decimal places; the correlation relation can only be "No correlation" with the correlation coefficient between -0.3 to +0.3, "Weak positive correlation" with the correlation coefficient between +0.3 to +0.7, "Weak negative correlation" with the correlation coefficient between -0.3 to -0.7, "Strong positive correlation" with the correlation coefficient between +0.7 to +1, or "Strong negative correlation" with the correlation coefficient between -0.7 to -1.',
+        "Examples:",
+        "No correlation, 0.15",
+        "Strong positive correlation, 0.82",
     ),
     "TrendForecasting": (
-        "Requested number, entity, or concise trend conclusion, such as `No clear trend`, `Increasing trend`, or `Decreasing trend`.",
-        "Use a number, entity name, or concise trend description as short as possible.",
-        "Use `No clear trend`, `Increasing trend`, or `Decreasing trend` when that is the requested answer type.",
+        'Ensure the answer is in the "AnswerName1, AnswerName2..." form, no other form.',
+        'Ensure the "AnswerName" is a number, entity name or a trend description(No clear trend, Increasing trend or Decreasing trend), as short as possible, without any explanation.',
+        "Examples:",
+        "1, 2, 3",
+        "Increasing trend",
+        "Increasing trend, 13.5",
     ),
     "CausalAnalysis": (
-        "causal conclusion and key evidence/result in one concise sentence.",
-        "Give the conclusion first, then provide a brief explanation of the causal analysis result.",
+        'Ensure the answer is in the "Answer" form, no other form.',
+        "Ensure answer should give the conclusion then provide a brief explanation of the causal analysis results as concise as possible.",
+        "Examples:",
+        "Yes, Higher interest positively influences deposit balances change (correlation coefficient of 0.89).",
+        "No, Analysis reveals a negligible inverse correlation (0.21), suggesting the gdp does not causally influence the population.",
+        "The water level of a river exhibits a stronger causal relationship with rainfall (0.82) compared to snowfall (0.32).",
     ),
     "DescriptiveAnalysis": (
-        "Brief table description covering the main columns and basic insights.",
-        "Describe the table's main columns and basic insights concisely.",
+        "The table presents the shooting accuracy of 8 different bullet types (including .308 Winchester and .300 Winchester Magnum) at 100 meters and 300 meters, measured in millimeters and Minutes of Angle (MOA) for dispersion. The data indicates that .300 Winchester Magnum bullets exhibit higher precision at 300 meters, with smaller dispersion ranges.",
     ),
     "StatisticalAnalysis": (
-        "Requested statistic as a concise number, entity, or value tuple.",
-        "Use `AnswerName1, AnswerName2...`; each AnswerName must be a number or entity name, as short as possible, with no explanation.",
+        'Ensure the answer is in the "AnswerName1, AnswerName2..." form, no other form.',
+        'Ensure answer format is in the "AnswerName1, AnswerName2..." form, no other form. Ensure the "AnswerName" is a number or entity name, as short as possible, without any explanation.',
     ),
 }
 
@@ -142,9 +151,10 @@ class TableBench(BaseTask):
                     extra_rules.append(_answer_field_rule())
                     extra_rules.extend(rule_texts)
                 elif "code" in output_fields:
-                    output_fields["code"] = _code_field_description()
+                    output_fields["code"] = _code_field_description(field_desc)
                     extra_rules.append(_code_answer_rule())
-                    extra_rules.append(field_desc)
+                    if field_desc and field_desc not in rule_texts:
+                        extra_rules.append(field_desc)
                     extra_rules.extend(rule_texts)
         else:
             if "answer" in output_fields:
@@ -290,7 +300,13 @@ def _answer_field_rule() -> str:
     )
 
 
-def _code_field_description() -> str:
+def _code_field_description(answer_description: str | None = None) -> str:
+    if answer_description:
+        return (
+            "Executable Python code that analyzes `table.csv`, assigns the "
+            f"requested answer value as: {answer_description}, and prints only "
+            "that answer value with no label, prefix, or explanation."
+        )
     return (
         "Executable Python code that analyzes `table.csv`, assigns the final "
         "answer value to `answer`, and prints only that value with "

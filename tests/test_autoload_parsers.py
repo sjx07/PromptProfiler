@@ -3,8 +3,8 @@
 Tests for pkgutil autoload_parsers() and GLOBAL_PARSER_REGISTRY.
 
 Invariants:
-  1. After `import prompt_profiler`, GLOBAL_PARSER_REGISTRY contains all 3
-     task parser modules (wtq, nl2sql, tabfact).
+  1. After `import prompt_profiler`, GLOBAL_PARSER_REGISTRY contains the
+     task parser modules used by supported dispatching tasks.
   2. Registered parsers for each module match the expected dispatch fields.
   3. autoload_parsers() is idempotent (safe to call multiple times).
   4. get_parser_registry(module_path) returns the correct dict.
@@ -28,14 +28,16 @@ if _TOOL_DIR not in sys.path:
 # ── autoload on package import ────────────────────────────────────────
 
 def test_global_registry_populated_after_import():
-    """GLOBAL_PARSER_REGISTRY has entries for all 3 task parser modules after import."""
+    """GLOBAL_PARSER_REGISTRY has entries for supported parser modules after import."""
     import prompt_profiler  # triggers autoload  # noqa: F401
     from core.parser_registry import GLOBAL_PARSER_REGISTRY
 
     expected_modules = {
         "tasks.wtq.parsers",
         "tasks.nl2sql.parsers",
+        "tasks.sqa.parsers",
         "tasks.tabfact.parsers",
+        "tasks.hitab.parsers",
     }
     for mod_path in expected_modules:
         assert mod_path in GLOBAL_PARSER_REGISTRY, (
@@ -68,6 +70,24 @@ def test_tabfact_dispatch_fields_registered():
 
     reg = GLOBAL_PARSER_REGISTRY["tasks.tabfact.parsers"]
     assert set(reg.keys()) == {"code", "verdict"}
+
+
+def test_sqa_dispatch_fields_registered():
+    """SQA parsers module registers exactly {code, answer}."""
+    import prompt_profiler  # noqa: F401
+    from core.parser_registry import GLOBAL_PARSER_REGISTRY
+
+    reg = GLOBAL_PARSER_REGISTRY["tasks.sqa.parsers"]
+    assert set(reg.keys()) == {"code", "answer"}
+
+
+def test_hitab_dispatch_fields_registered():
+    """HiTab parsers module registers exactly {code, answer}."""
+    import prompt_profiler  # noqa: F401
+    from core.parser_registry import GLOBAL_PARSER_REGISTRY
+
+    reg = GLOBAL_PARSER_REGISTRY["tasks.hitab.parsers"]
+    assert set(reg.keys()) == {"code", "answer"}
 
 
 # ── idempotency ───────────────────────────────────────────────────────

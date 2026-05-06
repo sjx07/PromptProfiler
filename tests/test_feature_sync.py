@@ -245,3 +245,98 @@ def test_sync_source_path_set_for_disk_loaded(tmp_path):
     finally:
         store.close()
         os.unlink(db_path)
+
+
+def test_sync_semantic_labels_and_component_scope():
+    """Feature semantic_labels sync to labels; scope stays on component row."""
+    feature = {
+        "feature_id": "tcot",
+        "task": "table_qa",
+        "semantic_labels": [
+            "reasoning.text_chain_of_thought",
+            {
+                "label": "style.explain_steps",
+                "role": "style_rule",
+                "description": "Ask the model to explain intermediate steps.",
+            },
+        ],
+        "scope": {
+            "dataset": "table_qa",
+            "predicates": {"answer_type": "numeric"},
+        },
+        "primitive_edits": [
+            {"func_type": "insert_node",
+             "params": {"node_type": "rule", "parent_id": ROOT_ID,
+                        "payload": {"content": "Think step by step."}}}
+        ],
+    }
+    reg = _make_registry("table_qa", [feature])
+    store, db_path = _open_fresh_store()
+    try:
+        reg.sync_to_cube(store)
+        conn = store._get_conn()
+        row = conn.execute(
+            "SELECT feature_id, semantic_labels_json, scope_json FROM feature"
+        ).fetchone()
+        feature_id = row["feature_id"]
+        assert json.loads(row["semantic_labels_json"]) == feature["semantic_labels"]
+        assert json.loads(row["scope_json"]) == feature["scope"]
+
+        labels = conn.execute(
+            "SELECT label_id, description FROM feature_label ORDER BY label_id"
+        ).fetchall()
+        assert [r["label_id"] for r in labels] == [
+            "reasoning.text_chain_of_thought",
+            "style.explain_steps",
+        ]
+        assert labels[1]["description"] == "Ask the model to explain intermediate steps."
+
+        memberships = conn.execute(
+            """SELECT label_id, role
+               FROM feature_label_membership
+               WHERE feature_id = ?
+               ORDER BY label_id""",
+            (feature_id,),
+        ).fetchall()
+        assert [(r["label_id"], r["role"]) for r in memberships] == [
+            ("reasoning.text_chain_of_thought", "implements"),
+            ("style.explain_steps", "style_rule"),
+        ]
+    finally:
+        store.close()
+        os.unlink(db_path)
+
+
+def test_sync_semantic_label_removal_clears_memberships():
+    """Re-syncing a registry-owned feature with no labels removes old memberships."""
+    primitive_edits = [
+        {"func_type": "insert_node",
+         "params": {"node_type": "rule", "parent_id": ROOT_ID,
+                    "payload": {"content": "Think step by step."}}}
+    ]
+    labeled = {
+        "feature_id": "tcot",
+        "task": "table_qa",
+        "semantic_labels": ["reasoning.text_chain_of_thought"],
+        "primitive_edits": primitive_edits,
+    }
+    unlabeled = {
+        "feature_id": "tcot",
+        "task": "table_qa",
+        "primitive_edits": primitive_edits,
+    }
+    store, db_path = _open_fresh_store()
+    try:
+        _make_registry("table_qa", [labeled]).sync_to_cube(store)
+        conn = store._get_conn()
+        assert conn.execute(
+            "SELECT COUNT(*) FROM feature_label_membership"
+        ).fetchone()[0] == 1
+
+        _make_registry("table_qa", [unlabeled]).sync_to_cube(store)
+        assert conn.execute(
+            "SELECT COUNT(*) FROM feature_label_membership"
+        ).fetchone()[0] == 0
+    finally:
+        store.close()
+        os.unlink(db_path)

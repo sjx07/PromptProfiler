@@ -1,7 +1,6 @@
 __pycache/
 *.db
 __pycache__/
-/features/
 /factory/
 runs/
 .omc/
@@ -14,3 +13,4 @@ experiments/
 .claude/
 CLAUDE.md
 AGENT.md
+/features_legacy

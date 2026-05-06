@@ -59,6 +59,98 @@ def test_wtq_parse_code_markdown_block(tmp_mock_task):
     assert "df" in result
 
 
+# ── SQA parsers ───────────────────────────────────────────────────────
+
+def test_sqa_registry_keys():
+    from tasks.sqa.parsers import PARSER_REGISTRY, DISPATCH_FIELDS
+    assert set(PARSER_REGISTRY.keys()) == DISPATCH_FIELDS
+    assert DISPATCH_FIELDS == frozenset({"code", "answer"})
+
+
+def test_sqa_parse_code_returns_prefix(tmp_mock_task):
+    from tasks.sqa.parsers import PARSER_REGISTRY
+    parser = PARSER_REGISTRY["code"]
+    result = parser("df['points'].max()", tmp_mock_task)
+    assert result.startswith("__CODE__")
+    assert "df" in result
+
+
+def test_sqa_parse_answer_returns_plain(tmp_mock_task):
+    from tasks.sqa.parsers import PARSER_REGISTRY
+    parser = PARSER_REGISTRY["answer"]
+    result = parser("Answer: Lee", tmp_mock_task)
+    assert result == "Lee"
+
+
+def test_sqa_code_score_executes_dataframe():
+    from tasks.sqa.sequential_qa import SequentialQA
+
+    task = SequentialQA()
+    score, metrics = task.score(
+        "__CODE__answer = df.loc[df['Points'].idxmax(), 'Driver']",
+        {
+            "_raw": {
+                "answer_text": ["Lee"],
+                "table": {
+                    "headers": ["Driver", "Points"],
+                    "rows": [["Kim", "12"], ["Lee", "18"]],
+                },
+            }
+        },
+    )
+    assert score == 1.0
+    assert metrics["prediction"] == "Lee"
+
+
+# ── HiTab parsers ─────────────────────────────────────────────────────
+
+def test_hitab_registry_keys():
+    from tasks.hitab.parsers import PARSER_REGISTRY, DISPATCH_FIELDS
+    assert set(PARSER_REGISTRY.keys()) == DISPATCH_FIELDS
+    assert DISPATCH_FIELDS == frozenset({"code", "answer"})
+
+
+def test_hitab_parse_code_returns_prefix(tmp_mock_task):
+    from tasks.hitab.parsers import PARSER_REGISTRY
+    parser = PARSER_REGISTRY["code"]
+    result = parser("df['Points'].max()", tmp_mock_task)
+    assert result.startswith("__CODE__")
+    assert "df" in result
+
+
+def test_hitab_parse_answer_returns_plain(tmp_mock_task):
+    from tasks.hitab.parsers import PARSER_REGISTRY
+    parser = PARSER_REGISTRY["answer"]
+    result = parser("The answer is Lee.", tmp_mock_task)
+    assert result == "Lee"
+
+
+def test_hitab_code_score_executes_flattened_table():
+    from tasks.hitab.table_qa import HiTabQA
+
+    task = HiTabQA()
+    score, metrics = task.score(
+        "__CODE__answer = df.loc[df['Points'].idxmax(), 'Driver']",
+        {
+            "_raw": {
+                "answer": "[\"Lee\"]",
+                "table_content": {
+                    "title": "Drivers",
+                    "top_header_rows_num": 1,
+                    "texts": [
+                        ["Driver", "Points"],
+                        ["Kim", "12"],
+                        ["Lee", "18"],
+                    ],
+                    "merged_regions": [],
+                },
+            }
+        },
+    )
+    assert score == 1.0
+    assert metrics["prediction"] == "Lee"
+
+
 # ── nl2sql parsers ────────────────────────────────────────────────────
 
 def test_nl2sql_registry_keys():
