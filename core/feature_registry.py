@@ -270,7 +270,17 @@ class FeatureRegistry:
         base = _resolve_features_base(features_base)
         task_dir = base / task
         if not task_dir.exists():
-            raise FileNotFoundError(f"Feature directory not found: {task_dir}")
+            env_val = os.environ.get("PROMPTPROFILER_FEATURES_BASE")
+            legacy_dir = Path(__file__).parent.parent / "features_legacy" / task
+            if (
+                features_base is None
+                and not env_val
+                and base == _FEATURES_BASE
+                and legacy_dir.exists()
+            ):
+                task_dir = legacy_dir
+            else:
+                raise FileNotFoundError(f"Feature directory not found: {task_dir}")
 
         features: Dict[str, dict] = {}
         for path in sorted(task_dir.glob("*.json")):

@@ -468,8 +468,27 @@ class CubeStore:
         }
 
     def scores_by_config(
-        self, model: str, scorer: str
+        self,
+        model: str,
+        scorer: str,
+        *,
+        dataset: str = "",
+        query_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
+        clauses = []
+        params: list[Any] = [model, scorer]
+        if dataset:
+            clauses.append("q.dataset = ?")
+            params.append(dataset)
+        if query_ids is not None:
+            if not query_ids:
+                return []
+            placeholders = ",".join("?" for _ in query_ids)
+            clauses.append(f"e.query_id IN ({placeholders})")
+            params.extend(query_ids)
+        extra_clause = ""
+        if clauses:
+            extra_clause = " AND " + " AND ".join(clauses)
         rows = self._get_conn().execute(
             """SELECT c.config_id,
                       COUNT(ev.score) as n,
@@ -478,11 +497,14 @@ class CubeStore:
                       MAX(ev.score) as max_score
                FROM config c
                JOIN execution e ON c.config_id = e.config_id
+               JOIN query q ON q.query_id = e.query_id
                JOIN evaluation ev ON e.execution_id = ev.execution_id
-               WHERE e.model = ? AND ev.scorer = ?
+               WHERE e.model = ? AND ev.scorer = ?"""
+            + extra_clause
+            + """
                GROUP BY c.config_id
                ORDER BY avg_score DESC""",
-            (model, scorer),
+            tuple(params),
         ).fetchall()
         return [dict(r) for r in rows]
 

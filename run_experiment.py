@@ -401,7 +401,10 @@ def main():
                        dataset=dataset_key)
 
     # ── print summary ────────────────────────────────────────────────
-    _print_results(store, task_cls, model, base_cid, configs, experiment_type, task_name)
+    _print_results(
+        store, task_cls, model, base_cid, configs, experiment_type, task_name,
+        dataset=dataset_key, query_ids=query_ids,
+    )
 
     llm_call.close()
     store.close()
@@ -474,10 +477,13 @@ def _run_iterative(
         store, initial_plan, task_cls, model, llm_call, analyze_fn,
         num_workers=num_workers, max_iterations=max_iterations,
         on_conflict=OnConflict.SKIP, example_pool=example_pool,
+        dataset=dataset_key,
     )
 
     scorer = task_cls.scorer
-    scores = store.scores_by_config(model, scorer)
+    scores = store.scores_by_config(
+        model, scorer, dataset=dataset_key, query_ids=query_ids,
+    )
     base_avg = next((s["avg_score"] for s in scores if s["config_id"] == base_cid), 0.0)
     print(f"\n=== Iterative Results ({len(all_insights)} iterations, base avg={base_avg:.3f}) ===")
     for i, ins in enumerate(all_insights, 1):
@@ -500,9 +506,13 @@ def _print_results(
     configs: List[tuple],
     experiment_type: str,
     task_name: str,
+    dataset: str = "",
+    query_ids: List[str] | None = None,
 ) -> None:
     scorer = task_cls.scorer
-    scores = store.scores_by_config(model, scorer)
+    scores = store.scores_by_config(
+        model, scorer, dataset=dataset, query_ids=query_ids,
+    )
     base_avg = next((s["avg_score"] for s in scores if s["config_id"] == base_cid), 0.0)
 
     experiment_cids = {cid for cid, _, _ in configs}
