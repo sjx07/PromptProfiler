@@ -1,0 +1,90 @@
+{
+  "canonical_id": "facet_dp_scaffold",
+  "task": "wtq",
+  "semantic_labels": [
+    {"label": "profile.dp", "role": "profile"},
+    {"label": "persona.table_analyst", "role": "persona"},
+    {"label": "reasoning.direct", "role": "mechanism"},
+    {"label": "format.answer_only", "role": "format"},
+    {"label": "output.short_denotation", "role": "output"},
+    {"label": "grounding.table_only", "role": "grounding"}
+  ],
+  "scope": {
+    "dataset": "wtq",
+    "profile": "dp"
+  },
+  "requires": [
+    "_section_role",
+    "_section_task",
+    "_section_rules",
+    "_section_table_handling",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "facet_tcot_scaffold",
+    "facet_scot_scaffold",
+    "facet_pot_exec_scaffold"
+  ],
+  "primitive_edits": [
+    {"func_type": "set_format", "params": {"style": "plain"}},
+    {"func_type": "set_table_format", "params": {"format": "markdown"}},
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a table analyst.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "c8a44f4feada",
+        "payload": {
+          "content": "Answer the question using only the table content.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "The final answer value or comma-separated answer values.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Read the displayed table directly and use exact cell values when they answer the question.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Put only the final answer value in `answer`; for multiple values, use a comma-separated list with no explanation.",
+          "ordinal": 10
+        }
+      }
+    }
+  ],
+  "rationale": "WTQ direct scaffold: parser-compatible direct-answer baseline for profile comparisons."
+}

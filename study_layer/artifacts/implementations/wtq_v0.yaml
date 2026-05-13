@@ -1,0 +1,121 @@
+version: v0
+status: active
+benchmark_id: wtq
+dataset: wtq
+runtime_feature_path: features/wtq
+legacy_snapshot_path: features_legacy/wtq_systematic_pre_v0
+
+structural_components:
+  - canonical_id: _section_role
+  - canonical_id: _section_task
+  - canonical_id: _section_rules
+  - canonical_id: _section_table_handling
+  - canonical_id: _section_reasoning
+  - canonical_id: _section_format_fix
+
+response_scaffolds:
+  - implementation_id: wtq.response.dp
+    canonical_id: facet_dp_scaffold
+    concept_ids:
+      - response.direct_final_only
+      - format.answer_only_minimality
+      - format.final_answer_locator
+      - format.field_schema_contract
+    implementation_surface: prompt_rule_and_output_field
+    status: ready
+
+  - implementation_id: wtq.response.tcot
+    canonical_id: facet_tcot_scaffold
+    concept_ids:
+      - response.visible_cot
+      - format.final_answer_locator
+      - format.field_schema_contract
+    implementation_surface: prompt_rule_and_output_field
+    status: ready
+
+  - implementation_id: wtq.response.scot
+    canonical_id: facet_scot_scaffold
+    concept_ids:
+      - response.visible_structured_trace
+      - format.final_answer_locator
+      - format.field_schema_contract
+    implementation_surface: prompt_rule_and_output_field
+    status: ready
+
+  - implementation_id: wtq.response.pot_python
+    canonical_id: facet_pot_exec_scaffold
+    concept_ids:
+      - response.program_of_thought.python
+      - format.field_schema_contract
+    implementation_surface: prompt_rule_output_field_and_executor
+    status: ready
+
+dp_reasoning_components:
+  - implementation_id: wtq.reasoning.extract_then_compute
+    canonical_id: reason_extract_then_compute
+    concept_ids:
+      - reasoning.extract_then_compute
+    implementation_surface: prompt_rule
+    base_scaffold: facet_dp_scaffold
+    status: ready
+
+  - implementation_id: wtq.reasoning.filter_then_extract
+    canonical_id: reason_filter_then_extract
+    concept_ids:
+      - reasoning.evidence_localization
+    implementation_surface: prompt_rule
+    base_scaffold: facet_dp_scaffold
+    status: ready
+
+  - implementation_id: wtq.reasoning.enumerate_then_select
+    canonical_id: reason_enumerate_then_select
+    concept_ids:
+      - reasoning.candidate_enumeration
+    implementation_surface: prompt_rule
+    base_scaffold: facet_dp_scaffold
+    status: ready
+
+  - implementation_id: wtq.reasoning.verify_before_output
+    canonical_id: reason_verify_before_output
+    concept_ids:
+      - reasoning.verify_before_output
+    implementation_surface: prompt_rule
+    base_scaffold: facet_dp_scaffold
+    status: ready
+
+input_context_components:
+  - implementation_id: wtq.context.type_annotation
+    canonical_id: ctx_annotate_types
+    concept_ids:
+      - input_context.type_annotation
+    implementation_surface: input_transform
+    base_scaffold: facet_dp_scaffold
+    status: ready
+
+  - implementation_id: wtq.context.row_filter_relevance_50
+    canonical_id: ctx_filter_rows_relevance_50
+    concept_ids:
+      - input_context.row_selection
+    implementation_surface: input_transform
+    base_scaffold: facet_dp_scaffold
+    status: ready
+
+  - implementation_id: wtq.context.column_prune_12
+    canonical_id: ctx_prune_columns_12
+    concept_ids:
+      - input_context.column_selection
+    implementation_surface: input_transform
+    base_scaffold: facet_dp_scaffold
+    status: ready
+
+  - implementation_id: wtq.context.column_stats
+    canonical_id: ctx_prepend_column_stats
+    concept_ids:
+      - input_context.column_statistics
+    implementation_surface: input_transform
+    base_scaffold: facet_dp_scaffold
+    status: ready
+
+excluded_from_active_set:
+  - canonical_id: reason_decompose_subquestions
+    reason: Not part of the round 2.3 fixed WTQ matrix. Archived in the legacy snapshot.

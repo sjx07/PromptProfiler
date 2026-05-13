@@ -1,0 +1,34 @@
+{
+  "canonical_id": "reason_verify_before_output",
+  "task": "wtq",
+  "semantic_labels": [
+    {"label": "reasoning.verify_before_output", "role": "mechanism"},
+    {"label": "style.internal_procedure", "role": "style_rule"},
+    {"label": "format.dp_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "wtq",
+    "profile": "dp",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Before writing `answer`, internally verify that the final value matches the question wording, the relevant table cells, and the expected answer granularity. Then output only the verified final answer.",
+          "ordinal": 40
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only DP-preserving reasoning behavior: final answer verification without exposing a visible reasoning field."
+}

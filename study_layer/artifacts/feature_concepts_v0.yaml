@@ -1,0 +1,64 @@
+version: v0
+status: active
+scope: round_2.3_systematic_matrix
+
+concepts:
+  - concept_id: response.direct_final_only
+    family: response_mode
+    description: Final answer field only, with no visible reasoning required.
+
+  - concept_id: response.visible_cot
+    family: response_mode
+    description: Visible natural-language reasoning plus final answer.
+
+  - concept_id: response.visible_structured_trace
+    family: response_mode
+    description: Visible structured trace fields plus final answer.
+
+  - concept_id: response.program_of_thought.python
+    family: response_mode
+    description: Executable Python code response interpreted by the task scorer.
+
+  - concept_id: format.answer_only_minimality
+    family: formatting
+    description: Output contract that keeps the final answer minimal.
+
+  - concept_id: format.final_answer_locator
+    family: formatting
+    description: Output contract that makes the final answer easy to parse.
+
+  - concept_id: format.field_schema_contract
+    family: formatting
+    description: Named output fields determine parser dispatch and companion fields.
+
+  - concept_id: reasoning.extract_then_compute
+    family: reasoning
+    description: Internally extract relevant cells before computing aggregates, ranks, or comparisons.
+
+  - concept_id: reasoning.evidence_localization
+    family: reasoning
+    description: Locate relevant rows or columns before deriving the answer.
+
+  - concept_id: reasoning.candidate_enumeration
+    family: reasoning
+    description: Enumerate candidate answers before selecting the final answer.
+
+  - concept_id: reasoning.verify_before_output
+    family: reasoning
+    description: Check the selected answer against the table and question before output.
+
+  - concept_id: input_context.type_annotation
+    family: input_context
+    description: Add lightweight inferred type hints to table columns.
+
+  - concept_id: input_context.row_selection
+    family: input_context
+    description: Reduce table rows before prompt rendering.
+
+  - concept_id: input_context.column_selection
+    family: input_context
+    description: Reduce table columns before prompt rendering.
+
+  - concept_id: input_context.column_statistics
+    family: input_context
+    description: Add deterministic column cardinality, type, or range summaries.
