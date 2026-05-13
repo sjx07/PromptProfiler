@@ -1,0 +1,43 @@
+{
+  "canonical_id": "sqa_list_answer_shape",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "answer.list_denotation", "role": "answer_shape"},
+    {"label": "output.answer_variable", "role": "output"},
+    {"label": "output.print_answer", "role": "output"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "pot",
+    "answer_shape": "list"
+  },
+  "requires": [
+    "facet_pot_exec_scaffold"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "For multi-answer questions, set `answer` to a flat Python list of final scalar cell values in table order. Do not set `answer` to a pandas Series, DataFrame, Index, row object, or nested structure.",
+          "ordinal": 30
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "For scalar questions, set `answer` to one final scalar value. For list questions, include only the requested values, not intermediate columns or explanatory labels.",
+          "ordinal": 40
+        }
+      }
+    }
+  ],
+  "rationale": "SQA scoring is denotation-set based; generated code should return final values rather than pandas objects or rows."
+}

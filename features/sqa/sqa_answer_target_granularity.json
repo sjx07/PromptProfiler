@@ -1,0 +1,43 @@
+{
+  "canonical_id": "sqa_answer_target_granularity",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "answer.match_question_target", "role": "answer_shape"},
+    {"label": "aggregation.match_question_granularity", "role": "mechanism"},
+    {"label": "conversation.followup_scope", "role": "mechanism"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "pot",
+    "predicate": "answer_granularity"
+  },
+  "requires": [
+    "facet_pot_exec_scaffold"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Match the answer type requested by the question: if it asks `what cost`, `how many`, or `what value`, return the value; if it asks `which station`, `which language`, or `who`, return the entity name.",
+          "ordinal": 80
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "For follow-ups asking for values of previously listed entities, return one value per referenced entity in the prior order. Do not sum, count, or collapse those values unless the question explicitly asks for a total.",
+          "ordinal": 90
+        }
+      }
+    }
+  ],
+  "rationale": "SQA follow-ups often require per-entity values, and several PoT misses returned the wrong column or collapsed a list into one aggregate."
+}

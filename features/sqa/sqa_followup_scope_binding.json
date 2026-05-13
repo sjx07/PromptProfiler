@@ -1,0 +1,43 @@
+{
+  "canonical_id": "sqa_followup_scope_binding",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "conversation.followup_scope", "role": "mechanism"},
+    {"label": "grounding.prior_answers", "role": "grounding"},
+    {"label": "reasoning.program_of_thought", "role": "profile_context"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "pot",
+    "predicate": "follow_up"
+  },
+  "requires": [
+    "facet_pot_exec_scaffold"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "For follow-up questions, first identify the entities or values referenced by the most recent relevant prior turn in `history`, then restrict the computation to that candidate set before answering the current question.",
+          "ordinal": 30
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "If the current question says `those`, `these`, `them`, `it`, `which one`, or similar, do not recompute over the full table unless the wording explicitly asks for a new global result.",
+          "ordinal": 40
+        }
+      }
+    }
+  ],
+  "rationale": "SQA questions often depend on prior turns; generic PoT code was answering follow-ups over the whole table."
+}

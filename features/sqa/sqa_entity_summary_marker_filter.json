@@ -1,0 +1,32 @@
+{
+  "canonical_id": "sqa_entity_summary_marker_filter",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "table.exclude_summary_rows", "role": "mechanism"},
+    {"label": "table.entity_column_filter", "role": "mechanism"},
+    {"label": "answer.list_denotation", "role": "answer_shape"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "pot",
+    "predicate": "summary_rows"
+  },
+  "requires": [
+    "sqa_exclude_summary_rows"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "When excluding summary rows, check the candidate answer/entity column itself. A row whose country, nation, language, service, team, player, model, or name cell is `Total`, `All`, or `Overall` is a summary row even if rank or count columns are filled.",
+          "ordinal": 30
+        }
+      }
+    }
+  ],
+  "rationale": "The first summary-row rule helped, but generated code still used rank/nonblank filters that retained `Total` entity rows."
+}

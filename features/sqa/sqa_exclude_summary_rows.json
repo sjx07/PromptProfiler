@@ -1,0 +1,43 @@
+{
+  "canonical_id": "sqa_exclude_summary_rows",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "table.exclude_summary_rows", "role": "mechanism"},
+    {"label": "answer.list_denotation", "role": "answer_shape"},
+    {"label": "grounding.table_only", "role": "grounding"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "pot",
+    "predicate": "summary_rows"
+  },
+  "requires": [
+    "facet_pot_exec_scaffold"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "When listing entities or returning per-entity values, exclude aggregate summary rows such as `Total`, `Totals`, `All`, `Overall`, `Sum`, or `Average` unless the question explicitly asks for an aggregate row.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Before collecting all names, services, countries, languages, or medal counts, check whether the table has a final summary row and remove it from the candidate rows when it is not itself the answer.",
+          "ordinal": 50
+        }
+      }
+    }
+  ],
+  "rationale": "Many SQA PoT misses included final Total rows in list answers."
+}

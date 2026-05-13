@@ -1,0 +1,43 @@
+{
+  "canonical_id": "sqa_numeric_cell_cleaning",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "numeric.cell_cleaning", "role": "mechanism"},
+    {"label": "execution.python", "role": "execution"},
+    {"label": "runtime.pandas_dataframe", "role": "runtime_binding"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "pot",
+    "predicate": "numeric"
+  },
+  "requires": [
+    "facet_pot_exec_scaffold"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "For numeric comparisons, clean cells for computation by removing commas, currency signs, percent signs, and spaces inside digit groups; handle blanks or dashes as missing values.",
+          "ordinal": 60
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Use numeric cleaning only for comparison or aggregation. When the requested answer is an entity name or original table value, return the requested final value rather than the cleaned helper number.",
+          "ordinal": 70
+        }
+      }
+    }
+  ],
+  "rationale": "SQA tables include commas, spaces, dashes, and other textual number formats that brittle generated code mishandles."
+}

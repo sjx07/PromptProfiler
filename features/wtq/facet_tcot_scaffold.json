@@ -1,0 +1,103 @@
+{
+  "canonical_id": "facet_tcot_scaffold",
+  "task": "wtq",
+  "semantic_labels": [
+    {"label": "profile.tcot", "role": "profile"},
+    {"label": "persona.table_analyst", "role": "persona"},
+    {"label": "reasoning.text_trace", "role": "mechanism"},
+    {"label": "reasoning.explicit_intermediate_work", "role": "mechanism"},
+    {"label": "style.step_by_step", "role": "style_rule"},
+    {"label": "format.answer_only", "role": "format"},
+    {"label": "grounding.table_only", "role": "grounding"}
+  ],
+  "scope": {
+    "dataset": "wtq",
+    "profile": "tcot"
+  },
+  "requires": [
+    "_section_role",
+    "_section_task",
+    "_section_rules",
+    "_section_table_handling",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "facet_dp_scaffold",
+    "facet_scot_scaffold",
+    "facet_pot_exec_scaffold"
+  ],
+  "primitive_edits": [
+    {"func_type": "set_format", "params": {"style": "plain"}},
+    {"func_type": "set_table_format", "params": {"format": "markdown"}},
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a table analyst. Answer questions using only the table content.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "c8a44f4feada",
+        "payload": {
+          "content": "Answer the question using the table.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "reasoning",
+          "description": "Step-by-step textual reasoning before the final answer.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "The final answer value or comma-separated answer values.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Think step by step in `reasoning`, identifying the relevant columns, rows, and computation if needed.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Put only the final answer value in `answer`; do not include reasoning or explanation in `answer`.",
+          "ordinal": 10
+        }
+      }
+    }
+  ],
+  "rationale": "WTQ textual chain-of-thought scaffold with `reasoning` as auxiliary and `answer` as the parser dispatch field."
+}

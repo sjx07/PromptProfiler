@@ -1,0 +1,43 @@
+{
+  "canonical_id": "sqa_numeric_safe_casting",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "numeric.safe_casting", "role": "mechanism"},
+    {"label": "numeric.cell_cleaning", "role": "mechanism"},
+    {"label": "execution.python", "role": "execution"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "pot",
+    "predicate": "numeric"
+  },
+  "requires": [
+    "facet_pot_exec_scaffold"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "When using pandas string operations for numeric cleanup, first cast with `.astype(str)`. Do not call `.str` directly on a column that may already be numeric.",
+          "ordinal": 100
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "For number strings with spaces inside digit groups, remove those spaces before `astype(int)` or `pd.to_numeric`, for example `series.astype(str).str.replace(r'(?<=\\d)\\s+(?=\\d)', '', regex=True)`.",
+          "ordinal": 110
+        }
+      }
+    }
+  ],
+  "rationale": "This is narrower than the first numeric-cleaning feature: it targets code casting errors without changing answer-target behavior."
+}

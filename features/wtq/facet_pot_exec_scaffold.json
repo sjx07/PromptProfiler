@@ -1,0 +1,130 @@
+{
+  "canonical_id": "facet_pot_exec_scaffold",
+  "task": "wtq",
+  "semantic_labels": [
+    {"label": "profile.pot", "role": "profile"},
+    {"label": "persona.table_analyst", "role": "persona"},
+    {"label": "persona.python_analyst", "role": "persona"},
+    {"label": "reasoning.program_of_thought", "role": "mechanism"},
+    {"label": "planning.approach_then_code", "role": "planning"},
+    {"label": "execution.python", "role": "execution"},
+    {"label": "library.pandas", "role": "runtime_binding"},
+    {"label": "runtime.pandas_dataframe", "role": "runtime_binding"},
+    {"label": "format.python_code_fence", "role": "format"},
+    {"label": "output.answer_variable", "role": "output"},
+    {"label": "output.print_answer", "role": "output"},
+    {"label": "grounding.table_only", "role": "grounding"}
+  ],
+  "scope": {
+    "dataset": "wtq",
+    "profile": "pot",
+    "runtime": "python_exec"
+  },
+  "requires": [
+    "_section_role",
+    "_section_task",
+    "_section_rules",
+    "_section_table_handling",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "facet_dp_scaffold",
+    "facet_tcot_scaffold",
+    "facet_scot_scaffold"
+  ],
+  "primitive_edits": [
+    {"func_type": "set_format", "params": {"style": "code_block"}},
+    {"func_type": "set_table_format", "params": {"format": "json_records"}},
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a table analyst proficient in Python and pandas.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "c8a44f4feada",
+        "payload": {
+          "content": "Write Python code that computes the answer to the table question.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "code",
+          "description": "Executable Python code that computes the answer using the provided runtime objects and prints only the final answer value.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Within the runtime scope, df is the authoritative pandas DataFrame of the full table; `data` mirrors the displayed JSON records; `pd` is pandas. Do not rebuild the table from the displayed text, and do not redefine these objects.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Plan the table operation internally, then write concise executable Python code.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Base the computation entirely on the provided table data. Use comments only if they clarify non-obvious steps.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Set `answer` to the final scalar or list value, then end with `print(answer)`.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Print only the final answer value with no label, prefix, or explanation.",
+          "ordinal": 20
+        }
+      }
+    }
+  ],
+  "rationale": "Clean WTQ PoT execution scaffold that uses the parser-facing `code` field and task runtime objects without profile bypasses."
+}

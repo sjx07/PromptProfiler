@@ -1,0 +1,44 @@
+{
+  "canonical_id": "sqa_numeric_filter_order",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "numeric.compare_numeric", "role": "mechanism"},
+    {"label": "pandas.filter_before_aggregate", "role": "mechanism"},
+    {"label": "execution.python", "role": "execution"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "pot",
+    "predicate": "numeric"
+  },
+  "requires": [
+    "sqa_numeric_safe_casting",
+    "sqa_exclude_summary_rows"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "When the question gives a numeric value, compare numeric table columns to a numeric literal, not a quoted string. If needed, use `pd.to_numeric(column.astype(str).str.replace(',', '', regex=False), errors='coerce')` for the comparison.",
+          "ordinal": 120
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "After filtering candidate rows, compute `idxmax`, `idxmin`, counts, or sums on the filtered DataFrame or filtered Series, not on the original full DataFrame.",
+          "ordinal": 130
+        }
+      }
+    }
+  ],
+  "rationale": "The best SQA PoT coalition still produced code errors from string numeric equality and idxmax computed before summary-row filtering."
+}
