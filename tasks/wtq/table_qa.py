@@ -326,6 +326,7 @@ def _extract_answer(text: str) -> str:
 def _normalize_value(v: str) -> str:
     """Normalize a single answer value for comparison."""
     v = v.strip().lower()
+    v = _normalize_dash_variants(v)
     # Remove leading/trailing punctuation
     v = v.strip(".,;:!?\"'")
     # Normalize whitespace
@@ -344,6 +345,22 @@ def _normalize_value(v: str) -> str:
     except ValueError:
         pass
     return v
+
+
+def _normalize_dash_variants(v: str) -> str:
+    """Normalize Unicode dash/minus variants to ASCII hyphen for denotation EM."""
+    return v.translate({
+        ord("\u2010"): "-",
+        ord("\u2011"): "-",
+        ord("\u2012"): "-",
+        ord("\u2013"): "-",
+        ord("\u2014"): "-",
+        ord("\u2015"): "-",
+        ord("\u2212"): "-",
+        ord("\ufe58"): "-",
+        ord("\ufe63"): "-",
+        ord("\uff0d"): "-",
+    })
 
 
 def _normalize_answer_list(prediction: str) -> List[str]:

@@ -12,12 +12,14 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
 _TOOL_DIR = str(Path(__file__).parent.parent.parent.parent)
 if _TOOL_DIR not in sys.path:
     sys.path.insert(0, _TOOL_DIR)
 
 from prompt_profiler.tasks.wtq.table_qa import _execute_code, _execute_sql
+from prompt_profiler.tasks.sqa.sequential_qa import _execute_code as _execute_sqa_code
 
 
 TABLE = {
@@ -106,6 +108,26 @@ def test_execute_code_uses_last_stdout_line():
     assert result == "Sergio Perez"
 
 
+def test_execute_code_normalizes_printed_list_when_no_answer_var():
+    """Printed Python list reprs should be normalized like answer variables."""
+    code = (
+        "drivers = df.loc[df['Team'] == 'Red Bull', 'Driver'].tolist()\n"
+        "print(drivers)"
+    )
+    result = _execute_code(code, TABLE)
+    assert result == "Sergio Perez, Max Verstappen"
+
+
+def test_execute_code_print_capture_is_thread_local():
+    def run_one(i: int) -> str:
+        return _execute_code(f"print('driver-{i}')", TABLE)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(run_one, range(40)))
+
+    assert results == [f"driver-{i}" for i in range(40)]
+
+
 def test_execute_code_answer_variable_takes_priority():
     """If both `answer = ...` and print() are present, prefer the variable."""
     code = (
@@ -126,6 +148,64 @@ def test_execute_code_single_expression_eval_path():
     """Pure expressions still round-trip via eval()."""
     code = "df.iloc[0]['Driver']"
     assert _execute_code(code, TABLE) == "Sergio Perez"
+
+
+def test_execute_code_duplicate_headers_do_not_break_coercion():
+    table = {
+        "name": "duplicate headers",
+        "header": ["Name", "Name", "Points"],
+        "rows": [["first", "second", "10"], ["third", "fourth", "12"]],
+    }
+    code = "answer = df.iloc[0, 1]"
+    assert _execute_code(code, table) == "second"
+
+
+def test_execute_code_helper_visible_inside_generator_expression():
+    code = (
+        "def extract_score(value):\n"
+        "    return int(value)\n"
+        "answer = sum(extract_score(value) for value in df['Points'])"
+    )
+    assert _execute_code(code, TABLE) == 58
+
+
+def test_execute_code_normalizes_series_answer_variable():
+    code = "answer = df.loc[df['Team'] == 'Red Bull', 'Driver']"
+    assert _execute_code(code, TABLE) == "Sergio Perez, Max Verstappen"
+
+
+def test_execute_code_normalizes_single_column_dataframe():
+    code = "answer = df.loc[df['Team'] == 'Red Bull', ['Driver']]"
+    assert _execute_code(code, TABLE) == "Sergio Perez, Max Verstappen"
+
+
+def test_execute_code_normalizes_numpy_array():
+    code = "answer = df['Points'].to_numpy()"
+    assert _execute_code(code, TABLE) == "25, 18, 15"
+
+
+def test_sqa_execute_code_retries_raw_strings_after_typed_error():
+    raw = {
+        "table_file": "table_csv/example.csv",
+        "history": [
+            {
+                "question": "what is the most amount of money spent?",
+                "answer": ["152.5"],
+            }
+        ],
+        "table": {
+            "headers": ["Service", "2012/13 Total Cost (PSmillion)"],
+            "rows": [
+                ["BBC Radio 4", "122.1"],
+                ["BBC Local Radio", "152.5"],
+            ],
+        },
+    }
+    code = (
+        "answer = df.loc[df['2012/13 Total Cost (PSmillion)'] == '152.5', "
+        "'Service'].iloc[0]"
+    )
+    assert _execute_sqa_code(code, raw) == "BBC Local Radio"
 
 
 # ── _execute_sql scope contract ───────────────────────────────────────

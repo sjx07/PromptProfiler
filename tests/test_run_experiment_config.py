@@ -1,6 +1,7 @@
 """Regression tests for run_experiment config plumbing."""
 from __future__ import annotations
 
+from core.store import CubeStore, OnConflict
 from run_experiment import _generator_kwargs, _llm_sampling_kwargs
 
 
@@ -46,3 +47,77 @@ def test_llm_sampling_kwargs_forwards_decoding_controls():
 
 def test_llm_sampling_kwargs_omits_unspecified_controls():
     assert _llm_sampling_kwargs({"top_k": 10}) == {}
+
+
+def test_scores_by_config_can_filter_dataset():
+    store = CubeStore(":memory:")
+    try:
+        config_id = store.get_or_create_config([])
+        store.upsert_queries(
+            [
+                {
+                    "query_id": "wtq_1",
+                    "dataset": "wtq",
+                    "content": "wtq question",
+                    "meta": {"split": "test"},
+                },
+                {
+                    "query_id": "wtq_2",
+                    "dataset": "wtq",
+                    "content": "another wtq question",
+                    "meta": {"split": "test"},
+                },
+                {
+                    "query_id": "sqa_1",
+                    "dataset": "sqa",
+                    "content": "sqa question",
+                    "meta": {"split": "test"},
+                },
+            ],
+            on_conflict=OnConflict.SKIP,
+        )
+        wtq_exec = store.insert_execution(config_id, "wtq_1", "model")
+        wtq_exec_2 = store.insert_execution(config_id, "wtq_2", "model")
+        sqa_exec = store.insert_execution(config_id, "sqa_1", "model")
+        store.upsert_evaluation(wtq_exec, "denotation_acc", 0.25)
+        store.upsert_evaluation(wtq_exec_2, "denotation_acc", 0.75)
+        store.upsert_evaluation(sqa_exec, "denotation_acc", 1.0)
+
+        pooled = store.scores_by_config("model", "denotation_acc")
+        wtq_only = store.scores_by_config("model", "denotation_acc", dataset="wtq")
+        wtq_subset = store.scores_by_config(
+            "model",
+            "denotation_acc",
+            dataset="wtq",
+            query_ids=["wtq_1"],
+        )
+
+        assert pooled == [
+            {
+                "config_id": config_id,
+                "n": 3,
+                "avg_score": 2.0 / 3.0,
+                "min_score": 0.25,
+                "max_score": 1.0,
+            }
+        ]
+        assert wtq_only == [
+            {
+                "config_id": config_id,
+                "n": 2,
+                "avg_score": 0.5,
+                "min_score": 0.25,
+                "max_score": 0.75,
+            }
+        ]
+        assert wtq_subset == [
+            {
+                "config_id": config_id,
+                "n": 1,
+                "avg_score": 0.25,
+                "min_score": 0.25,
+                "max_score": 0.25,
+            }
+        ]
+    finally:
+        store.close()

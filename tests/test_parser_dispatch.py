@@ -59,6 +59,16 @@ def test_wtq_parse_code_markdown_block(tmp_mock_task):
     assert "df" in result
 
 
+def test_wtq_score_normalizes_unicode_dash_variants():
+    from tasks.wtq.table_qa import TableQA
+
+    score, metrics = TableQA().score("18–12", {"gold_answers": ["18-12"]})
+
+    assert score == 1.0
+    assert metrics["pred_normalized"] == ["18-12"]
+    assert metrics["gold_normalized"] == ["18-12"]
+
+
 # ── SQA parsers ───────────────────────────────────────────────────────
 
 def test_sqa_registry_keys():
@@ -100,6 +110,72 @@ def test_sqa_code_score_executes_dataframe():
     )
     assert score == 1.0
     assert metrics["prediction"] == "Lee"
+
+
+def test_sqa_code_score_normalizes_series_answer():
+    from tasks.sqa.sequential_qa import SequentialQA
+
+    task = SequentialQA()
+    score, metrics = task.score(
+        "__CODE__answer = df.loc[df['Team'] == 'Red Bull', 'Driver']",
+        {
+            "_raw": {
+                "answer_text": ["Sergio Perez", "Max Verstappen"],
+                "table": {
+                    "headers": ["Driver", "Team", "Points"],
+                    "rows": [
+                        ["Sergio Perez", "Red Bull", "25"],
+                        ["Carlos Sainz", "Ferrari", "18"],
+                        ["Max Verstappen", "Red Bull", "15"],
+                    ],
+                },
+            }
+        },
+    )
+    assert score == 1.0
+    assert metrics["prediction"] == "Sergio Perez, Max Verstappen"
+
+
+def test_sqa_code_score_helper_visible_inside_generator():
+    from tasks.sqa.sequential_qa import SequentialQA
+
+    task = SequentialQA()
+    score, metrics = task.score(
+        "__CODE__def to_int(value):\n"
+        "    return int(value)\n"
+        "answer = sum(to_int(value) for value in df['Points'])",
+        {
+            "_raw": {
+                "answer_text": ["55"],
+                "table": {
+                    "headers": ["Driver", "Points"],
+                    "rows": [["Sergio Perez", "25"], ["Carlos Sainz", "18"], ["Max Verstappen", "12"]],
+                },
+            }
+        },
+    )
+    assert score == 1.0
+    assert metrics["prediction"] == "55"
+
+
+def test_sqa_code_score_duplicate_headers_do_not_break_coercion():
+    from tasks.sqa.sequential_qa import SequentialQA
+
+    task = SequentialQA()
+    score, metrics = task.score(
+        "__CODE__answer = df.iloc[0, 1]",
+        {
+            "_raw": {
+                "answer_text": ["second"],
+                "table": {
+                    "headers": ["Name", "Name", "Points"],
+                    "rows": [["first", "second", "10"], ["third", "fourth", "12"]],
+                },
+            }
+        },
+    )
+    assert score == 1.0
+    assert metrics["prediction"] == "second"
 
 
 # ── HiTab parsers ─────────────────────────────────────────────────────
@@ -202,6 +278,81 @@ def test_tabfact_parse_code_returns_prefix(tmp_mock_task):
     parser = PARSER_REGISTRY["code"]
     result = parser("df['wins'].sum() > 3", tmp_mock_task)
     assert result.startswith("__CODE__")
+
+
+def test_tabfact_code_score_accepts_answer_print_contract():
+    from tasks.tabfact.fact_verification import FactVerification
+
+    task = FactVerification()
+    score, metrics = task.score(
+        "__CODE__answer = df['points'].astype(int).max() > 20\nprint(answer)",
+        {
+            "_raw": {
+                "label": 1,
+                "table_text": "points\n10\n25",
+            }
+        },
+    )
+    assert score == 1.0
+    assert metrics["status"] == "ok"
+    assert metrics["prediction"] == "True"
+
+
+def test_tabfact_code_score_exposes_data_alias():
+    from tasks.tabfact.fact_verification import FactVerification
+
+    task = FactVerification()
+    score, metrics = task.score(
+        "__CODE__answer = int(data['rows'][1]['points']) > 20\nprint(answer)",
+        {
+            "_raw": {
+                "label": 1,
+                "table_text": "points\n10\n25",
+            }
+        },
+    )
+    assert score == 1.0
+    assert metrics["status"] == "ok"
+    assert metrics["prediction"] == "True"
+
+
+def test_tabfact_code_score_helper_visible_inside_generator():
+    from tasks.tabfact.fact_verification import FactVerification
+
+    task = FactVerification()
+    score, metrics = task.score(
+        "__CODE__def over_20(value):\n"
+        "    return int(value) > 20\n"
+        "answer = any(over_20(value) for value in df['points'])\n"
+        "print(answer)",
+        {
+            "_raw": {
+                "label": 1,
+                "table_text": "points\n10\n25",
+            }
+        },
+    )
+    assert score == 1.0
+    assert metrics["status"] == "ok"
+    assert metrics["prediction"] == "True"
+
+
+def test_tabfact_code_score_duplicate_headers_do_not_break_coercion():
+    from tasks.tabfact.fact_verification import FactVerification
+
+    task = FactVerification()
+    score, metrics = task.score(
+        "__CODE__answer = int(df.iloc[1, 0]) > 20\nprint(answer)",
+        {
+            "_raw": {
+                "label": 1,
+                "table_text": "points#points\n10#10\n25#25",
+            }
+        },
+    )
+    assert score == 1.0
+    assert metrics["status"] == "ok"
+    assert metrics["prediction"] == "True"
 
 
 # ── fixture ───────────────────────────────────────────────────────────
