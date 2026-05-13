@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 
-SCHEMA_VERSION = 9   # v9: + semantic feature-label metadata and joins
+SCHEMA_VERSION = 10  # v10: + hidden reasoning / finish-reason diagnostics
 
 TABLES: list[str] = [
     # ── reference tables ──────────────────────────────────────────────
@@ -78,12 +78,14 @@ TABLES: list[str] = [
         system_prompt       TEXT DEFAULT '',
         user_content        TEXT DEFAULT '',
         raw_response        TEXT DEFAULT '',
+        raw_reasoning       TEXT DEFAULT '',
         prediction          TEXT DEFAULT '',
 
         -- cost / diagnostics
         latency_ms          REAL,
         prompt_tokens       INTEGER,
         completion_tokens   INTEGER,
+        finish_reason       TEXT,
         error               TEXT,
 
         -- experiment phase tracking
@@ -206,6 +208,12 @@ ADDITIVE_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "feature": [
         ("semantic_labels_json", "TEXT NOT NULL DEFAULT '[]'"),
         ("scope_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ],
+    # v10: GPT-OSS/vLLM can return hidden reasoning separately from visible
+    # content. Keep raw_response as visible content and store diagnostics here.
+    "execution": [
+        ("raw_reasoning", "TEXT DEFAULT ''"),
+        ("finish_reason", "TEXT"),
     ],
 }
 

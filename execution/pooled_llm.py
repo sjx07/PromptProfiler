@@ -96,13 +96,21 @@ class PooledLLMCall:
                 request["extra_body"] = {"top_k": self._top_k}
 
             response = client.chat.completions.create(**request)
-            content = response.choices[0].message.content
-            raw = content.strip() if isinstance(content, str) else json.dumps(content) if content else ""
+            choice = response.choices[0]
+            message = choice.message
+            content = _get_attr_or_key(message, "content")
+            reasoning = (
+                _get_attr_or_key(message, "reasoning_content")
+                or _get_attr_or_key(message, "reasoning")
+            )
+            raw = _coerce_optional_text(content)
             usage = getattr(response, "usage", None)
             return {
                 "raw_response": raw,
+                "raw_reasoning": _coerce_optional_text(reasoning),
                 "prompt_tokens": getattr(usage, "prompt_tokens", None),
                 "completion_tokens": getattr(usage, "completion_tokens", None),
+                "finish_reason": _get_attr_or_key(choice, "finish_reason"),
             }
         finally:
             self._port_pool.put(port)
@@ -116,3 +124,17 @@ class PooledLLMCall:
         if self._clients is not None:
             for client in self._clients.values():
                 client.close()
+
+
+def _get_attr_or_key(obj: Any, name: str) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(name)
+    return getattr(obj, name, None)
+
+
+def _coerce_optional_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if value:
+        return json.dumps(value)
+    return ""

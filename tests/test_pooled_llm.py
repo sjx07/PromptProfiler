@@ -9,13 +9,15 @@ from execution.pooled_llm import PooledLLMCall
 
 
 class _FakeCompletions:
-    def __init__(self) -> None:
+    def __init__(self, *, message=None, finish_reason="stop") -> None:
         self.kwargs = None
+        self.message = message or SimpleNamespace(content="ok")
+        self.finish_reason = finish_reason
 
     def create(self, **kwargs):
         self.kwargs = kwargs
         return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
+            choices=[SimpleNamespace(message=self.message, finish_reason=self.finish_reason)],
             usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
         )
 
@@ -68,3 +70,32 @@ def test_pooled_llm_forwards_sampling_controls():
     assert completions.kwargs["temperature"] == 0.6
     assert completions.kwargs["top_p"] == 0.95
     assert completions.kwargs["extra_body"] == {"top_k": 20}
+
+
+def test_pooled_llm_captures_hidden_reasoning_separately():
+    completions = _FakeCompletions(
+        message=SimpleNamespace(
+            content="visible answer",
+            reasoning="fallback reasoning",
+            reasoning_content="hidden reasoning",
+        ),
+        finish_reason="stop",
+    )
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+    llm = PooledLLMCall.__new__(PooledLLMCall)
+    llm._model = "fake-model"
+    llm._max_tokens = 2048
+    llm._temperature = 0.0
+    llm._top_p = None
+    llm._top_k = None
+    llm._ext_client = fake_client
+    llm._clients = None
+    llm._port_pool = queue.Queue()
+    llm._port_pool.put(0)
+
+    result = llm("system", "user")
+
+    assert result["raw_response"] == "visible answer"
+    assert result["raw_reasoning"] == "hidden reasoning"
+    assert result["finish_reason"] == "stop"

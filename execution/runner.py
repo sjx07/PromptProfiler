@@ -90,6 +90,8 @@ def run_config(
         t_start = time.time()
         p_tokens = None
         c_tokens = None
+        raw_reasoning = ""
+        finish_reason = None
         meta = None
         runtime = None
         try:
@@ -101,6 +103,8 @@ def run_config(
                 system_prompt = last_trace.system_prompt if last_trace else ""
                 user_content = last_trace.user_content if last_trace else ""
                 raw_response = last_trace.raw_response if last_trace else ""
+                raw_reasoning = last_trace.raw_reasoning if last_trace else ""
+                finish_reason = last_trace.finish_reason if last_trace else None
                 p_tokens = runtime.total_prompt_tokens()
                 c_tokens = runtime.total_completion_tokens()
                 meta = {
@@ -113,6 +117,10 @@ def run_config(
                 raw_response = result.get("raw_response", "")
                 if not isinstance(raw_response, str):
                     raw_response = str(raw_response)
+                raw_reasoning = result.get("raw_reasoning", "")
+                if not isinstance(raw_reasoning, str):
+                    raw_reasoning = str(raw_reasoning)
+                finish_reason = result.get("finish_reason")
                 prediction = task.parse_response(raw_response)
                 p_tokens = result.get("prompt_tokens")
                 c_tokens = result.get("completion_tokens")
@@ -123,6 +131,8 @@ def run_config(
                 system_prompt = last_trace.system_prompt if last_trace else ""
                 user_content = last_trace.user_content if last_trace else ""
                 raw_response = last_trace.raw_response if last_trace else ""
+                raw_reasoning = last_trace.raw_reasoning if last_trace else ""
+                finish_reason = last_trace.finish_reason if last_trace else None
                 p_tokens = runtime.total_prompt_tokens()
                 c_tokens = runtime.total_completion_tokens()
                 meta = {
@@ -133,6 +143,8 @@ def run_config(
                 system_prompt = ""
                 user_content = ""
                 raw_response = ""
+                raw_reasoning = ""
+                finish_reason = None
             prediction = ""
             error = str(e)[:500]
             err_count += 1
@@ -146,10 +158,12 @@ def run_config(
             system_prompt=system_prompt,
             user_content=user_content,
             raw_response=raw_response,
+            raw_reasoning=raw_reasoning,
             prediction=prediction,
             latency_ms=latency_ms,
             prompt_tokens=p_tokens,
             completion_tokens=c_tokens,
+            finish_reason=finish_reason,
             error=error,
             meta=meta,
             phase=phase,

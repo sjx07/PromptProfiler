@@ -77,7 +77,7 @@ class CubeStore:
 
     # Additive upgrades that can be applied silently on open — no data
     # transformation, just new tables + backfills. Ranges inclusive.
-    _AUTO_UPGRADE_FROM = (7, 8)
+    _AUTO_UPGRADE_FROM = (7, 8, 9)
 
     def _check_schema_version(self, conn: sqlite3.Connection) -> None:
         """Raise RuntimeError if cube is at an older schema version and not read_only.
@@ -331,10 +331,12 @@ class CubeStore:
         system_prompt: str = "",
         user_content: str = "",
         raw_response: str = "",
+        raw_reasoning: str = "",
         prediction: str = "",
         latency_ms: Optional[float] = None,
         prompt_tokens: Optional[int] = None,
         completion_tokens: Optional[int] = None,
+        finish_reason: Optional[str] = None,
         error: Optional[str] = None,
         meta: Optional[Dict[str, Any]] = None,
         phase: Optional[str] = None,
@@ -354,14 +356,14 @@ class CubeStore:
             cur.execute(
                 f"""INSERT {clause} INTO execution
                    (config_id, query_id, model,
-                    system_prompt, user_content, raw_response, prediction,
-                    latency_ms, prompt_tokens, completion_tokens,
+                    system_prompt, user_content, raw_response, raw_reasoning, prediction,
+                    latency_ms, prompt_tokens, completion_tokens, finish_reason,
                     error, phase_ids, meta)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     config_id, query_id, model,
-                    system_prompt, user_content, raw_response, prediction,
-                    latency_ms, prompt_tokens, completion_tokens,
+                    system_prompt, user_content, raw_response, raw_reasoning, prediction,
+                    latency_ms, prompt_tokens, completion_tokens, finish_reason,
                     error, phase_ids, json.dumps(meta or {}),
                 ),
             )

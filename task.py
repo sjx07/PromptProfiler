@@ -42,10 +42,12 @@ class ModuleTrace:
     system_prompt: str
     user_content: str
     raw_response: str = ""
+    raw_reasoning: str = ""
     parsed_output: Any = ""
     latency_ms: Optional[float] = None
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
+    finish_reason: Optional[str] = None
     error: Optional[str] = None
     meta: Dict[str, Any] = field(default_factory=dict)
 
@@ -56,10 +58,12 @@ class ModuleTrace:
             "system_prompt": self.system_prompt,
             "user_content": self.user_content,
             "raw_response": self.raw_response,
+            "raw_reasoning": self.raw_reasoning,
             "parsed_output": _json_safe(self.parsed_output),
             "latency_ms": self.latency_ms,
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
+            "finish_reason": self.finish_reason,
             "error": self.error,
             "meta": _json_safe(self.meta),
         }
@@ -71,8 +75,10 @@ class ModuleCallResult:
 
     raw_response: str
     parsed_output: Any
+    raw_reasoning: str = ""
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
+    finish_reason: Optional[str] = None
     latency_ms: Optional[float] = None
     error: Optional[str] = None
 
@@ -96,23 +102,31 @@ class ModuleRuntime:
         stage_index = len(self.traces)
         t0 = time.time()
         raw_response = ""
+        raw_reasoning = ""
         parsed_output: Any = ""
         prompt_tokens = None
         completion_tokens = None
+        finish_reason = None
         error = None
         try:
             result = self._llm_call(system_prompt, user_content)
             raw_response = result.get("raw_response", "")
             if not isinstance(raw_response, str):
                 raw_response = str(raw_response)
+            raw_reasoning = result.get("raw_reasoning", "")
+            if not isinstance(raw_reasoning, str):
+                raw_reasoning = str(raw_reasoning)
             parsed_output = parse(raw_response) if parse else raw_response
             prompt_tokens = result.get("prompt_tokens")
             completion_tokens = result.get("completion_tokens")
+            finish_reason = result.get("finish_reason")
             return ModuleCallResult(
                 raw_response=raw_response,
                 parsed_output=parsed_output,
+                raw_reasoning=raw_reasoning,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
+                finish_reason=finish_reason,
                 latency_ms=(time.time() - t0) * 1000,
             )
         except Exception as exc:
@@ -125,10 +139,12 @@ class ModuleRuntime:
                 system_prompt=system_prompt,
                 user_content=user_content,
                 raw_response=raw_response,
+                raw_reasoning=raw_reasoning,
                 parsed_output=parsed_output,
                 latency_ms=(time.time() - t0) * 1000,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
+                finish_reason=finish_reason,
                 error=error,
                 meta=meta or {},
             ))
