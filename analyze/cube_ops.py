@@ -531,6 +531,16 @@ def examples(
     compiler = _QueryCompiler()
     where, params = compiler.compile_filters(filters or [])
     base_params: List[Any] = [scorer, model]
+    raw_reasoning_expr = (
+        "e.raw_reasoning"
+        if _table_has_column(store, "execution", "raw_reasoning")
+        else "''"
+    )
+    finish_reason_expr = (
+        "e.finish_reason"
+        if _table_has_column(store, "execution", "finish_reason")
+        else "NULL"
+    )
     if config_ids is not None:
         ids = [int(c) for c in config_ids]
         if not ids:
@@ -549,10 +559,12 @@ def examples(
                ev.metrics,
                e.prediction,
                e.raw_response,
+               {raw_reasoning_expr} AS raw_reasoning,
                e.error,
                e.latency_ms,
                e.prompt_tokens,
                e.completion_tokens,
+               {finish_reason_expr} AS finish_reason,
                e.created_at
         FROM execution e
         JOIN evaluation ev ON ev.execution_id = e.execution_id AND ev.scorer = ?
@@ -608,10 +620,14 @@ def execution_artifact(store: CubeStore, *, execution_id: int) -> Optional[Dict[
         "systemPrompt": row["system_prompt"] or "",
         "userContent": row["user_content"] or "",
         "rawResponse": row["raw_response"] or "",
+        "rawReasoning": _row_value(row, "raw_reasoning", "") or "",
+        "responseChars": len(row["raw_response"] or ""),
+        "reasoningChars": len(_row_value(row, "raw_reasoning", "") or ""),
         "prediction": row["prediction"] or "",
         "latencyMs": _float_or_none(row["latency_ms"]),
         "promptTokens": row["prompt_tokens"],
         "completionTokens": row["completion_tokens"],
+        "finishReason": _row_value(row, "finish_reason"),
         "error": row["error"] or "",
         "phaseIds": _json_loads(row["phase_ids"], []),
         "createdAt": row["created_at"],
@@ -645,6 +661,8 @@ def diagnostics(
         "ecr": Counter(),
         "outputMode": Counter(),
         "errorState": Counter(),
+        "finishReason": Counter(),
+        "reasoningState": Counter(),
         "responsePattern": Counter(),
     }
     score_sums: Dict[Tuple[str, str], float] = defaultdict(float)
@@ -658,6 +676,12 @@ def diagnostics(
             "ecr": _bucket_value(ecr),
             "outputMode": _bucket_value(output_mode),
             "errorState": "error" if row.get("error") else "ok",
+            "finishReason": _bucket_value(row.get("finishReason")),
+            "reasoningState": (
+                "has_internal_reasoning"
+                if int(row.get("reasoningChars") or 0) > 0
+                else "no_internal_reasoning"
+            ),
             "responsePattern": _response_pattern(
                 row.get("rawResponsePreview") or "",
                 row.get("prediction") or "",
@@ -929,6 +953,8 @@ def _comparison_rows(
 def _example_from_row(row: sqlite3.Row) -> Dict[str, Any]:
     qmeta = _json_loads(row["query_meta"], {})
     metrics = _json_loads(row["metrics"], {})
+    raw_response = row["raw_response"] or ""
+    raw_reasoning = _row_value(row, "raw_reasoning", "") or ""
     return {
         "executionId": int(row["execution_id"]),
         "configId": int(row["config_id"]),
@@ -940,13 +966,28 @@ def _example_from_row(row: sqlite3.Row) -> Dict[str, Any]:
         "score": _float_or_none(row["score"]),
         "metrics": metrics,
         "prediction": row["prediction"] or "",
-        "rawResponsePreview": _preview(row["raw_response"]),
+        "rawResponsePreview": _preview(raw_response),
+        "rawReasoningPreview": _preview(raw_reasoning),
+        "responseChars": len(raw_response),
+        "reasoningChars": len(raw_reasoning),
         "error": row["error"] or "",
         "latencyMs": _float_or_none(row["latency_ms"]),
         "promptTokens": row["prompt_tokens"],
         "completionTokens": row["completion_tokens"],
+        "finishReason": _row_value(row, "finish_reason"),
         "createdAt": row["created_at"],
     }
+
+
+def _table_has_column(store: CubeStore, table: str, column: str) -> bool:
+    return any(
+        str(row["name"]) == column
+        for row in store._get_conn().execute(f"PRAGMA table_info({table})").fetchall()
+    )
+
+
+def _row_value(row: sqlite3.Row, key: str, default: Any = None) -> Any:
+    return row[key] if key in row.keys() else default
 
 
 def _label_components(store: CubeStore) -> Dict[Tuple[str, str], List[str]]:

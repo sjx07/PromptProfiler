@@ -711,6 +711,14 @@ INDEX_HTML = r"""<!doctype html>
       return (n > 0 ? '+' : '') + n.toFixed(3);
     }
 
+    function fmtChars(v) {
+      const n = Number(v || 0);
+      if (!n) return '0';
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+      return String(n);
+    }
+
     function esc(value) {
       return String(value ?? '').replace(/[&<>"']/g, ch => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -1031,12 +1039,15 @@ INDEX_HTML = r"""<!doctype html>
       $('examplesTable').innerHTML = `
         <thead><tr>
           <th style="width:86px">exec</th><th style="width:64px">score</th>
+          <th style="width:68px">think</th><th style="width:74px">finish</th>
           <th>question</th><th>prediction</th>
         </tr></thead>
         <tbody>
           ${rows.map(r => `<tr class="selectable" data-execution="${r.executionId}">
             <td class="mono">${r.executionId}</td>
             <td>${fmtScore(r.score)}</td>
+            <td class="${Number(r.reasoningChars || 0) > 0 ? 'good' : 'muted'}" title="${esc(r.rawReasoningPreview || '')}">${fmtChars(r.reasoningChars)}</td>
+            <td title="${esc(r.finishReason || '')}">${esc(r.finishReason || '')}</td>
             <td title="${esc(r.question)}">${esc(r.question)}</td>
             <td title="${esc(r.prediction)}">${esc(r.prediction)}</td>
           </tr>`).join('')}
@@ -1053,7 +1064,7 @@ INDEX_HTML = r"""<!doctype html>
     async function loadArtifact(executionId) {
       const artifact = await api('/api/artifact?executionId=' + encodeURIComponent(executionId));
       state.artifact = artifact;
-      state.artifactTab = 'rawResponse';
+      state.artifactTab = artifact.rawReasoning ? 'rawReasoning' : 'rawResponse';
       renderArtifact();
     }
 
@@ -1067,6 +1078,7 @@ INDEX_HTML = r"""<!doctype html>
       }
       $('artifactTitle').textContent = `exec ${a.executionId} · cfg ${a.configId} · score ${fmtScore(a.score)}`;
       const tabs = [
+        ['rawReasoning', `Reasoning ${fmtChars(a.reasoningChars)}`],
         ['rawResponse', 'Raw'],
         ['prediction', 'Prediction'],
         ['systemPrompt', 'System'],
@@ -1085,8 +1097,20 @@ INDEX_HTML = r"""<!doctype html>
       });
       const key = state.artifactTab;
       let value = a[key];
+      if (key === 'rawReasoning' && !value) {
+        value = 'No internal reasoning was captured for this execution. This usually means the cube predates schema v10, the serving backend did not return a reasoning field, or this model does not expose hidden reasoning separately.';
+      }
       if (key === 'queryMeta') value = {question: a.question, gold: a.gold, queryMeta: a.queryMeta};
-      if (key === 'metrics') value = {metrics: a.metrics, error: a.error, latencyMs: a.latencyMs, promptTokens: a.promptTokens, completionTokens: a.completionTokens};
+      if (key === 'metrics') value = {
+        metrics: a.metrics,
+        error: a.error,
+        latencyMs: a.latencyMs,
+        promptTokens: a.promptTokens,
+        completionTokens: a.completionTokens,
+        finishReason: a.finishReason,
+        responseChars: a.responseChars,
+        reasoningChars: a.reasoningChars
+      };
       $('artifactPane').textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
     }
 

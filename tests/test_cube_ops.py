@@ -131,6 +131,9 @@ def mini_cube(tmp_path):
             if config_id == target and query_id == "q3":
                 raw = "print('Final Answer: wrong')"
                 metrics = {"ECR@1": False, "output_mode": "python_exec"}
+            raw_reasoning = ""
+            if config_id == target and query_id == "q3":
+                raw_reasoning = "First inspect the table, then compute the final answer."
             execution_id = store.insert_execution(
                 config_id,
                 query_id,
@@ -138,7 +141,9 @@ def mini_cube(tmp_path):
                 system_prompt=f"system {config_id}",
                 user_content=f"user {query_id}",
                 raw_response=raw,
+                raw_reasoning=raw_reasoning,
                 prediction=f"pred {config_id} {query_id}",
+                finish_reason="stop",
                 phase="p1",
                 on_conflict=OnConflict.SKIP,
             )
@@ -475,10 +480,16 @@ def test_examples_artifact_and_compare(mini_cube):
     )
     assert [row["queryId"] for row in examples] == ["q3"]
     assert examples[0]["gold"] == "three"
+    assert examples[0]["reasoningChars"] > 0
+    assert examples[0]["rawReasoningPreview"].startswith("First inspect")
+    assert examples[0]["finishReason"] == "stop"
 
     artifact = cube_ops.execution_artifact(store, execution_id=examples[0]["executionId"])
     assert artifact["systemPrompt"] == f"system {ctx['target']}"
     assert artifact["userContent"] == "user q3"
+    assert artifact["rawReasoning"].startswith("First inspect")
+    assert artifact["reasoningChars"] == len(artifact["rawReasoning"])
+    assert artifact["finishReason"] == "stop"
     assert artifact["metrics"]["output_mode"] == "python_exec"
 
     compare = cube_ops.compare_configs(
@@ -514,11 +525,16 @@ def test_diagnostics_and_delete_plan_are_read_only(mini_cube):
     )
     ecr = {row["value"]: row["n"] for row in diag["buckets"]["ecr"]}
     patterns = {row["value"]: row["n"] for row in diag["buckets"]["responsePattern"]}
+    reasoning = {row["value"]: row["n"] for row in diag["buckets"]["reasoningState"]}
+    finish = {row["value"]: row["n"] for row in diag["buckets"]["finishReason"]}
 
     assert ecr["true"] == 1
     assert ecr["false"] == 2
     assert patterns["bare_final_answer_line"] == 1
     assert patterns["prints_final_answer"] == 1
+    assert reasoning["has_internal_reasoning"] == 1
+    assert reasoning["no_internal_reasoning"] == 2
+    assert finish["stop"] == 3
 
     plan = cube_ops.plan_delete(
         store,
