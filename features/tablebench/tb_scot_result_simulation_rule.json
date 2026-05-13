@@ -1,0 +1,39 @@
+{
+  "canonical_id": "tb_scot_result_simulation_rule",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "scot_component",
+  "value": "result_simulation_rule",
+  "theme": "tablebench-scot-loo",
+  "tier": "round4_scot_loo_component",
+  "provenance": "Manual TableBench SCoT decomposition.",
+  "semantic_labels": [
+    {
+      "label": "trace.result_simulation",
+      "role": "operation"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "scot"
+  },
+  "requires": [
+    "tb_scot_fixed_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Result: Simulate the result of the execution of the python code in Action, analyse that result and decide whether to continue or not.",
+          "ordinal": 50
+        }
+      }
+    }
+  ],
+  "rationale": "Switchable SCoT Result rule requiring simulated execution feedback."
+}

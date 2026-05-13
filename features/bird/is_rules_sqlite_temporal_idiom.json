@@ -1,0 +1,23 @@
+{
+  "canonical_id": "is_rules_sqlite_temporal_idiom",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "This database uses SQLite. Use SQLite-only date/time syntax: STRFTIME('%Y', date_column) for year extraction; STRFTIME('%Y', date('now')) - STRFTIME('%Y', birth_date) for age in years; date('now') for the current date. NEVER use PostgreSQL idioms (DATE_PART, AGE(), EXTRACT, NOW(), CURDATE(), TIMESTAMPDIFF) — they will fail."
+        }
+      }
+    }
+  ],
+  "rationale": "Targets bird q_asks_temporal=yes failures (76% fail rate). Pattern: model emits PostgreSQL-flavored DATE_PART/AGE/TIMESTAMPDIFF idioms instead of SQLite STRFTIME. Predicate (analysis-time slice): regex on question matching '\\b(age|years? old|older than|younger than|born in|since|before|after \\d{4})\\b' or schema has DATE columns."
+}

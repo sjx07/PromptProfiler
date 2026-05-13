@@ -1,0 +1,41 @@
+{
+  "canonical_id": "tb_pot_rescue_precision_units",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_error_rescue",
+  "value": "precision_units",
+  "theme": "tablebench-pot-rescue-add-one",
+  "tier": "round4_error_mode_rescue",
+  "provenance": "Derived from pot_all exact-match misses caused by excess decimals or missing percent/unit symbols.",
+  "semantic_labels": [
+    {
+      "label": "output.precision_and_units",
+      "role": "error_rescue",
+      "description": "Round numeric answers and preserve requested units/symbols."
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot",
+    "observed_error": "numeric answers used too many decimals or omitted expected unit/percent formatting"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "717336435fc9",
+        "payload": {
+          "content": "For numeric answers, match the question's requested precision and unit style. Round percentages and decimals to the shortest reasonable form, usually two decimals when a statistic is requested, and preserve symbols such as `%` when the answer is a percentage.",
+          "ordinal": 31
+        }
+      }
+    }
+  ],
+  "rationale": "Targets misses such as 91.651514 vs 91.65, 10.181818 vs 10.18, and -12.452... vs -12.45%."
+}

@@ -1,0 +1,1718 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Benchmark Feature Matrix v0</title>
+<style>
+:root { color-scheme: light; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+body { margin: 0; background: #f7f7f4; color: #1d252c; }
+main { padding: 28px; max-width: 1440px; margin: 0 auto; }
+h1 { font-size: 24px; margin: 0 0 8px; letter-spacing: 0; }
+p { margin: 0 0 18px; color: #52606d; max-width: 980px; line-height: 1.45; }
+.section { margin-top: 24px; }
+h2 { font-size: 17px; margin: 0 0 10px; }
+.table-wrap { overflow: auto; border: 1px solid #d5d8dc; background: white; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { border: 1px solid #e1e4e8; padding: 7px 8px; vertical-align: top; }
+th { background: #eef2f5; position: sticky; top: 0; z-index: 1; text-align: left; }
+.matrix th:first-child, .matrix td:first-child { position: sticky; left: 0; background: #f9fbfc; z-index: 2; font-weight: 700; }
+.matrix th.feature { min-width: 154px; max-width: 190px; white-space: normal; word-break: break-word; }
+.yes { background: #e9f7ef; text-align: center; font-weight: 700; color: #17643a; }
+.no { background: #fafafa; color: #c5ccd3; text-align: center; }
+.badge { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 6px; border-radius: 6px; background: #edf0f2; color: #29333d; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.family { min-width: 210px; }
+.count { text-align: right; font-variant-numeric: tabular-nums; }
+.note { font-size: 12px; color: #6b7785; }
+details { margin: 2px 0; }
+summary { cursor: pointer; color: #34495e; }
+</style></head><body><main>
+<h1>Benchmark x Feature Matrix v0</h1>
+<p>Generated from active runtime feature JSONs under <code>features/</code>. Prompt formatting and table serialization are explicit axes; response scaffolds no longer own <code>set_format</code> or <code>set_table_format</code>.</p>
+<div class="section"><h2>Family Summary</h2><div class="table-wrap"><table>
+<thead><tr><th>Benchmark</th><th class="count">Total</th><th>Prompt Format</th><th>Table Serialization</th><th>Response Scaffold</th><th>Reasoning</th><th>Input Context</th><th>Rules / Constraints</th><th>Output Contract</th><th>Structural</th><th>Other</th></tr></thead><tbody>
+<tr>
+<td><strong>wtq</strong></td><td class="count">28</td>
+<td class="family"><span class="badge">prompt_format_code_block</span><span class="badge">prompt_format_json</span><span class="badge">prompt_format_markdown</span><span class="badge">prompt_format_plain</span><span class="badge">prompt_format_yaml</span></td>
+<td class="family"><span class="badge">table_serialization_csv</span><span class="badge">table_serialization_html</span><span class="badge">table_serialization_json_columns_data</span><span class="badge">table_serialization_json_records</span><span class="badge">table_serialization_markdown</span></td>
+<td class="family"><span class="badge">facet_dp_scaffold</span><span class="badge">facet_pot_exec_scaffold</span><span class="badge">facet_scot_scaffold</span><span class="badge">facet_tcot_scaffold</span></td>
+<td class="family"><span class="badge">reason_enumerate_then_select</span><span class="badge">reason_extract_then_compute</span><span class="badge">reason_filter_then_extract</span><span class="badge">reason_verify_before_output</span></td>
+<td class="family"><span class="badge">ctx_annotate_types</span><span class="badge">ctx_filter_rows_relevance_50</span><span class="badge">ctx_prepend_column_stats</span><span class="badge">ctx_prune_columns_12</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="badge">_section_format_fix</span><span class="badge">_section_reasoning</span><span class="badge">_section_role</span><span class="badge">_section_rules</span><span class="badge">_section_table_handling</span><span class="badge">_section_task</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+</tr>
+<tr>
+<td><strong>sqa</strong></td><td class="count">28</td>
+<td class="family"><span class="badge">prompt_format_code_block</span><span class="badge">prompt_format_json</span><span class="badge">prompt_format_markdown</span><span class="badge">prompt_format_plain</span><span class="badge">prompt_format_yaml</span></td>
+<td class="family"><span class="badge">table_serialization_csv</span><span class="badge">table_serialization_html</span><span class="badge">table_serialization_json_columns_data</span><span class="badge">table_serialization_json_records</span><span class="badge">table_serialization_markdown</span></td>
+<td class="family"><span class="badge">facet_dp_scaffold</span><span class="badge">facet_pot_exec_scaffold</span><span class="badge">facet_scot_scaffold</span><span class="badge">facet_tcot_scaffold</span></td>
+<td class="family"><span class="badge">sqa_followup_scope_binding</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="badge">sqa_list_answer_shape</span></td>
+<td class="family"><span class="badge">_section_format_fix</span><span class="badge">_section_reasoning</span><span class="badge">_section_role</span><span class="badge">_section_rules</span><span class="badge">_section_table_handling</span><span class="badge">_section_task</span></td>
+<td class="family"><span class="badge">sqa_answer_target_granularity</span><span class="badge">sqa_entity_summary_marker_filter</span><span class="badge">sqa_exclude_summary_rows</span><span class="badge">sqa_numeric_cell_cleaning</span><span class="badge">sqa_numeric_filter_order</span><span class="badge">sqa_numeric_safe_casting</span></td>
+</tr>
+<tr>
+<td><strong>tabfact</strong></td><td class="count">20</td>
+<td class="family"><span class="badge">prompt_format_code_block</span><span class="badge">prompt_format_json</span><span class="badge">prompt_format_markdown</span><span class="badge">prompt_format_plain</span><span class="badge">prompt_format_yaml</span></td>
+<td class="family"><span class="badge">table_serialization_csv</span><span class="badge">table_serialization_html</span><span class="badge">table_serialization_json_columns_data</span><span class="badge">table_serialization_json_records</span><span class="badge">table_serialization_markdown</span></td>
+<td class="family"><span class="badge">facet_dp_scaffold</span><span class="badge">facet_pot_exec_scaffold</span><span class="badge">facet_scot_scaffold</span><span class="badge">facet_tcot_scaffold</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="badge">_section_format_fix</span><span class="badge">_section_reasoning</span><span class="badge">_section_role</span><span class="badge">_section_rules</span><span class="badge">_section_table_handling</span><span class="badge">_section_task</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+</tr>
+<tr>
+<td><strong>tablebench</strong></td><td class="count">53</td>
+<td class="family"><span class="badge">prompt_format_code_block</span><span class="badge">prompt_format_json</span><span class="badge">prompt_format_markdown</span><span class="badge">prompt_format_plain</span><span class="badge">prompt_format_yaml</span></td>
+<td class="family"><span class="badge">table_serialization_csv</span><span class="badge">table_serialization_html</span><span class="badge">table_serialization_json_columns_data</span><span class="badge">table_serialization_json_records</span><span class="badge">table_serialization_markdown</span></td>
+<td class="family"><span class="badge">tb_official_dp_full</span><span class="badge">tb_official_pot_full</span><span class="badge">tb_official_scot_full</span><span class="badge">tb_official_tcot_full</span><span class="badge">tb_pot_fixed_scaffold</span><span class="badge">tb_scot_fixed_scaffold</span><span class="badge">tb_tcot_fixed_scaffold</span></td>
+<td class="family"><span class="badge">reason_decompose_subquestions</span><span class="badge">reason_enumerate_then_select</span><span class="badge">reason_extract_then_compute</span><span class="badge">reason_filter_then_extract</span><span class="badge">reason_verify_before_output</span><span class="badge">tb_pot_approach_then_code_rule</span><span class="badge">tb_pot_reasoning_field</span><span class="badge">tb_tcot_step_by_step_rule</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="badge">tb_pot_rescue_answer_type_gate</span><span class="badge">tb_pot_rescue_no_dataframe_print</span><span class="badge">tb_pot_rescue_precision_units</span><span class="badge">tb_scot_concluding_check_rule</span></td>
+<td class="family"><span class="badge">_section_format_fix</span><span class="badge">_section_reasoning</span><span class="badge">_section_role</span><span class="badge">_section_rules</span><span class="badge">_section_strategy</span><span class="badge">_section_table_handling</span><span class="badge">_section_task</span></td>
+<td class="family"><span class="badge">tb_pot_code_comment_rule</span><span class="badge">tb_pot_code_concise_rule</span><span class="badge">tb_pot_code_readable_rule</span><span class="badge">tb_pot_data_only_rule</span><span class="badge">tb_pot_executable_code_rule</span><span class="badge">tb_pot_python_persona_rule</span><span class="badge">tb_pot_rescue_anomaly_conservative</span><span class="badge">tb_pot_rescue_causal_evidence_shape</span><span class="badge">tb_pot_rescue_column_row_binding</span><span class="badge">tb_pot_rescue_minimum_delta_nonnegative</span><span class="badge">tb_pot_rescue_numeric_normalization</span><span class="badge">tb_scot_action_python_rule</span><span class="badge">tb_scot_pattern_intro_rule</span><span class="badge">tb_scot_repeat_rule</span><span class="badge">tb_scot_result_simulation_rule</span><span class="badge">tb_scot_thought_rule</span><span class="badge">tb_tcot_table_only_rule</span></td>
+</tr>
+<tr>
+<td><strong>bird</strong></td><td class="count">52</td>
+<td class="family"><span class="badge">prompt_format_code_block</span><span class="badge">prompt_format_json</span><span class="badge">prompt_format_markdown</span><span class="badge">prompt_format_plain</span><span class="badge">prompt_format_yaml</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="badge">rt_rules_cot_combined</span><span class="badge">rt_rules_decompose_clauses_per_question_part</span><span class="badge">rt_rules_identify_columns_before_sql</span><span class="badge">rt_rules_justify_join_path</span><span class="badge">rt_rules_list_rows_before_select</span><span class="badge">rt_rules_restate_evidence_formula</span><span class="badge">rt_rules_show_arithmetic_in_sql</span><span class="badge">rt_rules_verify_filter_values_against_schema</span><span class="badge">vi_rules_break_down_problem</span><span class="badge">vi_rules_consider_alternative</span><span class="badge">vi_rules_explain_then_answer</span><span class="badge">vi_rules_step_decomposition</span><span class="badge">vi_rules_thorough_analysis_preamble</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="badge">ag_rules_count_vs_list_shape</span><span class="badge">ag_rules_existence_boolean_collapse</span><span class="badge">ag_rules_per_x_groupby_trigger</span><span class="badge">ag_rules_percentage_numerator_denominator</span><span class="badge">ag_rules_top_k_ordering_limit</span><span class="badge">cp_rules_avoid_distinct_unless_required</span><span class="badge">cp_rules_default_to_evidence_formula</span><span class="badge">cp_rules_prefer_inner_join_unless_optional</span><span class="badge">cp_rules_require_evidence_grounded_columns</span><span class="badge">cp_rules_require_multi_signal_filter_match</span><span class="badge">is_rules_between_for_date_range</span><span class="badge">is_rules_cast_real_for_ratio</span><span class="badge">is_rules_distinct_for_unique_categories</span><span class="badge">is_rules_intersect_for_compound_and</span><span class="badge">is_rules_juliandate_diff</span><span class="badge">is_rules_quoted_col_exact_match</span><span class="badge">is_rules_ratio_cast_real</span><span class="badge">is_rules_sqlite_temporal_idiom</span><span class="badge">is_rules_strftime_year_extract</span><span class="badge">pp_rules_allow_like_for_fuzzy_text</span><span class="badge">pp_rules_commit_under_ambiguous_grain</span><span class="badge">pp_rules_evidence_hint_is_sufficient</span><span class="badge">pp_rules_partial_match_is_match</span><span class="badge">pp_rules_prefer_left_join_over_abstain</span></td>
+<td class="family"><span class="badge">of_rules_answer_only_no_prose</span><span class="badge">of_rules_quote_identifiers_with_spaces</span><span class="badge">of_rules_single_line_no_newlines</span><span class="badge">of_rules_single_statement_no_fences</span><span class="badge">of_rules_uppercase_sql_keywords</span></td>
+<td class="family"><span class="badge">_section_examples</span><span class="badge">_section_procedure</span><span class="badge">_section_role</span><span class="badge">_section_rules</span><span class="badge">_section_task</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+</tr>
+<tr>
+<td><strong>spider</strong></td><td class="count">52</td>
+<td class="family"><span class="badge">prompt_format_code_block</span><span class="badge">prompt_format_json</span><span class="badge">prompt_format_markdown</span><span class="badge">prompt_format_plain</span><span class="badge">prompt_format_yaml</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="badge">rt_rules_cot_combined</span><span class="badge">rt_rules_decompose_question_clauses</span><span class="badge">rt_rules_distinguish_question_parts</span><span class="badge">rt_rules_justify_join_keys</span><span class="badge">rt_rules_show_arithmetic_in_sql</span><span class="badge">rt_rules_state_schema_columns_first</span><span class="badge">rt_rules_table_join_witness</span><span class="badge">rt_rules_trace_aggregation_choice</span><span class="badge">vi_rules_articulate_before_answer</span><span class="badge">vi_rules_breakdown_then_solve</span><span class="badge">vi_rules_consider_alternative</span><span class="badge">vi_rules_double_check_articulation</span><span class="badge">vi_rules_stepwise_decomposition</span><span class="badge">vi_rules_three_step_sql</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="badge">ag_rules_count_vs_list</span><span class="badge">ag_rules_distinct_when_dedup</span><span class="badge">ag_rules_having_threshold</span><span class="badge">ag_rules_per_x_groupby</span><span class="badge">ag_rules_percentage_decomposition</span><span class="badge">cp_rules_abstain_from_assumed_filters</span><span class="badge">cp_rules_avoid_unwarranted_distinct</span><span class="badge">cp_rules_prefer_equality_over_like</span><span class="badge">cp_rules_require_explicit_schema_evidence</span><span class="badge">cp_rules_require_join_path_in_schema</span><span class="badge">is_rules_count_distinct_for_unique_count</span><span class="badge">is_rules_distinct_for_unique_count</span><span class="badge">is_rules_extremum_row_via_orderby_limit</span><span class="badge">is_rules_having_for_count_filter</span><span class="badge">is_rules_intersect_for_and_across_rows</span><span class="badge">is_rules_julianday_date_diff</span><span class="badge">is_rules_like_for_substring_match</span><span class="badge">is_rules_sqlite_temporal_idiom</span><span class="badge">is_rules_strftime_year_month</span><span class="badge">pp_rules_accept_closest_column_match</span><span class="badge">pp_rules_commit_under_join_ambiguity</span><span class="badge">pp_rules_infer_unstated_columns</span><span class="badge">pp_rules_partial_string_match_ok</span></td>
+<td class="family"><span class="badge">of_rules_double_quote_identifiers</span><span class="badge">of_rules_no_alias_unless_needed</span><span class="badge">of_rules_single_line_no_fences</span><span class="badge">of_rules_terminate_with_semicolon</span><span class="badge">of_rules_uppercase_keywords</span></td>
+<td class="family"><span class="badge">_section_examples</span><span class="badge">_section_procedure</span><span class="badge">_section_role</span><span class="badge">_section_rules</span><span class="badge">_section_task</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+</tr>
+<tr>
+<td><strong>hitab</strong></td><td class="count">16</td>
+<td class="family"><span class="badge">prompt_format_code_block</span><span class="badge">prompt_format_json</span><span class="badge">prompt_format_markdown</span><span class="badge">prompt_format_plain</span><span class="badge">prompt_format_yaml</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="badge">hitab_pot_numeric_handling_rule</span><span class="badge">hitab_pot_profile</span><span class="badge">hitab_pot_reasoning_field</span><span class="badge">hitab_scot_profile</span><span class="badge">hitab_tcot_profile</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+<td class="family"><span class="badge">_section_format_fix</span><span class="badge">_section_reasoning</span><span class="badge">_section_role</span><span class="badge">_section_rules</span><span class="badge">_section_table_handling</span><span class="badge">_section_task</span></td>
+<td class="family"><span class="note">not exposed</span></td>
+</tr>
+</tbody></table></div></div>
+<div class="section"><h2>Full Binary Matrix</h2><div class="table-wrap"><table class="matrix"><thead><tr><th>Benchmark</th>
+<th class="feature">_section_examples</th>
+<th class="feature">_section_format_fix</th>
+<th class="feature">_section_procedure</th>
+<th class="feature">_section_reasoning</th>
+<th class="feature">_section_role</th>
+<th class="feature">_section_rules</th>
+<th class="feature">_section_strategy</th>
+<th class="feature">_section_table_handling</th>
+<th class="feature">_section_task</th>
+<th class="feature">ag_rules_count_vs_list</th>
+<th class="feature">ag_rules_count_vs_list_shape</th>
+<th class="feature">ag_rules_distinct_when_dedup</th>
+<th class="feature">ag_rules_existence_boolean_collapse</th>
+<th class="feature">ag_rules_having_threshold</th>
+<th class="feature">ag_rules_per_x_groupby</th>
+<th class="feature">ag_rules_per_x_groupby_trigger</th>
+<th class="feature">ag_rules_percentage_decomposition</th>
+<th class="feature">ag_rules_percentage_numerator_denominator</th>
+<th class="feature">ag_rules_top_k_ordering_limit</th>
+<th class="feature">cp_rules_abstain_from_assumed_filters</th>
+<th class="feature">cp_rules_avoid_distinct_unless_required</th>
+<th class="feature">cp_rules_avoid_unwarranted_distinct</th>
+<th class="feature">cp_rules_default_to_evidence_formula</th>
+<th class="feature">cp_rules_prefer_equality_over_like</th>
+<th class="feature">cp_rules_prefer_inner_join_unless_optional</th>
+<th class="feature">cp_rules_require_evidence_grounded_columns</th>
+<th class="feature">cp_rules_require_explicit_schema_evidence</th>
+<th class="feature">cp_rules_require_join_path_in_schema</th>
+<th class="feature">cp_rules_require_multi_signal_filter_match</th>
+<th class="feature">ctx_annotate_types</th>
+<th class="feature">ctx_filter_rows_relevance_50</th>
+<th class="feature">ctx_prepend_column_stats</th>
+<th class="feature">ctx_prune_columns_12</th>
+<th class="feature">facet_dp_scaffold</th>
+<th class="feature">facet_pot_exec_scaffold</th>
+<th class="feature">facet_scot_scaffold</th>
+<th class="feature">facet_tcot_scaffold</th>
+<th class="feature">hitab_pot_numeric_handling_rule</th>
+<th class="feature">hitab_pot_profile</th>
+<th class="feature">hitab_pot_reasoning_field</th>
+<th class="feature">hitab_scot_profile</th>
+<th class="feature">hitab_tcot_profile</th>
+<th class="feature">is_rules_between_for_date_range</th>
+<th class="feature">is_rules_cast_real_for_ratio</th>
+<th class="feature">is_rules_count_distinct_for_unique_count</th>
+<th class="feature">is_rules_distinct_for_unique_categories</th>
+<th class="feature">is_rules_distinct_for_unique_count</th>
+<th class="feature">is_rules_extremum_row_via_orderby_limit</th>
+<th class="feature">is_rules_having_for_count_filter</th>
+<th class="feature">is_rules_intersect_for_and_across_rows</th>
+<th class="feature">is_rules_intersect_for_compound_and</th>
+<th class="feature">is_rules_juliandate_diff</th>
+<th class="feature">is_rules_julianday_date_diff</th>
+<th class="feature">is_rules_like_for_substring_match</th>
+<th class="feature">is_rules_quoted_col_exact_match</th>
+<th class="feature">is_rules_ratio_cast_real</th>
+<th class="feature">is_rules_sqlite_temporal_idiom</th>
+<th class="feature">is_rules_strftime_year_extract</th>
+<th class="feature">is_rules_strftime_year_month</th>
+<th class="feature">of_rules_answer_only_no_prose</th>
+<th class="feature">of_rules_double_quote_identifiers</th>
+<th class="feature">of_rules_no_alias_unless_needed</th>
+<th class="feature">of_rules_quote_identifiers_with_spaces</th>
+<th class="feature">of_rules_single_line_no_fences</th>
+<th class="feature">of_rules_single_line_no_newlines</th>
+<th class="feature">of_rules_single_statement_no_fences</th>
+<th class="feature">of_rules_terminate_with_semicolon</th>
+<th class="feature">of_rules_uppercase_keywords</th>
+<th class="feature">of_rules_uppercase_sql_keywords</th>
+<th class="feature">pp_rules_accept_closest_column_match</th>
+<th class="feature">pp_rules_allow_like_for_fuzzy_text</th>
+<th class="feature">pp_rules_commit_under_ambiguous_grain</th>
+<th class="feature">pp_rules_commit_under_join_ambiguity</th>
+<th class="feature">pp_rules_evidence_hint_is_sufficient</th>
+<th class="feature">pp_rules_infer_unstated_columns</th>
+<th class="feature">pp_rules_partial_match_is_match</th>
+<th class="feature">pp_rules_partial_string_match_ok</th>
+<th class="feature">pp_rules_prefer_left_join_over_abstain</th>
+<th class="feature">prompt_format_code_block</th>
+<th class="feature">prompt_format_json</th>
+<th class="feature">prompt_format_markdown</th>
+<th class="feature">prompt_format_plain</th>
+<th class="feature">prompt_format_yaml</th>
+<th class="feature">reason_decompose_subquestions</th>
+<th class="feature">reason_enumerate_then_select</th>
+<th class="feature">reason_extract_then_compute</th>
+<th class="feature">reason_filter_then_extract</th>
+<th class="feature">reason_verify_before_output</th>
+<th class="feature">rt_rules_cot_combined</th>
+<th class="feature">rt_rules_decompose_clauses_per_question_part</th>
+<th class="feature">rt_rules_decompose_question_clauses</th>
+<th class="feature">rt_rules_distinguish_question_parts</th>
+<th class="feature">rt_rules_identify_columns_before_sql</th>
+<th class="feature">rt_rules_justify_join_keys</th>
+<th class="feature">rt_rules_justify_join_path</th>
+<th class="feature">rt_rules_list_rows_before_select</th>
+<th class="feature">rt_rules_restate_evidence_formula</th>
+<th class="feature">rt_rules_show_arithmetic_in_sql</th>
+<th class="feature">rt_rules_state_schema_columns_first</th>
+<th class="feature">rt_rules_table_join_witness</th>
+<th class="feature">rt_rules_trace_aggregation_choice</th>
+<th class="feature">rt_rules_verify_filter_values_against_schema</th>
+<th class="feature">sqa_answer_target_granularity</th>
+<th class="feature">sqa_entity_summary_marker_filter</th>
+<th class="feature">sqa_exclude_summary_rows</th>
+<th class="feature">sqa_followup_scope_binding</th>
+<th class="feature">sqa_list_answer_shape</th>
+<th class="feature">sqa_numeric_cell_cleaning</th>
+<th class="feature">sqa_numeric_filter_order</th>
+<th class="feature">sqa_numeric_safe_casting</th>
+<th class="feature">table_serialization_csv</th>
+<th class="feature">table_serialization_html</th>
+<th class="feature">table_serialization_json_columns_data</th>
+<th class="feature">table_serialization_json_records</th>
+<th class="feature">table_serialization_markdown</th>
+<th class="feature">tb_official_dp_full</th>
+<th class="feature">tb_official_pot_full</th>
+<th class="feature">tb_official_scot_full</th>
+<th class="feature">tb_official_tcot_full</th>
+<th class="feature">tb_pot_approach_then_code_rule</th>
+<th class="feature">tb_pot_code_comment_rule</th>
+<th class="feature">tb_pot_code_concise_rule</th>
+<th class="feature">tb_pot_code_readable_rule</th>
+<th class="feature">tb_pot_data_only_rule</th>
+<th class="feature">tb_pot_executable_code_rule</th>
+<th class="feature">tb_pot_fixed_scaffold</th>
+<th class="feature">tb_pot_python_persona_rule</th>
+<th class="feature">tb_pot_reasoning_field</th>
+<th class="feature">tb_pot_rescue_anomaly_conservative</th>
+<th class="feature">tb_pot_rescue_answer_type_gate</th>
+<th class="feature">tb_pot_rescue_causal_evidence_shape</th>
+<th class="feature">tb_pot_rescue_column_row_binding</th>
+<th class="feature">tb_pot_rescue_minimum_delta_nonnegative</th>
+<th class="feature">tb_pot_rescue_no_dataframe_print</th>
+<th class="feature">tb_pot_rescue_numeric_normalization</th>
+<th class="feature">tb_pot_rescue_precision_units</th>
+<th class="feature">tb_scot_action_python_rule</th>
+<th class="feature">tb_scot_concluding_check_rule</th>
+<th class="feature">tb_scot_fixed_scaffold</th>
+<th class="feature">tb_scot_pattern_intro_rule</th>
+<th class="feature">tb_scot_repeat_rule</th>
+<th class="feature">tb_scot_result_simulation_rule</th>
+<th class="feature">tb_scot_thought_rule</th>
+<th class="feature">tb_tcot_fixed_scaffold</th>
+<th class="feature">tb_tcot_step_by_step_rule</th>
+<th class="feature">tb_tcot_table_only_rule</th>
+<th class="feature">vi_rules_articulate_before_answer</th>
+<th class="feature">vi_rules_break_down_problem</th>
+<th class="feature">vi_rules_breakdown_then_solve</th>
+<th class="feature">vi_rules_consider_alternative</th>
+<th class="feature">vi_rules_double_check_articulation</th>
+<th class="feature">vi_rules_explain_then_answer</th>
+<th class="feature">vi_rules_step_decomposition</th>
+<th class="feature">vi_rules_stepwise_decomposition</th>
+<th class="feature">vi_rules_thorough_analysis_preamble</th>
+<th class="feature">vi_rules_three_step_sql</th>
+</tr></thead><tbody>
+<tr><td>wtq</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+</tr>
+<tr><td>sqa</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+</tr>
+<tr><td>tabfact</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+</tr>
+<tr><td>tablebench</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+</tr>
+<tr><td>bird</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+</tr>
+<tr><td>spider</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+</tr>
+<tr><td>hitab</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="yes">1</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+<td class="no">.</td>
+</tr>
+</tbody></table></div></div>
+<div class="section"><h2>Feature Details</h2>
+<details><summary>wtq (28 features)</summary>
+<h3>prompt_format</h3><ul>
+<li><code>prompt_format_code_block</code> <span class="note">prompt_format.code_block, implementation.set_format</span></li>
+<li><code>prompt_format_json</code> <span class="note">prompt_format.json, implementation.set_format</span></li>
+<li><code>prompt_format_markdown</code> <span class="note">prompt_format.markdown, implementation.set_format</span></li>
+<li><code>prompt_format_plain</code> <span class="note">prompt_format.plain, implementation.set_format</span></li>
+<li><code>prompt_format_yaml</code> <span class="note">prompt_format.yaml, implementation.set_format</span></li>
+</ul>
+<h3>table_serialization</h3><ul>
+<li><code>table_serialization_csv</code> <span class="note">table_serialization.csv, implementation.set_table_format</span></li>
+<li><code>table_serialization_html</code> <span class="note">table_serialization.html, implementation.set_table_format</span></li>
+<li><code>table_serialization_json_columns_data</code> <span class="note">table_serialization.json_columns_data, implementation.set_table_format</span></li>
+<li><code>table_serialization_json_records</code> <span class="note">table_serialization.json_records, implementation.set_table_format</span></li>
+<li><code>table_serialization_markdown</code> <span class="note">table_serialization.markdown, implementation.set_table_format</span></li>
+</ul>
+<h3>response_scaffold</h3><ul>
+<li><code>facet_dp_scaffold</code> <span class="note">profile.dp, persona.table_analyst, reasoning.direct, format.answer_only, output.short_denotation, grounding.table_only</span></li>
+<li><code>facet_pot_exec_scaffold</code> <span class="note">profile.pot, persona.table_analyst, persona.python_analyst, reasoning.program_of_thought, planning.approach_then_code, execution.python, library.pandas, runtime.pandas_dataframe, format.python_code_fence, output.answer_variable, output.print_answer, grounding.table_only</span></li>
+<li><code>facet_scot_scaffold</code> <span class="note">profile.scot, persona.table_analyst, reasoning.symbolic_trace, reasoning.explicit_intermediate_work, trace.thought_action_result, execution.atomic_action, format.answer_only, grounding.table_only</span></li>
+<li><code>facet_tcot_scaffold</code> <span class="note">profile.tcot, persona.table_analyst, reasoning.text_trace, reasoning.explicit_intermediate_work, style.step_by_step, format.answer_only, grounding.table_only</span></li>
+</ul>
+<h3>reasoning_behavior</h3><ul>
+<li><code>reason_enumerate_then_select</code> <span class="note">reasoning.enumerate_then_select, style.internal_procedure, format.dp_preserving</span></li>
+<li><code>reason_extract_then_compute</code> <span class="note">reasoning.extract_then_compute, style.internal_procedure, format.dp_preserving</span></li>
+<li><code>reason_filter_then_extract</code> <span class="note">reasoning.filter_then_extract, style.internal_procedure, format.dp_preserving</span></li>
+<li><code>reason_verify_before_output</code> <span class="note">reasoning.verify_before_output, style.internal_procedure, format.dp_preserving</span></li>
+</ul>
+<h3>input_context</h3><ul>
+<li><code>ctx_annotate_types</code> <span class="note">input_context.type_annotation, context_builder.column_type_annotation, implementation.input_transform, cost.lightweight_deterministic</span></li>
+<li><code>ctx_filter_rows_relevance_50</code> <span class="note">input_context.row_selection, context_builder.relevance_row_filter, implementation.input_transform, cost.lightweight_deterministic</span></li>
+<li><code>ctx_prepend_column_stats</code> <span class="note">input_context.column_statistics, context_builder.column_stats_summary, implementation.input_transform, cost.lightweight_deterministic</span></li>
+<li><code>ctx_prune_columns_12</code> <span class="note">input_context.column_selection, context_builder.relevance_column_pruning, implementation.input_transform, cost.lightweight_deterministic</span></li>
+</ul>
+<h3>structural_sections</h3><ul>
+<li><code>_section_format_fix</code> <span class="note"></span></li>
+<li><code>_section_reasoning</code> <span class="note"></span></li>
+<li><code>_section_role</code> <span class="note"></span></li>
+<li><code>_section_rules</code> <span class="note"></span></li>
+<li><code>_section_table_handling</code> <span class="note"></span></li>
+<li><code>_section_task</code> <span class="note"></span></li>
+</ul>
+</details>
+<details><summary>sqa (28 features)</summary>
+<h3>prompt_format</h3><ul>
+<li><code>prompt_format_code_block</code> <span class="note">prompt_format.code_block, implementation.set_format</span></li>
+<li><code>prompt_format_json</code> <span class="note">prompt_format.json, implementation.set_format</span></li>
+<li><code>prompt_format_markdown</code> <span class="note">prompt_format.markdown, implementation.set_format</span></li>
+<li><code>prompt_format_plain</code> <span class="note">prompt_format.plain, implementation.set_format</span></li>
+<li><code>prompt_format_yaml</code> <span class="note">prompt_format.yaml, implementation.set_format</span></li>
+</ul>
+<h3>table_serialization</h3><ul>
+<li><code>table_serialization_csv</code> <span class="note">table_serialization.csv, implementation.set_table_format</span></li>
+<li><code>table_serialization_html</code> <span class="note">table_serialization.html, implementation.set_table_format</span></li>
+<li><code>table_serialization_json_columns_data</code> <span class="note">table_serialization.json_columns_data, implementation.set_table_format</span></li>
+<li><code>table_serialization_json_records</code> <span class="note">table_serialization.json_records, implementation.set_table_format</span></li>
+<li><code>table_serialization_markdown</code> <span class="note">table_serialization.markdown, implementation.set_table_format</span></li>
+</ul>
+<h3>response_scaffold</h3><ul>
+<li><code>facet_dp_scaffold</code> <span class="note">profile.dp, persona.table_analyst, reasoning.direct, conversation.followup_context, format.answer_only, output.short_denotation, grounding.table_only</span></li>
+<li><code>facet_pot_exec_scaffold</code> <span class="note">profile.pot, persona.table_analyst, persona.python_analyst, reasoning.program_of_thought, planning.approach_then_code, execution.python, library.pandas, runtime.pandas_dataframe, conversation.followup_context, format.python_code_fence, output.answer_variable, output.print_answer, grounding.table_only</span></li>
+<li><code>facet_scot_scaffold</code> <span class="note">profile.scot, persona.table_analyst, reasoning.symbolic_trace, reasoning.explicit_intermediate_work, conversation.followup_context, trace.thought_action_result, execution.atomic_action, format.answer_only, grounding.table_only</span></li>
+<li><code>facet_tcot_scaffold</code> <span class="note">profile.tcot, persona.table_analyst, reasoning.text_trace, reasoning.explicit_intermediate_work, conversation.followup_context, style.step_by_step, format.answer_only, grounding.table_only</span></li>
+</ul>
+<h3>reasoning_behavior</h3><ul>
+<li><code>sqa_followup_scope_binding</code> <span class="note">conversation.followup_scope, grounding.prior_answers, reasoning.program_of_thought</span></li>
+</ul>
+<h3>output_contract</h3><ul>
+<li><code>sqa_list_answer_shape</code> <span class="note">answer.list_denotation, output.answer_variable, output.print_answer</span></li>
+</ul>
+<h3>structural_sections</h3><ul>
+<li><code>_section_format_fix</code> <span class="note"></span></li>
+<li><code>_section_reasoning</code> <span class="note"></span></li>
+<li><code>_section_role</code> <span class="note"></span></li>
+<li><code>_section_rules</code> <span class="note"></span></li>
+<li><code>_section_table_handling</code> <span class="note"></span></li>
+<li><code>_section_task</code> <span class="note"></span></li>
+</ul>
+<h3>other</h3><ul>
+<li><code>sqa_answer_target_granularity</code> <span class="note">answer.match_question_target, aggregation.match_question_granularity, conversation.followup_scope</span></li>
+<li><code>sqa_entity_summary_marker_filter</code> <span class="note">table.exclude_summary_rows, table.entity_column_filter, answer.list_denotation</span></li>
+<li><code>sqa_exclude_summary_rows</code> <span class="note">table.exclude_summary_rows, answer.list_denotation, grounding.table_only</span></li>
+<li><code>sqa_numeric_cell_cleaning</code> <span class="note">numeric.cell_cleaning, execution.python, runtime.pandas_dataframe</span></li>
+<li><code>sqa_numeric_filter_order</code> <span class="note">numeric.compare_numeric, pandas.filter_before_aggregate, execution.python</span></li>
+<li><code>sqa_numeric_safe_casting</code> <span class="note">numeric.safe_casting, numeric.cell_cleaning, execution.python</span></li>
+</ul>
+</details>
+<details><summary>tabfact (20 features)</summary>
+<h3>prompt_format</h3><ul>
+<li><code>prompt_format_code_block</code> <span class="note">prompt_format.code_block, implementation.set_format</span></li>
+<li><code>prompt_format_json</code> <span class="note">prompt_format.json, implementation.set_format</span></li>
+<li><code>prompt_format_markdown</code> <span class="note">prompt_format.markdown, implementation.set_format</span></li>
+<li><code>prompt_format_plain</code> <span class="note">prompt_format.plain, implementation.set_format</span></li>
+<li><code>prompt_format_yaml</code> <span class="note">prompt_format.yaml, implementation.set_format</span></li>
+</ul>
+<h3>table_serialization</h3><ul>
+<li><code>table_serialization_csv</code> <span class="note">table_serialization.csv, implementation.set_table_format</span></li>
+<li><code>table_serialization_html</code> <span class="note">table_serialization.html, implementation.set_table_format</span></li>
+<li><code>table_serialization_json_columns_data</code> <span class="note">table_serialization.json_columns_data, implementation.set_table_format</span></li>
+<li><code>table_serialization_json_records</code> <span class="note">table_serialization.json_records, implementation.set_table_format</span></li>
+<li><code>table_serialization_markdown</code> <span class="note">table_serialization.markdown, implementation.set_table_format</span></li>
+</ul>
+<h3>response_scaffold</h3><ul>
+<li><code>facet_dp_scaffold</code> <span class="note">profile.dp, persona.table_analyst, persona.fact_verifier, reasoning.direct, verification.boolean_verdict, format.verdict_only, grounding.table_only</span></li>
+<li><code>facet_pot_exec_scaffold</code> <span class="note">profile.pot, persona.table_analyst, persona.python_analyst, persona.fact_verifier, reasoning.program_of_thought, planning.approach_then_code, execution.python, library.pandas, runtime.pandas_dataframe, verification.boolean_verdict, format.python_code_fence, output.answer_variable, output.print_answer, grounding.table_only</span></li>
+<li><code>facet_scot_scaffold</code> <span class="note">profile.scot, persona.fact_verifier, reasoning.symbolic_trace, reasoning.explicit_intermediate_work, trace.thought_action_result, execution.atomic_action, verification.boolean_verdict, format.verdict_only, grounding.table_only</span></li>
+<li><code>facet_tcot_scaffold</code> <span class="note">profile.tcot, persona.fact_verifier, reasoning.text_trace, reasoning.explicit_intermediate_work, verification.boolean_verdict, style.step_by_step, format.verdict_only, grounding.table_only</span></li>
+</ul>
+<h3>structural_sections</h3><ul>
+<li><code>_section_format_fix</code> <span class="note"></span></li>
+<li><code>_section_reasoning</code> <span class="note"></span></li>
+<li><code>_section_role</code> <span class="note"></span></li>
+<li><code>_section_rules</code> <span class="note"></span></li>
+<li><code>_section_table_handling</code> <span class="note"></span></li>
+<li><code>_section_task</code> <span class="note"></span></li>
+</ul>
+</details>
+<details><summary>tablebench (53 features)</summary>
+<h3>prompt_format</h3><ul>
+<li><code>prompt_format_code_block</code> <span class="note">prompt_format.code_block, implementation.set_format</span></li>
+<li><code>prompt_format_json</code> <span class="note">prompt_format.json, implementation.set_format</span></li>
+<li><code>prompt_format_markdown</code> <span class="note">prompt_format.markdown, implementation.set_format</span></li>
+<li><code>prompt_format_plain</code> <span class="note">prompt_format.plain, implementation.set_format</span></li>
+<li><code>prompt_format_yaml</code> <span class="note">prompt_format.yaml, implementation.set_format</span></li>
+</ul>
+<h3>table_serialization</h3><ul>
+<li><code>table_serialization_csv</code> <span class="note">table_serialization.csv, implementation.set_table_format</span></li>
+<li><code>table_serialization_html</code> <span class="note">table_serialization.html, implementation.set_table_format</span></li>
+<li><code>table_serialization_json_columns_data</code> <span class="note">table_serialization.json_columns_data, implementation.set_table_format</span></li>
+<li><code>table_serialization_json_records</code> <span class="note">table_serialization.json_records, implementation.set_table_format</span></li>
+<li><code>table_serialization_markdown</code> <span class="note">table_serialization.markdown, implementation.set_table_format</span></li>
+</ul>
+<h3>response_scaffold</h3><ul>
+<li><code>tb_official_dp_full</code> <span class="note">profile.dp, persona.analyst, persona.table_analyst, format.direct_answer, format.answer_only, grounding.table_only, tablebench.json_columns_data</span></li>
+<li><code>tb_official_pot_full</code> <span class="note">profile.pot, persona.analyst, persona.python_analyst, reasoning.pot, reasoning.intermediate_work, planning.approach, execution.python, style.code_concise, style.code_readable, style.code_commenting, format.code_fence, grounding.table_only, refusal.off_topic, output.print_value, tablebench.table_csv, library.pandas, visualization.matplotlib, format.answer_only, tablebench.json_columns_data</span></li>
+<li><code>tb_official_scot_full</code> <span class="note">profile.scot, persona.analyst, persona.table_analyst, reasoning.symbolic_cot, reasoning.intermediate_work, trace.tar, operation.python_action, library.pandas, format.answer_only, grounding.table_only, tablebench.json_columns_data</span></li>
+<li><code>tb_official_tcot_full</code> <span class="note">profile.tcot, persona.analyst, persona.table_analyst, reasoning.text_cot, reasoning.intermediate_work, style.step_by_step, format.answer_only, grounding.table_only, tablebench.json_columns_data</span></li>
+<li><code>tb_pot_fixed_scaffold</code> <span class="note">format.code_fence, format.answer_only, output.print_value, tablebench.table_csv, tablebench.json_columns_data</span></li>
+<li><code>tb_scot_fixed_scaffold</code> <span class="note">profile.scot, persona.analyst, persona.table_analyst, reasoning.symbolic_cot, reasoning.intermediate_work, library.pandas, format.answer_only, tablebench.json_columns_data</span></li>
+<li><code>tb_tcot_fixed_scaffold</code> <span class="note">profile.tcot, persona.analyst, persona.table_analyst, reasoning.intermediate_work, format.answer_only, tablebench.json_columns_data</span></li>
+</ul>
+<h3>reasoning_behavior</h3><ul>
+<li><code>reason_decompose_subquestions</code> <span class="note">reasoning.decomposition, style.internal_procedure, format.dp_preserving</span></li>
+<li><code>reason_enumerate_then_select</code> <span class="note">reasoning.enumerate_then_select, style.internal_procedure, format.dp_preserving</span></li>
+<li><code>reason_extract_then_compute</code> <span class="note">reasoning.extract_then_compute, style.internal_procedure, format.dp_preserving</span></li>
+<li><code>reason_filter_then_extract</code> <span class="note">reasoning.filter_then_extract, style.internal_procedure, format.dp_preserving</span></li>
+<li><code>reason_verify_before_output</code> <span class="note">reasoning.verify_before_output, style.internal_procedure, format.dp_preserving</span></li>
+<li><code>tb_pot_approach_then_code_rule</code> <span class="note">planning.approach, reasoning.pot</span></li>
+<li><code>tb_pot_reasoning_field</code> <span class="note">reasoning.intermediate_work</span></li>
+<li><code>tb_tcot_step_by_step_rule</code> <span class="note">reasoning.text_cot, style.step_by_step</span></li>
+</ul>
+<h3>output_contract</h3><ul>
+<li><code>tb_pot_rescue_answer_type_gate</code> <span class="note">output.answer_type_gate</span></li>
+<li><code>tb_pot_rescue_no_dataframe_print</code> <span class="note">output.no_dataframe_print, output.final_value_only</span></li>
+<li><code>tb_pot_rescue_precision_units</code> <span class="note">output.precision_and_units</span></li>
+<li><code>tb_scot_concluding_check_rule</code> <span class="note">verification.concluding_check, format.answer_only</span></li>
+</ul>
+<h3>structural_sections</h3><ul>
+<li><code>_section_format_fix</code> <span class="note"></span></li>
+<li><code>_section_reasoning</code> <span class="note"></span></li>
+<li><code>_section_role</code> <span class="note"></span></li>
+<li><code>_section_rules</code> <span class="note"></span></li>
+<li><code>_section_strategy</code> <span class="note"></span></li>
+<li><code>_section_table_handling</code> <span class="note"></span></li>
+<li><code>_section_task</code> <span class="note"></span></li>
+</ul>
+<h3>other</h3><ul>
+<li><code>tb_pot_code_comment_rule</code> <span class="note">style.code_commenting</span></li>
+<li><code>tb_pot_code_concise_rule</code> <span class="note">style.code_concise</span></li>
+<li><code>tb_pot_code_readable_rule</code> <span class="note">style.code_readable</span></li>
+<li><code>tb_pot_data_only_rule</code> <span class="note">grounding.table_only</span></li>
+<li><code>tb_pot_executable_code_rule</code> <span class="note">execution.python</span></li>
+<li><code>tb_pot_python_persona_rule</code> <span class="note">persona.analyst, persona.python_analyst</span></li>
+<li><code>tb_pot_rescue_anomaly_conservative</code> <span class="note">anomaly.conservative_detection</span></li>
+<li><code>tb_pot_rescue_causal_evidence_shape</code> <span class="note">causal.correlation_evidence_shape</span></li>
+<li><code>tb_pot_rescue_column_row_binding</code> <span class="note">table.column_row_binding</span></li>
+<li><code>tb_pot_rescue_minimum_delta_nonnegative</code> <span class="note">numerical.minimum_delta_nonnegative</span></li>
+<li><code>tb_pot_rescue_numeric_normalization</code> <span class="note">code.pandas_numeric_normalization</span></li>
+<li><code>tb_scot_action_python_rule</code> <span class="note">operation.python_action, execution.python</span></li>
+<li><code>tb_scot_pattern_intro_rule</code> <span class="note">style.step_by_step, trace.tar</span></li>
+<li><code>tb_scot_repeat_rule</code> <span class="note">trace.iterative_steps</span></li>
+<li><code>tb_scot_result_simulation_rule</code> <span class="note">trace.result_simulation</span></li>
+<li><code>tb_scot_thought_rule</code> <span class="note">trace.thought_step</span></li>
+<li><code>tb_tcot_table_only_rule</code> <span class="note">grounding.table_only</span></li>
+</ul>
+</details>
+<details><summary>bird (52 features)</summary>
+<h3>prompt_format</h3><ul>
+<li><code>prompt_format_code_block</code> <span class="note">prompt_format.code_block, implementation.set_format</span></li>
+<li><code>prompt_format_json</code> <span class="note">prompt_format.json, implementation.set_format</span></li>
+<li><code>prompt_format_markdown</code> <span class="note">prompt_format.markdown, implementation.set_format</span></li>
+<li><code>prompt_format_plain</code> <span class="note">prompt_format.plain, implementation.set_format</span></li>
+<li><code>prompt_format_yaml</code> <span class="note">prompt_format.yaml, implementation.set_format</span></li>
+</ul>
+<h3>reasoning_behavior</h3><ul>
+<li><code>rt_rules_cot_combined</code> <span class="note">CoT ablation: cot_combined. Tests whether observed rt/vi lifts come from rule body or aux output_field schema.</span></li>
+<li><code>rt_rules_decompose_clauses_per_question_part</code> <span class="note">creative: task-bound decomposition — every reasoning step references an observable question clause and its mapped column</span></li>
+<li><code>rt_rules_identify_columns_before_sql</code> <span class="note">creative: binds reasoning to the actual schema entities present in this query&#x27;s prompt — task-specific CoT, not generic </span></li>
+<li><code>rt_rules_justify_join_path</code> <span class="note">creative: schema-grounded reasoning trace specific to multi-table BIRD queries; binds CoT to actual FK markers in the sc</span></li>
+<li><code>rt_rules_list_rows_before_select</code> <span class="note">Adapter of wtq&#x27;s rt_filter_rows_then_extract mechanism (proven +0.371 on wtq×arithmetic-yes) to bird SQL — forces row-va</span></li>
+<li><code>rt_rules_restate_evidence_formula</code> <span class="note">creative: forces the trace to bind evidence-glossary terms to actual schema columns, a BIRD-specific reasoning step.</span></li>
+<li><code>rt_rules_show_arithmetic_in_sql</code> <span class="note">Adapter of tabfact&#x27;s rt_aggregation_arithmetic_shown mechanism (proven +0.105 on superlative-no) to bird SQL — tests whe</span></li>
+<li><code>rt_rules_verify_filter_values_against_schema</code> <span class="note">creative: reasoning step bound to schema example-values — task-specific verification, not generic &#x27;double-check your wor</span></li>
+<li><code>vi_rules_break_down_problem</code> <span class="note">creative; classic &#x27;let&#x27;s break this down&#x27; verbosity prompt — generic articulation phase with zero query-specific binding</span></li>
+<li><code>vi_rules_consider_alternative</code> <span class="note">creative; tests pre-answer alternative-consideration articulation, generic phrasing with no schema binding — canonical v</span></li>
+<li><code>vi_rules_explain_then_answer</code> <span class="note">creative; demands generic explanation prose pre-answer without referencing specific tables/columns — articulation overhe</span></li>
+<li><code>vi_rules_step_decomposition</code> <span class="note">creative; tests generic 3-step decomposition language without binding to actual schema entities — pure vi_ articulation </span></li>
+<li><code>vi_rules_thorough_analysis_preamble</code> <span class="note">creative; demands lengthy generic preamble about &#x27;challenges&#x27; and &#x27;considerations&#x27; without binding to actual schema — vi</span></li>
+</ul>
+<h3>rules_constraints</h3><ul>
+<li><code>ag_rules_count_vs_list_shape</code> <span class="note">creative: tests wh-word → output multiplicity binding; explicit anti-pattern clause discourages mixed-shape outputs.</span></li>
+<li><code>ag_rules_existence_boolean_collapse</code> <span class="note">creative: tests existence → 0-or-1-row boolean granularity; prevents over-enumeration when the question is yes/no shaped</span></li>
+<li><code>ag_rules_per_x_groupby_trigger</code> <span class="note">gepa_decompose: tests the canonical per-X → GROUP BY granularity mapping; lexical trigger explicitly enumerated to avoid</span></li>
+<li><code>ag_rules_percentage_numerator_denominator</code> <span class="note">gepa_decompose: tests the percent/ratio shape rule; granularity is &#x27;two-piece scalar&#x27;, distinct from idiom substitution.</span></li>
+<li><code>ag_rules_top_k_ordering_limit</code> <span class="note">vista_synthesis: tests superlative/top-K granularity choice; binds linguistic trigger to row-count and ordering shape.</span></li>
+<li><code>cp_rules_avoid_distinct_unless_required</code> <span class="note">creative cp_: raises bar for adding optional structural complexity to the query.</span></li>
+<li><code>cp_rules_default_to_evidence_formula</code> <span class="note">creative cp_: tightens commitment criterion to favor evidence-literal formulas over the model&#x27;s own rephrasing.</span></li>
+<li><code>cp_rules_prefer_inner_join_unless_optional</code> <span class="note">creative cp_: tightens join-type commitment, opposite-signed counterpart to a permissive &#x27;allow LEFT JOIN&#x27; rule.</span></li>
+<li><code>cp_rules_require_evidence_grounded_columns</code> <span class="note">creative cp_: raises the bar for column inclusion, biasing toward fewer/safer projections when evidence is weak.</span></li>
+<li><code>cp_rules_require_multi_signal_filter_match</code> <span class="note">creative cp_: requires multi-field agreement before committing a filter — direct analogue of round-3 &#x27;agreement on multi</span></li>
+<li><code>is_rules_between_for_date_range</code> <span class="note">gepa_decompose: promotes BETWEEN with ISO date literals as the canonical range-filter idiom in SQLite.</span></li>
+<li><code>is_rules_cast_real_for_ratio</code> <span class="note">vista_synthesis: substitutes CAST-as-REAL idiom for plain integer division on ratio questions; addresses a frequent sile</span></li>
+<li><code>is_rules_distinct_for_unique_categories</code> <span class="note">Bird q_asks_count=yes failures often arise from missing DISTINCT. Predicate: question matches r&#x27;\bhow many (different|di</span></li>
+<li><code>is_rules_intersect_for_compound_and</code> <span class="note">creative: promotes INTERSECT over conjunctive AND for cross-row compound predicates; targets a known systematic error mo</span></li>
+<li><code>is_rules_juliandate_diff</code> <span class="note">gepa_decompose: substitutes JULIANDAY for naive date subtraction; tests whether promoting the canonical SQLite date-diff</span></li>
+<li><code>is_rules_quoted_col_exact_match</code> <span class="note">Targets bird has_special_cols=yes failures (77% fail rate). Pattern: model rewrites quoted/special-char columns into sna</span></li>
+<li><code>is_rules_ratio_cast_real</code> <span class="note">Bird q_asks_ratio=yes (69% fail) often produces integer-division zeros. Predicate: question matches r&#x27;\b(percentage|prop</span></li>
+<li><code>is_rules_sqlite_temporal_idiom</code> <span class="note">Targets bird q_asks_temporal=yes failures (76% fail rate). Pattern: model emits PostgreSQL-flavored DATE_PART/AGE/TIMEST</span></li>
+<li><code>is_rules_strftime_year_extract</code> <span class="note">gepa_decompose: replaces unsupported YEAR()/MONTH() with STRFTIME idiom; single-flip Δ measures whether the substitution</span></li>
+<li><code>pp_rules_allow_like_for_fuzzy_text</code> <span class="note">creative; nudges the model to commit to a match even under surface-form variation, rather than abstaining or producing a</span></li>
+<li><code>pp_rules_commit_under_ambiguous_grain</code> <span class="note">creative; nudges the model away from abstention or hedged outputs on ambiguous-grain BIRD questions, lowering the bar to</span></li>
+<li><code>pp_rules_evidence_hint_is_sufficient</code> <span class="note">gepa_decompose-style; nudges the model to trust evidence and emit SQL rather than hedge with a vaguer query when schema </span></li>
+<li><code>pp_rules_partial_match_is_match</code> <span class="note">vista_synthesis-style; permissive-prior nudge specific to filter-predicate emission — tests whether tolerating partial s</span></li>
+<li><code>pp_rules_prefer_left_join_over_abstain</code> <span class="note">creative; lowers the bar for committing to a multi-table SQL when nullability of FK is uncertain — tests whether permiss</span></li>
+</ul>
+<h3>output_contract</h3><ul>
+<li><code>of_rules_answer_only_no_prose</code> <span class="note">vista_synthesis: tests whether the parser tolerates surrounding prose; format-matched if extractor is strict.</span></li>
+<li><code>of_rules_quote_identifiers_with_spaces</code> <span class="note">gepa_decompose: BIRD schemas use backtick-quoted identifiers (e.g. `Free Meal Count (K-12)`); tests grader alignment on </span></li>
+<li><code>of_rules_single_line_no_newlines</code> <span class="note">creative: structural-shape variant — single-line constraint, isolates whitespace footprint from content.</span></li>
+<li><code>of_rules_single_statement_no_fences</code> <span class="note">creative: tests whether stripping fences/semicolons aligns with BIRD&#x27;s exec-accuracy grader (format-matched variant).</span></li>
+<li><code>of_rules_uppercase_sql_keywords</code> <span class="note">creative: pure rendering rule — should be inert under exec-grader, probes whether format constraints leak into content q</span></li>
+</ul>
+<h3>structural_sections</h3><ul>
+<li><code>_section_examples</code> <span class="note"></span></li>
+<li><code>_section_procedure</code> <span class="note"></span></li>
+<li><code>_section_role</code> <span class="note"></span></li>
+<li><code>_section_rules</code> <span class="note"></span></li>
+<li><code>_section_task</code> <span class="note"></span></li>
+</ul>
+</details>
+<details><summary>spider (52 features)</summary>
+<h3>prompt_format</h3><ul>
+<li><code>prompt_format_code_block</code> <span class="note">prompt_format.code_block, implementation.set_format</span></li>
+<li><code>prompt_format_json</code> <span class="note">prompt_format.json, implementation.set_format</span></li>
+<li><code>prompt_format_markdown</code> <span class="note">prompt_format.markdown, implementation.set_format</span></li>
+<li><code>prompt_format_plain</code> <span class="note">prompt_format.plain, implementation.set_format</span></li>
+<li><code>prompt_format_yaml</code> <span class="note">prompt_format.yaml, implementation.set_format</span></li>
+</ul>
+<h3>reasoning_behavior</h3><ul>
+<li><code>rt_rules_cot_combined</code> <span class="note">CoT ablation: cot_combined. Tests whether observed rt/vi lifts come from rule body or aux output_field schema.</span></li>
+<li><code>rt_rules_decompose_question_clauses</code> <span class="note">gepa_decompose: binds reasoning to the actual question&#x27;s clauses and the schema columns that satisfy them — task-specifi</span></li>
+<li><code>rt_rules_distinguish_question_parts</code> <span class="note">creative: targets the multi-condition Spider failure mode (e.g., &#x27;same nationality as constructor&#x27;) by demanding per-con</span></li>
+<li><code>rt_rules_justify_join_keys</code> <span class="note">creative: probes whether forcing articulation of the specific FK pairs from the provided schema reduces incorrect join p</span></li>
+<li><code>rt_rules_show_arithmetic_in_sql</code> <span class="note">Adapter of tabfact&#x27;s rt_aggregation_arithmetic_shown mechanism to spider SQL — tests whether explicit arithmetic-shape r</span></li>
+<li><code>rt_rules_state_schema_columns_first</code> <span class="note">gepa_decompose: tests whether forcing explicit binding to question-mentioned schema entities (columns/tables/joins) befo</span></li>
+<li><code>rt_rules_table_join_witness</code> <span class="note">Adapter of wtq&#x27;s row-grounding mechanism to spider&#x27;s join-heavy queries — forces the model to ground in concrete row val</span></li>
+<li><code>rt_rules_trace_aggregation_choice</code> <span class="note">vista_synthesis: rt_-form rule that binds aggregation-trigger words in the actual question to specific schema columns; d</span></li>
+<li><code>vi_rules_articulate_before_answer</code> <span class="note">creative; pure articulation-overhead variant — &#x27;think carefully and methodically&#x27; generic preamble, no schema binding</span></li>
+<li><code>vi_rules_breakdown_then_solve</code> <span class="note">creative; canonical &#x27;let&#x27;s break this down&#x27; verbosity preamble — generic restate/outline/produce sequence with no input </span></li>
+<li><code>vi_rules_consider_alternative</code> <span class="note">creative; verbosity-control variant — generic &#x27;consider alternatives&#x27; articulation with no task-specific binding</span></li>
+<li><code>vi_rules_double_check_articulation</code> <span class="note">creative; post-draft articulation overhead — generic &#x27;narrate a sanity check&#x27; without referencing any specific schema el</span></li>
+<li><code>vi_rules_stepwise_decomposition</code> <span class="note">creative; tests generic Step1/Step2/Step3 articulation overhead without binding to schema or question content</span></li>
+<li><code>vi_rules_three_step_sql</code> <span class="note">Adapter of tabfact&#x27;s vi_step_decomposition mechanism (proven +0.120 on temporal-yes) to spider SQL — tests whether expli</span></li>
+</ul>
+<h3>rules_constraints</h3><ul>
+<li><code>ag_rules_count_vs_list</code> <span class="note">creative: distinguishes scalar-aggregate vs row-enumeration shape from the wh-word, the most common Spider granularity c</span></li>
+<li><code>ag_rules_distinct_when_dedup</code> <span class="note">creative: DISTINCT is granularity-by-identity — common error after joins inflate row counts. Distinct from idiom-shortcu</span></li>
+<li><code>ag_rules_having_threshold</code> <span class="note">creative: threshold-on-aggregate is a granularity decision (post-grouping) — frequent Spider failure where models put CO</span></li>
+<li><code>ag_rules_per_x_groupby</code> <span class="note">gepa_decompose port of round-3 output_format_rule_e070e8 (+0.086 on bird×7B): linguistic-trigger → GROUP BY granularity </span></li>
+<li><code>ag_rules_percentage_decomposition</code> <span class="note">gepa_decompose of round-3 aggregation_semantics_rule_02b958 (+0.083): percentage-question granularity = ratio shape, not</span></li>
+<li><code>cp_rules_abstain_from_assumed_filters</code> <span class="note">creative cp_: tightens criterion for committing to extra predicates; tests whether suppressing assumed filters reduces o</span></li>
+<li><code>cp_rules_avoid_unwarranted_distinct</code> <span class="note">creative cp_: raises the bar for emitting set-shaping operators on Spider; tests whether reducing default DISTINCT/GROUP</span></li>
+<li><code>cp_rules_prefer_equality_over_like</code> <span class="note">creative cp_: raises threshold for emitting fuzzy LIKE filters; tests whether discouraging permissive string matches mat</span></li>
+<li><code>cp_rules_require_explicit_schema_evidence</code> <span class="note">creative cp_: tightens column/table commitment threshold to literal schema matches; tests whether suppressing inferred a</span></li>
+<li><code>cp_rules_require_join_path_in_schema</code> <span class="note">creative cp_: tightens criterion for committing to a join; tests whether requiring schema-grounded FK evidence reduces h</span></li>
+<li><code>is_rules_count_distinct_for_unique_count</code> <span class="note">Single-token substitution (COUNT → COUNT DISTINCT) keyed on &#x27;distinct/different/unique&#x27; question wording; canonical SQL </span></li>
+<li><code>is_rules_distinct_for_unique_count</code> <span class="note">Spider q_asks_distinct=yes (35% fail) often shows UNION mis-usage. Predicate: question matches r&#x27;\b(distinct|unique|diff</span></li>
+<li><code>is_rules_extremum_row_via_orderby_limit</code> <span class="note">Targets spider q_asks_max_min=yes failures (41% fail rate). Pattern: model conflates &#x27;value of extremum&#x27; (MAX/MIN aggreg</span></li>
+<li><code>is_rules_having_for_count_filter</code> <span class="note">Targets spider q_asks_comparison=yes failures (35% fail rate, esp. comparison-on-aggregate questions). Pattern: model us</span></li>
+<li><code>is_rules_intersect_for_and_across_rows</code> <span class="note">Promotes INTERSECT to active candidate set for compound same-column predicates — common Spider failure mode where models</span></li>
+<li><code>is_rules_julianday_date_diff</code> <span class="note">Round-3 highest-lift idiom transferred to Spider; promotes JULIANDAY over naive arithmetic on date columns the model enc</span></li>
+<li><code>is_rules_like_for_substring_match</code> <span class="note">Promotes LIKE with wildcards over equality for substring-shaped questions — frequent Spider miss where models emit `=` f</span></li>
+<li><code>is_rules_sqlite_temporal_idiom</code> <span class="note">Transfer of bird/is_rules_sqlite_temporal_idiom (which lifted target slice +0.034). Targets spider q_asks_temporal=yes f</span></li>
+<li><code>is_rules_strftime_year_month</code> <span class="note">Substitutes the SQLite-canonical date-component idiom for the MySQL idiom that pretrained models default to; pure operat</span></li>
+<li><code>pp_rules_accept_closest_column_match</code> <span class="note">creative pp_: lowers bar for committing to a column choice under lexical mismatch — tests whether Spider&#x27;s no-evidence s</span></li>
+<li><code>pp_rules_commit_under_join_ambiguity</code> <span class="note">creative pp_: nudges threshold for committing to a join under ambiguity — distinct sub-aspect from column-match permissi</span></li>
+<li><code>pp_rules_infer_unstated_columns</code> <span class="note">creative pp_: emit-rather-than-abstain when relevant columns are implicit; complements lexical/join/value-match permissi</span></li>
+<li><code>pp_rules_partial_string_match_ok</code> <span class="note">creative pp_: lowers bar on string-equality decisions; orthogonal axis from column/join permissiveness.</span></li>
+</ul>
+<h3>output_contract</h3><ul>
+<li><code>of_rules_double_quote_identifiers</code> <span class="note">gepa_decompose echo of round-3 rules_rule_0c2641; tests grader sensitivity to identifier quoting form on Spider schemas.</span></li>
+<li><code>of_rules_no_alias_unless_needed</code> <span class="note">vista_synthesis; output-shape constraint on alias rendering, distinct from semantics — probes whether minimal-alias form</span></li>
+<li><code>of_rules_single_line_no_fences</code> <span class="note">creative; tests whether stripping markdown wrappers aligns with Spider&#x27;s execution-accuracy grader that runs the raw str</span></li>
+<li><code>of_rules_terminate_with_semicolon</code> <span class="note">creative; probes whether a strict terminator constraint helps or over-constrains given Spider&#x27;s grader tolerance.</span></li>
+<li><code>of_rules_uppercase_keywords</code> <span class="note">creative; pure rendering-shape rule, neutral to semantics — tests whether casing convention affects model coherence/grad</span></li>
+</ul>
+<h3>structural_sections</h3><ul>
+<li><code>_section_examples</code> <span class="note"></span></li>
+<li><code>_section_procedure</code> <span class="note"></span></li>
+<li><code>_section_role</code> <span class="note"></span></li>
+<li><code>_section_rules</code> <span class="note"></span></li>
+<li><code>_section_task</code> <span class="note"></span></li>
+</ul>
+</details>
+<details><summary>hitab (16 features)</summary>
+<h3>prompt_format</h3><ul>
+<li><code>prompt_format_code_block</code> <span class="note">prompt_format.code_block, implementation.set_format</span></li>
+<li><code>prompt_format_json</code> <span class="note">prompt_format.json, implementation.set_format</span></li>
+<li><code>prompt_format_markdown</code> <span class="note">prompt_format.markdown, implementation.set_format</span></li>
+<li><code>prompt_format_plain</code> <span class="note">prompt_format.plain, implementation.set_format</span></li>
+<li><code>prompt_format_yaml</code> <span class="note">prompt_format.yaml, implementation.set_format</span></li>
+</ul>
+<h3>response_scaffold</h3><ul>
+<li><code>hitab_pot_numeric_handling_rule</code> <span class="note">table.numeric_coercion, execution.pandas_dtype_handling, reasoning.numeric_comparison, table.hierarchical_headers, profile.pot</span></li>
+<li><code>hitab_pot_profile</code> <span class="note">profile.pot, persona.analyst, persona.python_analyst, reasoning.pot, planning.approach, execution.python, library.pandas, runtime.pandas_dataframe, format.code_fence, output.print_value, grounding.table_only, table.hierarchical_headers</span></li>
+<li><code>hitab_pot_reasoning_field</code> <span class="note">reasoning.intermediate_work, planning.approach, table.hierarchical_headers, profile.pot</span></li>
+<li><code>hitab_scot_profile</code> <span class="note">profile.scot, persona.analyst, persona.table_analyst, reasoning.symbolic_cot, reasoning.intermediate_work, trace.tar, operation.python_action, library.pandas, format.answer_only, grounding.table_only, table.hierarchical_headers</span></li>
+<li><code>hitab_tcot_profile</code> <span class="note">profile.tcot, persona.analyst, persona.table_analyst, reasoning.text_cot, reasoning.intermediate_work, style.step_by_step, format.answer_only, grounding.table_only, table.hierarchical_headers</span></li>
+</ul>
+<h3>structural_sections</h3><ul>
+<li><code>_section_format_fix</code> <span class="note"></span></li>
+<li><code>_section_reasoning</code> <span class="note"></span></li>
+<li><code>_section_role</code> <span class="note"></span></li>
+<li><code>_section_rules</code> <span class="note"></span></li>
+<li><code>_section_table_handling</code> <span class="note"></span></li>
+<li><code>_section_task</code> <span class="note"></span></li>
+</ul>
+</details>
+</div>
+</main></body></html>

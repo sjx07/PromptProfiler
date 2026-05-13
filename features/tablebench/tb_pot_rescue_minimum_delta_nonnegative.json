@@ -1,0 +1,42 @@
+{
+  "canonical_id": "tb_pot_rescue_minimum_delta_nonnegative",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_error_rescue",
+  "value": "minimum_delta_nonnegative",
+  "theme": "tablebench-pot-rescue-add-one",
+  "tier": "round4_error_mode_rescue",
+  "provenance": "Derived from pot_all numerical failures where minimum required increase was printed as a negative delta.",
+  "semantic_labels": [
+    {
+      "label": "numerical.minimum_delta_nonnegative",
+      "role": "error_rescue",
+      "description": "Clamp minimum required increase to zero when the target already exceeds the benchmark."
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot",
+    "qtype": "NumericalReasoning",
+    "observed_error": "minimum increase required was output as a negative number when already sufficient"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "For questions asking the minimum increase required to surpass or reach a target, compute `max(0, target - current)`; if the current value already surpasses the target, the required increase is `0`, not a negative number.",
+          "ordinal": 73
+        }
+      }
+    }
+  ],
+  "rationale": "Targets minimum-increase numerical reasoning failures."
+}

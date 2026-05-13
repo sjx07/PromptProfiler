@@ -1,0 +1,23 @@
+{
+  "canonical_id": "is_rules_ratio_cast_real",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "ONLY for ratio/percentage/proportion questions (e.g. 'what percentage', 'what proportion', 'what is the ratio'), CAST the numerator to REAL before division: CAST(numerator AS REAL) * 100 / denominator. Without the CAST, SQLite performs integer division and produces 0 or wrong percentages. Use ROUND(..., N) only when the question asks for N decimal places."
+        }
+      }
+    }
+  ],
+  "rationale": "Bird q_asks_ratio=yes (69% fail) often produces integer-division zeros. Predicate: question matches r'\\b(percentage|proportion|ratio|percent of|what fraction)\\b'. Gated to ratio questions only."
+}

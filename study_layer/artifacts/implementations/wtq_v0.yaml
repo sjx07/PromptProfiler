@@ -13,6 +13,78 @@ structural_components:
   - canonical_id: _section_reasoning
   - canonical_id: _section_format_fix
 
+prompt_format_components:
+  - implementation_id: wtq.prompt_format.plain
+    canonical_id: prompt_format_plain
+    concept_ids:
+      - prompt_format.plain
+    implementation_surface: set_format
+    status: ready
+
+  - implementation_id: wtq.prompt_format.json
+    canonical_id: prompt_format_json
+    concept_ids:
+      - prompt_format.json
+    implementation_surface: set_format
+    status: ready
+
+  - implementation_id: wtq.prompt_format.markdown
+    canonical_id: prompt_format_markdown
+    concept_ids:
+      - prompt_format.markdown
+    implementation_surface: set_format
+    status: ready
+
+  - implementation_id: wtq.prompt_format.yaml
+    canonical_id: prompt_format_yaml
+    concept_ids:
+      - prompt_format.yaml
+    implementation_surface: set_format
+    status: ready
+
+  - implementation_id: wtq.prompt_format.code_block
+    canonical_id: prompt_format_code_block
+    concept_ids:
+      - prompt_format.code_block
+    implementation_surface: set_format
+    status: ready
+
+table_serialization_components:
+  - implementation_id: wtq.table_serialization.markdown
+    canonical_id: table_serialization_markdown
+    concept_ids:
+      - table_serialization.markdown
+    implementation_surface: set_table_format
+    status: ready
+
+  - implementation_id: wtq.table_serialization.csv
+    canonical_id: table_serialization_csv
+    concept_ids:
+      - table_serialization.csv
+    implementation_surface: set_table_format
+    status: ready
+
+  - implementation_id: wtq.table_serialization.html
+    canonical_id: table_serialization_html
+    concept_ids:
+      - table_serialization.html
+    implementation_surface: set_table_format
+    status: ready
+
+  - implementation_id: wtq.table_serialization.json_records
+    canonical_id: table_serialization_json_records
+    concept_ids:
+      - table_serialization.json_records
+    implementation_surface: set_table_format
+    status: ready
+
+  - implementation_id: wtq.table_serialization.json_columns_data
+    canonical_id: table_serialization_json_columns_data
+    concept_ids:
+      - table_serialization.json_columns_data
+    implementation_surface: set_table_format
+    status: ready
+
 response_scaffolds:
   - implementation_id: wtq.response.dp
     canonical_id: facet_dp_scaffold

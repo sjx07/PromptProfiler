@@ -1,0 +1,23 @@
+{
+  "canonical_id": "is_rules_extremum_row_via_orderby_limit",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question asks 'which X has the most/least/highest/lowest/maximum/minimum Y' or 'show the X with the largest/smallest Y', return the FULL ROW of X using `ORDER BY Y DESC LIMIT 1` (or ASC for least/min). Do NOT use MAX(Y) or MIN(Y) aggregates — those return only the value, not the row of the X that has that value, and break exec-match against the gold."
+        }
+      }
+    }
+  ],
+  "rationale": "Targets spider q_asks_max_min=yes failures (41% fail rate). Pattern: model conflates 'value of extremum' (MAX/MIN aggregate) with 'row of extremum' (ORDER BY + LIMIT). Predicate: regex r'\\b(most|least|highest|lowest|smallest|largest|maximum|minimum|biggest)\\b.*\\b(\\w+)\\b'."
+}

@@ -1,0 +1,25 @@
+{
+  "canonical_id": "ag_rules_per_x_groupby_trigger",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "aggregation-rule",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Match the output granularity to the question's quantifier. If the question contains 'per X', 'each X', 'for every X', or 'by X', the SQL must `GROUP BY X` and select X alongside the aggregate. If the question asks for an overall total or single value, do NOT add GROUP BY."
+        }
+      }
+    }
+  ],
+  "rationale": "gepa_decompose: tests the canonical per-X \u2192 GROUP BY granularity mapping; lexical trigger explicitly enumerated to avoid being a thin idiom rule."
+}

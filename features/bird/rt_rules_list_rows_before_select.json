@@ -1,0 +1,44 @@
+{
+  "canonical_id": "rt_rules_list_rows_before_select",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Before writing the SELECT, identify the row(s) of the relevant table that the question filters to. State the literal value(s) of the filter column(s) for those row(s) (e.g., 'state = California', 'year = 2020'), then write the SELECT using those exact filter values."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Place all auxiliary thinking, including filter values consulted and reasoning steps, in the `cells_consulted` field. The `sql_query` field must contain only the final SQL with no preamble, narration, or self-commentary."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "cells_consulted",
+          "description": "Filter values from the table the SQL targets, listed before the SQL is written."
+        }
+      }
+    }
+  ],
+  "rationale": "Adapter of wtq's rt_filter_rows_then_extract mechanism (proven +0.371 on wtq×arithmetic-yes) to bird SQL — forces row-value grounding before SELECT, with aux field to avoid sql_query pollution."
+}

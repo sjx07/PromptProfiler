@@ -1,0 +1,172 @@
+{
+  "canonical_id": "hitab_scot_profile",
+  "task": "hitab",
+  "target_module": "rules",
+  "axis": "translated_profile",
+  "value": "scot",
+  "theme": "cross-task-scot-pot-transfer",
+  "tier": "round-transfer",
+  "provenance": "Translated from TableBench SCoT into HiTab hierarchical table QA.",
+  "semantic_labels": [
+    {
+      "label": "profile.scot",
+      "role": "profile"
+    },
+    {
+      "label": "persona.analyst",
+      "role": "persona"
+    },
+    {
+      "label": "persona.table_analyst",
+      "role": "persona"
+    },
+    {
+      "label": "reasoning.symbolic_cot",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.intermediate_work",
+      "role": "mechanism"
+    },
+    {
+      "label": "trace.tar",
+      "role": "operation"
+    },
+    {
+      "label": "operation.python_action",
+      "role": "operation"
+    },
+    {
+      "label": "library.pandas",
+      "role": "runtime_binding"
+    },
+    {
+      "label": "format.answer_only",
+      "role": "format"
+    },
+    {
+      "label": "grounding.table_only",
+      "role": "grounding"
+    },
+    {
+      "label": "table.hierarchical_headers",
+      "role": "table_structure"
+    }
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "profile": "scot"
+  },
+  "requires": [
+    "_section_role",
+    "_section_task",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "hitab_pot_profile"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a hierarchical table analyst. Use symbolic table operations to answer questions from the table.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "c8a44f4feada",
+        "payload": {
+          "content": "Answer the question using only the hierarchical table content, including header context.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "symbolic_trace",
+          "description": "Symbolic Thought, Action, and Result trace over the hierarchical table before the final answer.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Use `symbolic_trace` to reason in repeated Thought, Action, Result steps.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Thought: decide which hierarchical headers, rows, columns, or values should be inspected next.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Action: write a single-line Python or pandas-style table operation that would inspect or compute the needed value.",
+          "ordinal": 30
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Result: simulate the result from the visible hierarchical table, then decide whether another step is needed.",
+          "ordinal": 40
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Repeat Thought/Action/Result only as needed, then put only the final table answer in `answer`.",
+          "ordinal": 50
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "The `answer` field must contain only the final answer value or comma-separated answer values, with no trace or explanation.",
+          "ordinal": 10
+        }
+      }
+    }
+  ],
+  "rationale": "HiTab SCoT translation adapts TAR steps to hierarchical headers while preserving direct answer scoring."
+}

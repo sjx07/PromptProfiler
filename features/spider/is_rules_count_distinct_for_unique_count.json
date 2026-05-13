@@ -1,0 +1,25 @@
+{
+  "canonical_id": "is_rules_count_distinct_for_unique_count",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question asks 'how many different/distinct/unique X', use `COUNT(DISTINCT x)` rather than `COUNT(x)` or `COUNT(*)`. Plain COUNT counts rows including duplicates and will overcount when the join or table contains repeated values of x."
+        }
+      }
+    }
+  ],
+  "rationale": "Single-token substitution (COUNT \u2192 COUNT DISTINCT) keyed on 'distinct/different/unique' question wording; canonical SQL idiom for cardinality questions over joined tables."
+}

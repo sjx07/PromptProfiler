@@ -1,0 +1,107 @@
+{
+  "canonical_id": "tb_tcot_fixed_scaffold",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "tcot_coalition_scaffold",
+  "value": "fixed_reasoning_output_contract",
+  "theme": "tablebench-tcot-loo",
+  "tier": "round4_tcot_loo_base",
+  "provenance": "Manual TableBench TCoT decomposition for fixed profile scaffold.",
+  "semantic_labels": [
+    {
+      "label": "profile.tcot",
+      "role": "profile"
+    },
+    {
+      "label": "persona.analyst",
+      "role": "persona"
+    },
+    {
+      "label": "persona.table_analyst",
+      "role": "persona"
+    },
+    {
+      "label": "reasoning.intermediate_work",
+      "role": "mechanism"
+    },
+    {
+      "label": "format.answer_only",
+      "role": "format"
+    },
+    {
+      "label": "tablebench.json_columns_data",
+      "role": "runtime_binding"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "tcot"
+  },
+  "requires": [
+    "_section_role",
+    "_section_table_handling",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "Act as a table analyst.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "reasoning",
+          "description": "Textual reasoning before the final answer.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "AnswerName1, AnswerName2...; each AnswerName must be a number or entity name, as short as possible, with no explanation.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Read the table as a JSON object with `columns` and `data`: `columns` gives the field names, and each row in `data` aligns positionally with those columns.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Put the reasoning in `reasoning` and the concise final result in `answer`.",
+          "ordinal": 20
+        }
+      }
+    }
+  ],
+  "rationale": "Fixed TCoT scaffold for leave-one-out experiments: keeps the profile, reasoning field, answer field, table serialization, and field placement stable while non-basic TCoT instructions vary."
+}

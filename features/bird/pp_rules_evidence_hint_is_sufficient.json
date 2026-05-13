@@ -1,0 +1,25 @@
+{
+  "canonical_id": "pp_rules_evidence_hint_is_sufficient",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "permissive-prior",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Treat the evidence field as sufficient grounding when it names a column or formula. Do not refuse to use a column or expression just because the schema description is sparse \u2014 if evidence pins down the mapping, commit to it."
+        }
+      }
+    }
+  ],
+  "rationale": "gepa_decompose-style; nudges the model to trust evidence and emit SQL rather than hedge with a vaguer query when schema docs are thin."
+}

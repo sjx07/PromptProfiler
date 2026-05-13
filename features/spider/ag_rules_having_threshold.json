@@ -1,0 +1,25 @@
+{
+  "canonical_id": "ag_rules_having_threshold",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "aggregation-rule",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When a question filters groups by a count or aggregate threshold ('with at least N', 'more than K', 'fewer than M', 'having at most ...'), put the threshold in `HAVING` over the grouped aggregate, not in `WHERE`. Use `WHERE` only for row-level predicates that hold before grouping."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: threshold-on-aggregate is a granularity decision (post-grouping) \u2014 frequent Spider failure where models put COUNT() conditions in WHERE."
+}

@@ -1,0 +1,217 @@
+{
+  "canonical_id": "tb_official_pot_full",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "prompt_family_profile",
+  "value": "official_pot_full",
+  "theme": "official-tablebench",
+  "tier": "round5_profile",
+  "provenance": "Multilingual-Multimodal-NLP/TableBench official PoT prompts",
+  "semantic_labels": [
+    {
+      "label": "profile.pot",
+      "role": "profile"
+    },
+    {
+      "label": "persona.analyst",
+      "role": "persona"
+    },
+    {
+      "label": "persona.python_analyst",
+      "role": "persona"
+    },
+    {
+      "label": "reasoning.pot",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.intermediate_work",
+      "role": "mechanism"
+    },
+    {
+      "label": "planning.approach",
+      "role": "planning"
+    },
+    {
+      "label": "execution.python",
+      "role": "mechanism"
+    },
+    {
+      "label": "style.code_concise",
+      "role": "style_rule"
+    },
+    {
+      "label": "style.code_readable",
+      "role": "style_rule"
+    },
+    {
+      "label": "style.code_commenting",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.code_fence",
+      "role": "format"
+    },
+    {
+      "label": "grounding.table_only",
+      "role": "grounding"
+    },
+    {
+      "label": "refusal.off_topic",
+      "role": "refusal"
+    },
+    {
+      "label": "output.print_value",
+      "role": "output"
+    },
+    {
+      "label": "tablebench.table_csv",
+      "role": "runtime_binding"
+    },
+    {
+      "label": "library.pandas",
+      "role": "runtime_binding"
+    },
+    {
+      "label": "visualization.matplotlib",
+      "role": "visualization"
+    },
+    {
+      "label": "format.answer_only",
+      "role": "format"
+    },
+    {
+      "label": "tablebench.json_columns_data",
+      "role": "runtime_binding"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench"
+  },
+  "requires": [
+    "_section_role",
+    "_section_table_handling",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "tb_official_dp_full",
+    "tb_official_tcot_full",
+    "tb_official_scot_full"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a data analyst proficient in Python. Your task is to write executable Python code to analyze the table and then answer questions.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "reasoning",
+          "description": "analytical approach based on the question",
+          "ordinal": 1
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "code",
+          "description": "Executable Python code that analyzes `table.csv` and prints only the answer value with no label, prefix, or explanation.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Read the prompt table as a JSON object with `columns` and `data`, and write code that loads the runtime table from `table.csv`.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "based on the question, write out your analytical approach, and then write Python code according to this approach.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "The code needs to be concise and easy to understand, and if necessary, add comments for clarification.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Code blocks need to strictly start with ```python and end with ```",
+          "ordinal": 30
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Your analysis must be based entirely on the above data. If the user's question is not related to data analysis, please politely refuse.",
+          "ordinal": 40
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "You need to generate executable code. If there are results to be presented, please use the print function; if there are charts, please use the matplotlib library to draw them.",
+          "ordinal": 50
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Ensure to load the table with command ```df = pd.read_csv('table.csv')```",
+          "ordinal": 60
+        }
+      }
+    }
+  ],
+  "rationale": "MVP composite FACET implementation of the official TableBench PoT prompt family: Python data-analyst role, TableBench-style columns/data JSON table rendering, executable code output field, and code rules compatible with the TableBench scorer."
+}

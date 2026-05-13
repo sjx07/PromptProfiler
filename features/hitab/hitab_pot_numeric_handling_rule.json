@@ -1,0 +1,39 @@
+{
+  "canonical_id": "hitab_pot_numeric_handling_rule",
+  "task": "hitab",
+  "target_module": "rules",
+  "axis": "pot_component",
+  "value": "numeric_handling_hint",
+  "theme": "cross-task-table-qa-derived-components",
+  "tier": "round-derived",
+  "provenance": "Derived from table-QA PoT failures where numeric-looking string columns were compared without pandas numeric coercion.",
+  "semantic_labels": [
+    {"label": "table.numeric_coercion", "role": "mechanism"},
+    {"label": "execution.pandas_dtype_handling", "role": "execution"},
+    {"label": "reasoning.numeric_comparison", "role": "reasoning"},
+    {"label": "table.hierarchical_headers", "role": "table_structure"},
+    {"label": "profile.pot", "role": "profile_context"}
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "profile": "pot"
+  },
+  "requires": [
+    "hitab_pot_profile"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "For arithmetic, comparisons, thresholds, sorting, or counts over numeric-looking table values, convert the relevant Series with `pd.to_numeric(..., errors='coerce')` before computing. Do not compare numeric strings directly.",
+          "ordinal": 20
+        }
+      }
+    }
+  ],
+  "rationale": "Makes pandas dtype handling explicit for hierarchical table QA code without changing the parser-facing output contract."
+}

@@ -1,0 +1,133 @@
+{
+  "canonical_id": "hitab_tcot_profile",
+  "task": "hitab",
+  "target_module": "rules",
+  "axis": "translated_profile",
+  "value": "tcot",
+  "theme": "cross-task-tcot-scot-pot-transfer",
+  "tier": "round-transfer",
+  "provenance": "Translated from TableBench TCoT into HiTab hierarchical table QA.",
+  "semantic_labels": [
+    {
+      "label": "profile.tcot",
+      "role": "profile"
+    },
+    {
+      "label": "persona.analyst",
+      "role": "persona"
+    },
+    {
+      "label": "persona.table_analyst",
+      "role": "persona"
+    },
+    {
+      "label": "reasoning.text_cot",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.intermediate_work",
+      "role": "mechanism"
+    },
+    {
+      "label": "style.step_by_step",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.answer_only",
+      "role": "format"
+    },
+    {
+      "label": "grounding.table_only",
+      "role": "grounding"
+    },
+    {
+      "label": "table.hierarchical_headers",
+      "role": "table_structure"
+    }
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "profile": "tcot"
+  },
+  "requires": [
+    "_section_role",
+    "_section_task",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "hitab_scot_profile",
+    "hitab_pot_profile"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a hierarchical table analyst. Answer questions using only the table content and header context.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "c8a44f4feada",
+        "payload": {
+          "content": "Answer the question using the hierarchical table.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "reasoning",
+          "description": "Step-by-step textual reasoning over the hierarchical table before the final answer.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "The final answer value or comma-separated answer values.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Think step by step in `reasoning`, including relevant hierarchical headers, then give the concise final result in `answer`.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "The `answer` field must contain only the final answer value or comma-separated answer values, with no reasoning or explanation.",
+          "ordinal": 10
+        }
+      }
+    }
+  ],
+  "rationale": "HiTab TCoT translation adapts text chain-of-thought to hierarchical headers while preserving direct answer scoring."
+}

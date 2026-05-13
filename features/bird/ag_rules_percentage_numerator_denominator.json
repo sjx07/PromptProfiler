@@ -1,0 +1,25 @@
+{
+  "canonical_id": "ag_rules_percentage_numerator_denominator",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "aggregation-rule",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "For percentage, ratio, or fraction questions, decompose the answer into an explicit numerator and denominator. Express the numerator with `SUM(CASE WHEN <condition> THEN 1 ELSE 0 END)` (or a filtered COUNT) and the denominator with `COUNT(*)` over the same population; cast at least one side to REAL to avoid integer division, and multiply by 100 only when the question asks for a percentage rather than a ratio."
+        }
+      }
+    }
+  ],
+  "rationale": "gepa_decompose: tests the percent/ratio shape rule; granularity is 'two-piece scalar', distinct from idiom substitution."
+}

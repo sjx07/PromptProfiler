@@ -1,0 +1,25 @@
+{
+  "canonical_id": "pp_rules_infer_unstated_columns",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "permissive-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "A column not mentioned verbatim in the question can still be the intended target if its semantics fit the request. Be willing to select or filter on such a column rather than declining to answer because the question did not name it explicitly."
+        }
+      }
+    }
+  ],
+  "rationale": "creative pp_: emit-rather-than-abstain when relevant columns are implicit; complements lexical/join/value-match permissiveness with a semantic-inference axis."
+}

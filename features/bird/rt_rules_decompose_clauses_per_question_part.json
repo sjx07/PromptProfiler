@@ -1,0 +1,25 @@
+{
+  "canonical_id": "rt_rules_decompose_clauses_per_question_part",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "For each clause of the question (filter conditions, grouping, aggregation, ordering), state which SQL component it maps to and which column it touches, then assemble the full statement."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: task-bound decomposition \u2014 every reasoning step references an observable question clause and its mapped column."
+}

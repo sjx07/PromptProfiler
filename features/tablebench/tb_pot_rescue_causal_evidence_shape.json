@@ -1,0 +1,42 @@
+{
+  "canonical_id": "tb_pot_rescue_causal_evidence_shape",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_error_rescue",
+  "value": "causal_evidence_shape",
+  "theme": "tablebench-pot-rescue-add-one",
+  "tier": "round4_error_mode_rescue",
+  "provenance": "Derived from pot_all causal failures where code computed correlations but printed blank, vague, or mis-shaped conclusions.",
+  "semantic_labels": [
+    {
+      "label": "causal.correlation_evidence_shape",
+      "role": "error_rescue",
+      "description": "State causal-style conclusion first and include correlation coefficient evidence."
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot",
+    "qsubtype": "CausalAnalysis",
+    "observed_error": "causal answers missed conclusion-first coefficient evidence or comparative causal factor"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "717336435fc9",
+        "payload": {
+          "content": "For causal-analysis questions, print a concise conclusion first (`Yes`, `No`, or the strongest influencing factor), then include the key correlation coefficient evidence. For comparative causal questions, compare absolute coefficients and name the strongest factor.",
+          "ordinal": 34
+        }
+      }
+    }
+  ],
+  "rationale": "Targets causal analysis answer-shape failures and comparative coefficient questions."
+}

@@ -1,0 +1,25 @@
+{
+  "canonical_id": "pp_rules_prefer_left_join_over_abstain",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "permissive-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "If a join key is plausible but not guaranteed to be populated for every row, still emit the join rather than refusing to answer. Prefer LEFT JOIN over INNER JOIN when nullability is uncertain so partial evidence still produces a result set."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; lowers the bar for committing to a multi-table SQL when nullability of FK is uncertain \u2014 tests whether permissive-join nudge helps BIRD execution accuracy."
+}

@@ -1,0 +1,46 @@
+{
+  "canonical_id": "vi_rules_break_down_problem",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "verbosity-injection",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Let's break this down carefully. First think through the problem in plain language, then translate that thinking into SQL. Take your time to be thorough before producing the query."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "breakdown",
+          "description": "Step-by-step breakdown of the problem."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Place all auxiliary thinking, prose, and explanation in the `breakdown` field. The `sql_query` field must contain only the final sql query with no preamble, narration, or self-commentary."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; classic 'let's break this down' verbosity prompt \u2014 generic articulation phase with zero query-specific binding."
+}

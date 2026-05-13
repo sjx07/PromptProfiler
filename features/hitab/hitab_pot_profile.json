@@ -1,0 +1,167 @@
+{
+  "canonical_id": "hitab_pot_profile",
+  "task": "hitab",
+  "target_module": "rules",
+  "axis": "translated_profile",
+  "value": "pot",
+  "theme": "cross-task-scot-pot-transfer",
+  "tier": "round-transfer",
+  "provenance": "Translated from TableBench PoT into executable Python code dispatch for HiTab.",
+  "semantic_labels": [
+    {
+      "label": "profile.pot",
+      "role": "profile"
+    },
+    {
+      "label": "persona.analyst",
+      "role": "persona"
+    },
+    {
+      "label": "persona.python_analyst",
+      "role": "persona"
+    },
+    {
+      "label": "reasoning.pot",
+      "role": "mechanism"
+    },
+    {
+      "label": "planning.approach",
+      "role": "planning"
+    },
+    {
+      "label": "execution.python",
+      "role": "execution"
+    },
+    {
+      "label": "library.pandas",
+      "role": "runtime_binding"
+    },
+    {
+      "label": "runtime.pandas_dataframe",
+      "role": "runtime_binding"
+    },
+    {
+      "label": "format.code_fence",
+      "role": "format"
+    },
+    {
+      "label": "output.print_value",
+      "role": "output"
+    },
+    {
+      "label": "grounding.table_only",
+      "role": "grounding"
+    },
+    {
+      "label": "table.hierarchical_headers",
+      "role": "table_structure"
+    }
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "profile": "pot",
+    "runtime": "python_exec"
+  },
+  "requires": [
+    "_section_role",
+    "_section_task",
+    "_section_table_handling",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "hitab_scot_profile"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a hierarchical table analyst proficient in Python and pandas.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "c8a44f4feada",
+        "payload": {
+          "content": "Write Python code that computes the answer to the hierarchical table question.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "code",
+          "description": "Executable Python code that uses the provided `df`, `data`, and `table_content` runtime objects and prints only the final answer value.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "The runtime scope provides `df` as a pandas DataFrame with flattened hierarchical headers, `table_content` as the raw hierarchical table object, `data` as a dict with rows and table_content, and `pd` as pandas. Do not redefine them.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Plan the hierarchical table operation internally, then write concise executable Python code.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Base the computation entirely on the provided table data and header hierarchy. Use comments only if they clarify non-obvious steps.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Put the `code` field value in a fenced Python code block that starts with ```python and ends with ```.",
+          "ordinal": 5
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Print only the final answer value as the last statement, with no label, prefix, or explanation.",
+          "ordinal": 10
+        }
+      }
+    }
+  ],
+  "rationale": "HiTab PoT translation uses plain-format fields so auxiliary non-dispatch fields can compose with the parser-facing `code` field while the code value remains a fenced Python block."
+}

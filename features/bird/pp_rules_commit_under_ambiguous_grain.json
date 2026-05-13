@@ -1,0 +1,25 @@
+{
+  "canonical_id": "pp_rules_commit_under_ambiguous_grain",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "permissive-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question's grain is ambiguous (per-row vs per-group, total vs average), pick the more inclusive interpretation and answer it. Do not refuse to produce a SQL statement on the grounds that the question could be read more than one way."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; nudges the model away from abstention or hedged outputs on ambiguous-grain BIRD questions, lowering the bar to commit to a concrete query."
+}

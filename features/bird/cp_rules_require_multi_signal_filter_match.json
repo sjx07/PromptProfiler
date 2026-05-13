@@ -1,0 +1,25 @@
+{
+  "canonical_id": "cp_rules_require_multi_signal_filter_match",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "conservative-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Before adding a WHERE predicate, confirm that both the column choice and the literal value are corroborated by either the question text or the evidence field. If only one of the two is grounded, omit the predicate rather than guess."
+        }
+      }
+    }
+  ],
+  "rationale": "creative cp_: requires multi-field agreement before committing a filter \u2014 direct analogue of round-3 'agreement on multiple fields' nudge."
+}

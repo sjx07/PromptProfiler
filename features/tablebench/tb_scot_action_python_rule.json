@@ -1,0 +1,43 @@
+{
+  "canonical_id": "tb_scot_action_python_rule",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "scot_component",
+  "value": "action_python_rule",
+  "theme": "tablebench-scot-loo",
+  "tier": "round4_scot_loo_component",
+  "provenance": "Manual TableBench SCoT decomposition.",
+  "semantic_labels": [
+    {
+      "label": "operation.python_action",
+      "role": "operation"
+    },
+    {
+      "label": "execution.python",
+      "role": "execution"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "scot"
+  },
+  "requires": [
+    "tb_scot_fixed_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Action: the action can **ONLY** be single line python code.",
+          "ordinal": 40
+        }
+      }
+    }
+  ],
+  "rationale": "Switchable SCoT Action rule constraining actions to single-line Python code."
+}

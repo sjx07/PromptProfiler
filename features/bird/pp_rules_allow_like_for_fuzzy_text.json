@@ -1,0 +1,25 @@
+{
+  "canonical_id": "pp_rules_allow_like_for_fuzzy_text",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "permissive-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question references a name, label, or descriptive phrase that may not appear verbatim in the data, prefer LIKE with wildcards over strict equality. Do not reject a candidate column just because the literal value the user said might differ in casing, whitespace, or punctuation from how it is stored."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; nudges the model to commit to a match even under surface-form variation, rather than abstaining or producing an over-strict equality predicate."
+}

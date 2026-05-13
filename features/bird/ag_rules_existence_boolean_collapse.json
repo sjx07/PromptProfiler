@@ -1,0 +1,25 @@
+{
+  "canonical_id": "ag_rules_existence_boolean_collapse",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "aggregation-rule",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Existence questions ('is there any', 'are there', 'does any X exist with...') collapse to a single boolean-shaped scalar: emit `SELECT EXISTS(SELECT 1 FROM ... WHERE <cond>)` or `SELECT COUNT(*) > 0 FROM ... WHERE <cond>`, not a list of matching rows. Do not enumerate rows when the question only asks whether at least one exists."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: tests existence \u2192 0-or-1-row boolean granularity; prevents over-enumeration when the question is yes/no shaped."
+}

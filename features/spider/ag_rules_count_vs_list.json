@@ -1,0 +1,25 @@
+{
+  "canonical_id": "ag_rules_count_vs_list",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "aggregation-rule",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Pick the answer's row-multiplicity from the question. 'How many', 'count of', 'number of' \u2192 a single scalar via `COUNT(...)` and no `GROUP BY`. 'Which', 'list', 'what are the names of', 'find all' \u2192 return the rows themselves with the requested columns and no outer aggregate."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: distinguishes scalar-aggregate vs row-enumeration shape from the wh-word, the most common Spider granularity confusion."
+}

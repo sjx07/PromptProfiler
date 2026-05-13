@@ -1,0 +1,25 @@
+{
+  "canonical_id": "rt_rules_justify_join_keys",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the query requires more than one table, explicitly name each foreign-key relationship from the schema you rely on (e.g., 'matches.stadium_id = stadium.id') before writing the FROM/JOIN clauses."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: probes whether forcing articulation of the specific FK pairs from the provided schema reduces incorrect join paths on multi-table Spider questions."
+}

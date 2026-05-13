@@ -1,0 +1,25 @@
+{
+  "canonical_id": "of_rules_uppercase_keywords",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "output-format",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Write all SQL keywords (SELECT, FROM, WHERE, JOIN, GROUP BY, ORDER BY, etc.) in uppercase and identifiers in their original case."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; pure rendering-shape rule, neutral to semantics \u2014 tests whether casing convention affects model coherence/grader."
+}

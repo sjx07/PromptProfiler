@@ -1,0 +1,25 @@
+{
+  "canonical_id": "is_rules_strftime_year_month",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "To extract the year, month, or day from a date column in SQLite, use `STRFTIME('%Y', col)`, `STRFTIME('%m', col)`, `STRFTIME('%d', col)`. The MySQL-style `YEAR(col)`, `MONTH(col)`, `DAY(col)` functions are NOT supported in SQLite and will raise an error."
+        }
+      }
+    }
+  ],
+  "rationale": "Substitutes the SQLite-canonical date-component idiom for the MySQL idiom that pretrained models default to; pure operator substitution, fits is_."
+}

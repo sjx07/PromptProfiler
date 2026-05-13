@@ -1,0 +1,25 @@
+{
+  "canonical_id": "of_rules_no_alias_unless_needed",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "output-format",
+  "tier": "A",
+  "provenance": "vista_synthesis",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Do not introduce table aliases unless the query references the same table more than once or aliases are required to disambiguate columns."
+        }
+      }
+    }
+  ],
+  "rationale": "vista_synthesis; output-shape constraint on alias rendering, distinct from semantics \u2014 probes whether minimal-alias form matches Spider gold-query style."
+}

@@ -1,0 +1,44 @@
+{
+  "canonical_id": "rt_rules_table_join_witness",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the answer requires joining tables, name 1-2 sample row pairs from each table that the join would link (e.g., 'employee.dept_id=3 → department.id=3'), confirming the FK path connects to the question's entities. When the answer needs only one table, identify the row(s) the question filters to and state the literal filter value(s)."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Place all witness pairs, sample values, and reasoning in the `join_witness` field. The `sql_query` field must contain only the final SQL with no preamble or narration."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "join_witness",
+          "description": "Sample row pair(s) demonstrating the join path or filter values, written before the SQL."
+        }
+      }
+    }
+  ],
+  "rationale": "Adapter of wtq's row-grounding mechanism to spider's join-heavy queries — forces the model to ground in concrete row values across tables before composing SQL, with aux field to avoid sql_query pollution."
+}

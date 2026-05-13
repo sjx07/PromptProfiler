@@ -1,0 +1,25 @@
+{
+  "canonical_id": "of_rules_double_quote_identifiers",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "output-format",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Quote any identifier that contains spaces or special characters using double quotes; leave plain identifiers unquoted."
+        }
+      }
+    }
+  ],
+  "rationale": "gepa_decompose echo of round-3 rules_rule_0c2641; tests grader sensitivity to identifier quoting form on Spider schemas."
+}

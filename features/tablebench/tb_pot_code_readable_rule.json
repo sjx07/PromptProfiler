@@ -1,0 +1,39 @@
+{
+  "canonical_id": "tb_pot_code_readable_rule",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_component",
+  "value": "code_readable_rule",
+  "theme": "tablebench-pot-loo",
+  "tier": "round4_pot_loo_component",
+  "provenance": "Manual TableBench PoT decomposition.",
+  "semantic_labels": [
+    {
+      "label": "style.code_readable",
+      "role": "style_rule"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "The code needs to be easy to understand.",
+          "ordinal": 30
+        }
+      }
+    }
+  ],
+  "rationale": "Switchable PoT code-style instruction for readable code."
+}

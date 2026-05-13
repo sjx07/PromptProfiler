@@ -1,0 +1,36 @@
+{
+  "canonical_id": "prompt_format_yaml",
+  "task": "bird",
+  "semantic_labels": [
+    {
+      "label": "prompt_format.yaml",
+      "role": "prompt_format"
+    },
+    {
+      "label": "implementation.set_format",
+      "role": "implementation_surface"
+    }
+  ],
+  "scope": {
+    "dataset": "bird",
+    "axis": "prompt_format",
+    "value": "yaml",
+    "implementation_surface": "set_format"
+  },
+  "requires": [],
+  "conflicts_with": [
+    "prompt_format_plain",
+    "prompt_format_json",
+    "prompt_format_markdown",
+    "prompt_format_code_block"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "set_format",
+      "params": {
+        "style": "yaml"
+      }
+    }
+  ],
+  "rationale": "Explicit prompt rendering format axis for bird: yaml."
+}

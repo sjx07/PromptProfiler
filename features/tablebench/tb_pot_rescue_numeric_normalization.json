@@ -1,0 +1,41 @@
+{
+  "canonical_id": "tb_pot_rescue_numeric_normalization",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_error_rescue",
+  "value": "numeric_normalization",
+  "theme": "tablebench-pot-rescue-add-one",
+  "tier": "round4_error_mode_rescue",
+  "provenance": "Derived from pot_all Python execution failures and wrong results caused by mixed numeric strings.",
+  "semantic_labels": [
+    {
+      "label": "code.pandas_numeric_normalization",
+      "role": "error_rescue",
+      "description": "Normalize commas, percent signs, units, parentheticals, ranges, and placeholders before computation."
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot",
+    "observed_error": "mixed strings caused failed or wrong numeric computation"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Normalize numeric columns before computing: remove commas, percent signs, currency/unit text, and parenthetical notes; coerce with `pd.to_numeric(..., errors='coerce')`; handle placeholders such as `unknown`, empty strings, `none`, and ranges explicitly.",
+          "ordinal": 70
+        }
+      }
+    }
+  ],
+  "rationale": "Targets code that fails or miscomputes on table values like `19.0 (1996)`, `43.68%`, `1,000`, ranges, or empty cells."
+}

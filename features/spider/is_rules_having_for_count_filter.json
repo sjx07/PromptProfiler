@@ -1,0 +1,23 @@
+{
+  "canonical_id": "is_rules_having_for_count_filter",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question filters on a COUNT or other aggregate ('with more than N rooms', 'at least 3 makers', 'having at least K likes'), use GROUP BY + HAVING — never put aggregate filters in WHERE. Pattern: SELECT key FROM t GROUP BY key HAVING COUNT(*) > N. Counts that filter on the *count itself* require GROUP BY on the entity being counted-per."
+        }
+      }
+    }
+  ],
+  "rationale": "Targets spider q_asks_comparison=yes failures (35% fail rate, esp. comparison-on-aggregate questions). Pattern: model uses WHERE clauses on COUNT(*) which is invalid SQL or returns wrong row sets. Predicate: regex r'\\b(more than|fewer than|at least|at most|with \\d+|having \\d+) (\\d+|a |any |many )' AND has_aggregation."
+}

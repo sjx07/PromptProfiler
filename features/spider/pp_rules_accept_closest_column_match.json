@@ -1,0 +1,25 @@
+{
+  "canonical_id": "pp_rules_accept_closest_column_match",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "permissive-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question's wording does not exactly match a column name, accept the closest semantically reasonable column from the schema and emit the query. Minor lexical mismatches between question phrasing and column identifiers are not grounds to abstain or to wrap the answer in caveats."
+        }
+      }
+    }
+  ],
+  "rationale": "creative pp_: lowers bar for committing to a column choice under lexical mismatch \u2014 tests whether Spider's no-evidence setting under-fires on synonym-resolution."
+}

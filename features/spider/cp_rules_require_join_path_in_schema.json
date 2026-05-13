@@ -1,0 +1,25 @@
+{
+  "canonical_id": "cp_rules_require_join_path_in_schema",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "conservative-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Only join two tables when a foreign-key relationship between them is declared in the schema, or when the question explicitly names matching key columns. Do not infer joins from column-name similarity alone."
+        }
+      }
+    }
+  ],
+  "rationale": "creative cp_: tightens criterion for committing to a join; tests whether requiring schema-grounded FK evidence reduces hallucinated joins on Spider."
+}

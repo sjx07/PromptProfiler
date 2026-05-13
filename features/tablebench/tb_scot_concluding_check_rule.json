@@ -1,0 +1,43 @@
+{
+  "canonical_id": "tb_scot_concluding_check_rule",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "scot_component",
+  "value": "concluding_check_rule",
+  "theme": "tablebench-scot-loo",
+  "tier": "round4_scot_loo_component",
+  "provenance": "Manual TableBench SCoT decomposition.",
+  "semantic_labels": [
+    {
+      "label": "verification.concluding_check",
+      "role": "verification"
+    },
+    {
+      "label": "format.answer_only",
+      "role": "format"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "scot"
+  },
+  "requires": [
+    "tb_scot_fixed_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "When you think the actions are enough to achieve the final answer, give the conclusion. End the trace with a concluding check that the selected table evidence answers the question, then put only the final result in `answer`.",
+          "ordinal": 100
+        }
+      }
+    }
+  ],
+  "rationale": "Switchable SCoT concluding-check rule separated from the fixed symbolic_trace and answer fields."
+}

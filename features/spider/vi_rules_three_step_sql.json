@@ -1,0 +1,44 @@
+{
+  "canonical_id": "vi_rules_three_step_sql",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "verbosity-injection",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Before writing the SQL, walk through the problem in three labeled steps: Step 1 understand what the question asks, Step 2 identify the schema columns and tables involved, Step 3 derive the SQL. Write each step as a separate sentence."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Place the three labeled steps in the `breakdown` field. The `sql_query` field must contain only the final SQL with no preamble or narration."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "breakdown",
+          "description": "Three labeled steps (Step 1/2/3) before the SQL."
+        }
+      }
+    }
+  ],
+  "rationale": "Adapter of tabfact's vi_step_decomposition mechanism (proven +0.120 on temporal-yes) to spider SQL — tests whether explicit Step-1/2/3 enumeration lifts spider when forced into a structural format."
+}

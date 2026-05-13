@@ -1,0 +1,25 @@
+{
+  "canonical_id": "is_rules_intersect_for_and_across_rows",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "For 'X that has BOTH property A AND property B' style questions where A and B live on different rows of the same table (e.g., 'students who took both Math and Physics'), use `INTERSECT` of two SELECTs rather than `WHERE col='A' AND col='B'`, since a single row cannot satisfy both equalities simultaneously."
+        }
+      }
+    }
+  ],
+  "rationale": "Promotes INTERSECT to active candidate set for compound same-column predicates \u2014 common Spider failure mode where models emit AND and silently return empty results."
+}

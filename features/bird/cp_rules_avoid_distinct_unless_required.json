@@ -1,0 +1,25 @@
+{
+  "canonical_id": "cp_rules_avoid_distinct_unless_required",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "conservative-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Do not introduce DISTINCT, GROUP BY, or subqueries unless the question or schema clearly demands de-duplication or aggregation. When two formulations are equivalent, commit to the simpler one."
+        }
+      }
+    }
+  ],
+  "rationale": "creative cp_: raises bar for adding optional structural complexity to the query."
+}

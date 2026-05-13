@@ -1,0 +1,25 @@
+{
+  "canonical_id": "cp_rules_avoid_unwarranted_distinct",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "conservative-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Do not add DISTINCT, GROUP BY, or LIMIT unless the question explicitly requires deduplication, grouping, or a bounded count. When two formulations are equivalent, choose the one with fewer such modifiers."
+        }
+      }
+    }
+  ],
+  "rationale": "creative cp_: raises the bar for emitting set-shaping operators on Spider; tests whether reducing default DISTINCT/GROUP BY use aligns with the gold-query base rate."
+}

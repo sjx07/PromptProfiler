@@ -1,0 +1,41 @@
+{
+  "canonical_id": "tb_pot_rescue_answer_type_gate",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_error_rescue",
+  "value": "answer_type_gate",
+  "theme": "tablebench-pot-rescue-add-one",
+  "tier": "round4_error_mode_rescue",
+  "provenance": "Derived from pot_all failures where the output contained the wrong answer shape for trend/statistical questions.",
+  "semantic_labels": [
+    {
+      "label": "output.answer_type_gate",
+      "role": "error_rescue",
+      "description": "Choose answer shape from the question: number, entity, trend label, boolean, or concise phrase."
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot",
+    "observed_error": "answer included extra fields or a trend label when the gold answer expected only a number/entity"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "717336435fc9",
+        "payload": {
+          "content": "Before printing, decide the requested answer type from the question. If it asks for a number, print only the number; if it asks for an entity, print only the entity name; if it asks for a trend, print only the trend label unless the question explicitly asks for a forecast value too.",
+          "ordinal": 32
+        }
+      }
+    }
+  ],
+  "rationale": "Targets trend/statistical failures such as printing `Increasing trend, 49.95` when the requested answer is only the forecast value."
+}

@@ -1,0 +1,25 @@
+{
+  "canonical_id": "rt_rules_state_schema_columns_first",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Before writing the SQL, list the specific schema columns and tables from the provided schema that the question refers to, then state which join paths connect them. Only after this step, write the final SQL statement."
+        }
+      }
+    }
+  ],
+  "rationale": "gepa_decompose: tests whether forcing explicit binding to question-mentioned schema entities (columns/tables/joins) before SQL emission improves accuracy on cross-domain Spider questions."
+}

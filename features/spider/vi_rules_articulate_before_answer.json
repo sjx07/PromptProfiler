@@ -1,0 +1,46 @@
+{
+  "canonical_id": "vi_rules_articulate_before_answer",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "verbosity-injection",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Take a moment to think carefully and methodically about the question. Lay out your reasoning in plain prose before writing the SQL, making sure each part of your thought process is clearly articulated."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "thinking",
+          "description": "Articulated thinking before the answer."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Place all auxiliary thinking, prose, and explanation in the `thinking` field. The `sql_query` field must contain only the final sql query with no preamble, narration, or self-commentary."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; pure articulation-overhead variant \u2014 'think carefully and methodically' generic preamble, no schema binding"
+}

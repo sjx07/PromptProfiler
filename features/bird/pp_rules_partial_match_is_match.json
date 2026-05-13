@@ -1,0 +1,25 @@
+{
+  "canonical_id": "pp_rules_partial_match_is_match",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "permissive-prior",
+  "tier": "A",
+  "provenance": "vista_synthesis",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "If the question's filter phrase only partially overlaps a column's stored values (e.g., a substring, a synonym, or a category prefix), still emit a predicate that captures the partial overlap rather than abandoning the filter. Partial alignment between question wording and column values should not block emitting a WHERE clause."
+        }
+      }
+    }
+  ],
+  "rationale": "vista_synthesis-style; permissive-prior nudge specific to filter-predicate emission \u2014 tests whether tolerating partial surface alignment improves BIRD execution accuracy."
+}

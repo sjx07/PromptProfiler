@@ -1,0 +1,23 @@
+{
+  "canonical_id": "is_rules_distinct_for_unique_categories",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "ONLY when the question explicitly asks for the count of *different* / *unique* / *distinct* / *separate* values of a non-unique attribute (e.g. 'how many different cities', 'how many distinct departments'), use COUNT(DISTINCT col). Otherwise use COUNT(*) or COUNT(col) for row counts. Use COUNT(DISTINCT entity_id) when counting entities that may appear in multiple rows of a join."
+        }
+      }
+    }
+  ],
+  "rationale": "Bird q_asks_count=yes failures often arise from missing DISTINCT. Predicate: question matches r'\\bhow many (different|distinct|unique|separate) \\w+'. Tightly gated to avoid always-on misfire."
+}

@@ -1,0 +1,25 @@
+{
+  "canonical_id": "of_rules_single_line_no_newlines",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "output-format",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Emit the SQL on a single line. Collapse internal whitespace to single spaces and do not include any newline characters in the output."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: structural-shape variant \u2014 single-line constraint, isolates whitespace footprint from content."
+}

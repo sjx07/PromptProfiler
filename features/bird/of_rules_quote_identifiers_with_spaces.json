@@ -1,0 +1,25 @@
+{
+  "canonical_id": "of_rules_quote_identifiers_with_spaces",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "output-format",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When a table or column identifier contains spaces, parentheses, or other special characters, wrap that identifier in backticks in the emitted SQL."
+        }
+      }
+    }
+  ],
+  "rationale": "gepa_decompose: BIRD schemas use backtick-quoted identifiers (e.g. `Free Meal Count (K-12)`); tests grader alignment on quoting style."
+}

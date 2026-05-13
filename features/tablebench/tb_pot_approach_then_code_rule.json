@@ -1,0 +1,43 @@
+{
+  "canonical_id": "tb_pot_approach_then_code_rule",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_component",
+  "value": "approach_then_code_rule",
+  "theme": "tablebench-pot-loo",
+  "tier": "round4_pot_loo_component",
+  "provenance": "Manual TableBench PoT decomposition.",
+  "semantic_labels": [
+    {
+      "label": "planning.approach",
+      "role": "planning"
+    },
+    {
+      "label": "reasoning.pot",
+      "role": "mechanism"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "based on the question, write out your analytical approach, and then write Python code according to this approach.",
+          "ordinal": 10
+        }
+      }
+    }
+  ],
+  "rationale": "Switchable PoT planning instruction: explicit analytical approach before Python code."
+}

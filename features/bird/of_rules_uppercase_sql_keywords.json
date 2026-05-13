@@ -1,0 +1,25 @@
+{
+  "canonical_id": "of_rules_uppercase_sql_keywords",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "output-format",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Render all SQL keywords (SELECT, FROM, WHERE, JOIN, GROUP BY, ORDER BY, HAVING, AS, ON, AND, OR, NOT) in uppercase; render table and column identifiers using their original casing from the schema."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: pure rendering rule \u2014 should be inert under exec-grader, probes whether format constraints leak into content quality."
+}

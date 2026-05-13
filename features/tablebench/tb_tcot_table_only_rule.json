@@ -1,0 +1,39 @@
+{
+  "canonical_id": "tb_tcot_table_only_rule",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "tcot_component",
+  "value": "table_only_rule",
+  "theme": "tablebench-tcot-loo",
+  "tier": "round4_tcot_loo_component",
+  "provenance": "Manual TableBench TCoT decomposition.",
+  "semantic_labels": [
+    {
+      "label": "grounding.table_only",
+      "role": "grounding"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "tcot"
+  },
+  "requires": [
+    "tb_tcot_fixed_scaffold",
+    "_section_role"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "Answer questions using only the table content.",
+          "ordinal": 20
+        }
+      }
+    }
+  ],
+  "rationale": "Switchable TCoT table-grounding rule separated from the fixed TCoT reasoning/output scaffold."
+}

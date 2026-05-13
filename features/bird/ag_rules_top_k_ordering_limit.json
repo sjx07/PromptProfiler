@@ -1,0 +1,25 @@
+{
+  "canonical_id": "ag_rules_top_k_ordering_limit",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "aggregation-rule",
+  "tier": "A",
+  "provenance": "vista_synthesis",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question asks for the 'top K', 'highest', 'lowest', '<ordinal>' (e.g., third-most), or 'most/least <attribute>' entity, the answer's granularity is K rows ordered by the relevant aggregate. Use `ORDER BY <metric> DESC|ASC LIMIT K` (K=1 for superlatives, K=N for top-N), and include the ordering metric in scope via aggregation if it is computed (e.g., `GROUP BY entity ORDER BY COUNT(*) DESC`)."
+        }
+      }
+    }
+  ],
+  "rationale": "vista_synthesis: tests superlative/top-K granularity choice; binds linguistic trigger to row-count and ordering shape."
+}

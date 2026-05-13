@@ -1,0 +1,112 @@
+{
+  "canonical_id": "tb_pot_fixed_scaffold",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_coalition_scaffold",
+  "value": "fixed_parser_runtime_contract",
+  "theme": "tablebench-pot-loo",
+  "tier": "round4_pot_loo_base",
+  "provenance": "Manual TableBench PoT decomposition for fixed parser/runtime scaffold.",
+  "semantic_labels": [
+    {
+      "label": "format.code_fence",
+      "role": "format"
+    },
+    {
+      "label": "format.answer_only",
+      "role": "format"
+    },
+    {
+      "label": "output.print_value",
+      "role": "output"
+    },
+    {
+      "label": "tablebench.table_csv",
+      "role": "runtime_binding"
+    },
+    {
+      "label": "tablebench.json_columns_data",
+      "role": "runtime_binding"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot"
+  },
+  "requires": [
+    "_section_task",
+    "_section_table_handling",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "c8a44f4feada",
+        "payload": {
+          "content": "Answer questions based on the table content.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "code",
+          "description": "Executable Python code that analyzes `table.csv` and prints only the answer value with no label, prefix, or explanation.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Read the prompt table as a JSON object with `columns` and `data`, and write code that loads the runtime table from `table.csv`.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Ensure to load the table with command ```df = pd.read_csv('table.csv')```",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "717336435fc9",
+        "payload": {
+          "content": "Code blocks need to strictly start with ```python and end with ```",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "717336435fc9",
+        "payload": {
+          "content": "Print only the final answer value with no label, prefix, or explanation.",
+          "ordinal": 20
+        }
+      }
+    }
+  ],
+  "rationale": "Fixed PoT scaffold for leave-one-out experiments: keeps parser-facing code field, code fence, print-only answer, table.csv binding, and JSON table serialization stable while PoT reasoning/code-style mechanisms vary."
+}

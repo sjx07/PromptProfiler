@@ -1,0 +1,23 @@
+{
+  "canonical_id": "is_rules_distinct_for_unique_count",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "ONLY when the question explicitly asks for *distinct*, *different*, or *unique* values (e.g. 'how many different countries', 'list the distinct languages'), use SELECT DISTINCT or COUNT(DISTINCT col). Do NOT use UNION as a substitute for DISTINCT — UNION combines disjoint sets, DISTINCT deduplicates within one set. For 'how many distinct X', use SELECT COUNT(DISTINCT X) FROM ...; not nested UNION + COUNT."
+        }
+      }
+    }
+  ],
+  "rationale": "Spider q_asks_distinct=yes (35% fail) often shows UNION mis-usage. Predicate: question matches r'\\b(distinct|unique|different|separate)\\b' for SELECT, or r'\\bhow many (distinct|unique|different)\\b' for count. Tightly gated."
+}

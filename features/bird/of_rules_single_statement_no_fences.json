@@ -1,0 +1,25 @@
+{
+  "canonical_id": "of_rules_single_statement_no_fences",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "output-format",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Return exactly one SQLite statement as raw text. Do not wrap the query in markdown code fences, do not prepend explanations, and do not append a trailing semicolon."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: tests whether stripping fences/semicolons aligns with BIRD's exec-accuracy grader (format-matched variant)."
+}

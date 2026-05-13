@@ -1,0 +1,25 @@
+{
+  "canonical_id": "cp_rules_default_to_evidence_formula",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "conservative-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the evidence field supplies a formula or definition, encode it exactly as written. Do not substitute an alternative formulation, even if it appears mathematically equivalent, unless the evidence is silent on the metric."
+        }
+      }
+    }
+  ],
+  "rationale": "creative cp_: tightens commitment criterion to favor evidence-literal formulas over the model's own rephrasing."
+}

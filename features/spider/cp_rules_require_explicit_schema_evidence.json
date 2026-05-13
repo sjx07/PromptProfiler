@@ -1,0 +1,25 @@
+{
+  "canonical_id": "cp_rules_require_explicit_schema_evidence",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "conservative-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Only reference columns and tables that appear verbatim in the provided schema. If the question implies a concept not directly represented by a named column, prefer the closest literal column over inferring a derived attribute."
+        }
+      }
+    }
+  ],
+  "rationale": "creative cp_: tightens column/table commitment threshold to literal schema matches; tests whether suppressing inferred attributes helps on Spider where no evidence hints disambiguate."
+}

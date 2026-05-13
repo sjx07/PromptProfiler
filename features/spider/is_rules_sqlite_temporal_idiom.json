@@ -1,0 +1,23 @@
+{
+  "canonical_id": "is_rules_sqlite_temporal_idiom",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "This database uses SQLite. Use SQLite-only date/time syntax: STRFTIME('%Y', date_column) for year extraction; STRFTIME('%Y', date('now')) - STRFTIME('%Y', birth_date) for age in years; date('now') for the current date. NEVER use PostgreSQL idioms (DATE_PART, AGE(), EXTRACT, NOW(), CURDATE(), TIMESTAMPDIFF) — they will fail."
+        }
+      }
+    }
+  ],
+  "rationale": "Transfer of bird/is_rules_sqlite_temporal_idiom (which lifted target slice +0.034). Targets spider q_asks_temporal=yes failures. Same predicate, same mechanism, ported to spider's rule section."
+}

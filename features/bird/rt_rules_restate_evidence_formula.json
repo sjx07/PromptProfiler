@@ -1,0 +1,25 @@
+{
+  "canonical_id": "rt_rules_restate_evidence_formula",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "If the evidence field provides a formula or definition, restate it in terms of the concrete column names from the schema (e.g., map 'eligible free rate' to the exact column expression) before composing the SELECT clause."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: forces the trace to bind evidence-glossary terms to actual schema columns, a BIRD-specific reasoning step."
+}

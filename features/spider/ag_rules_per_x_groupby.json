@@ -1,0 +1,25 @@
+{
+  "canonical_id": "ag_rules_per_x_groupby",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "aggregation-rule",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Match the output granularity to the question's quantifier. If the question contains 'per X', 'each X', 'for every X', or 'by X', emit `GROUP BY X` and select X alongside the aggregate. If the question asks for an overall total or single value, do not group."
+        }
+      }
+    }
+  ],
+  "rationale": "gepa_decompose port of round-3 output_format_rule_e070e8 (+0.086 on bird\u00d77B): linguistic-trigger \u2192 GROUP BY granularity mapping."
+}

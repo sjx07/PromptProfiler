@@ -1,0 +1,25 @@
+{
+  "canonical_id": "pp_rules_partial_string_match_ok",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "permissive-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question paraphrases a value (e.g., gives a partial name, drops articles, or uses casing that differs from likely stored values), treat a partial or case-insensitive match as acceptable rather than abstaining or escalating to a guard clause."
+        }
+      }
+    }
+  ],
+  "rationale": "creative pp_: lowers bar on string-equality decisions; orthogonal axis from column/join permissiveness."
+}

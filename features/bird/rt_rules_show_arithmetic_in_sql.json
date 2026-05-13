@@ -1,0 +1,44 @@
+{
+  "canonical_id": "rt_rules_show_arithmetic_in_sql",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "If the question requires a numeric computation (count, sum, ratio, difference, percentage), first write the arithmetic in plain English referencing the schema columns (e.g., 'COUNT of rows WHERE x=1 / COUNT of all rows * 100'), then translate that expression into the SQL. Show the arithmetic plan before the SQL."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Place the plain-English arithmetic plan in the `arith_plan` field. The `sql_query` field must contain only the final SQL with no preamble or narration."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "arith_plan",
+          "description": "Plain-English arithmetic plan referencing schema columns, written before the SQL."
+        }
+      }
+    }
+  ],
+  "rationale": "Adapter of tabfact's rt_aggregation_arithmetic_shown mechanism (proven +0.105 on superlative-no) to bird SQL — tests whether explicit arithmetic-shape reasoning before SQL composition lifts arithmetic-related slices."
+}

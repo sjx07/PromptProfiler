@@ -1,0 +1,25 @@
+{
+  "canonical_id": "rt_rules_identify_columns_before_sql",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Before writing the SQL, list the specific schema columns and tables from the provided schema that the question refers to, and state which join keys connect them. Then construct the query using exactly those identifiers."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: binds reasoning to the actual schema entities present in this query's prompt \u2014 task-specific CoT, not generic decomposition."
+}

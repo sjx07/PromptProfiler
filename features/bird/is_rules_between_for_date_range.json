@@ -1,0 +1,25 @@
+{
+  "canonical_id": "is_rules_between_for_date_range",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "For inclusive date-range filters (e.g. 'in 2020', 'between 2018 and 2020'), use `date_col BETWEEN 'YYYY-MM-DD' AND 'YYYY-MM-DD'` with ISO-formatted string literals, rather than chained `>=` / `<=` comparisons or year arithmetic on the raw column."
+        }
+      }
+    }
+  ],
+  "rationale": "gepa_decompose: promotes BETWEEN with ISO date literals as the canonical range-filter idiom in SQLite."
+}

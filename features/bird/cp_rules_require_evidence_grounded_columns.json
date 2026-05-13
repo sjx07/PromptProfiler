@@ -1,0 +1,25 @@
+{
+  "canonical_id": "cp_rules_require_evidence_grounded_columns",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "conservative-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Only commit a column to the SELECT or WHERE clause when its name appears literally in the schema or is named in the evidence. If the question's wording does not align with a specific column, prefer omitting it over guessing a plausible-looking one."
+        }
+      }
+    }
+  ],
+  "rationale": "creative cp_: raises the bar for column inclusion, biasing toward fewer/safer projections when evidence is weak."
+}

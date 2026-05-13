@@ -1,0 +1,25 @@
+{
+  "canonical_id": "ag_rules_count_vs_list_shape",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "aggregation-rule",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Choose row multiplicity from the question's wh-word. 'How many' / 'what is the number of' \u2192 return a single scalar via `COUNT(...)` with no GROUP BY. 'Which' / 'what are' / 'list the' \u2192 return the identifying column(s) without aggregation. 'What is the maximum/minimum/average' \u2192 return a single aggregate scalar. Do not mix shapes (e.g., do not SELECT both names and a COUNT for a 'how many' question)."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: tests wh-word \u2192 output multiplicity binding; explicit anti-pattern clause discourages mixed-shape outputs."
+}

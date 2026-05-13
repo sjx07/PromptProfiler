@@ -1,0 +1,39 @@
+{
+  "canonical_id": "tb_scot_repeat_rule",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "scot_component",
+  "value": "repeat_rule",
+  "theme": "tablebench-scot-loo",
+  "tier": "round4_scot_loo_component",
+  "provenance": "Manual TableBench SCoT decomposition.",
+  "semantic_labels": [
+    {
+      "label": "trace.iterative_steps",
+      "role": "operation"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "scot"
+  },
+  "requires": [
+    "tb_scot_fixed_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "(This thought/Action/Result can repeat N times).",
+          "ordinal": 60
+        }
+      }
+    }
+  ],
+  "rationale": "Switchable SCoT rule allowing repeated Thought/Action/Result steps."
+}

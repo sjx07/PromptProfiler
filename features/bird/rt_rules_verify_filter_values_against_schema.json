@@ -1,0 +1,25 @@
+{
+  "canonical_id": "rt_rules_verify_filter_values_against_schema",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "For each literal value in the WHERE clause, point to the schema's example values or column type for that column and confirm the literal's format (string vs numeric, casing, units) matches before finalizing the SQL."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: reasoning step bound to schema example-values \u2014 task-specific verification, not generic 'double-check your work'."
+}

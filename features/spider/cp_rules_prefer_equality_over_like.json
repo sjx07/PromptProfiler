@@ -1,0 +1,25 @@
+{
+  "canonical_id": "cp_rules_prefer_equality_over_like",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "conservative-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Default to exact equality (`=`) for string filters. Only use LIKE with wildcards when the question explicitly says 'contains', 'starts with', or 'similar to'. Do not loosen string matches just because casing or spacing might differ."
+        }
+      }
+    }
+  ],
+  "rationale": "creative cp_: raises threshold for emitting fuzzy LIKE filters; tests whether discouraging permissive string matches matches Spider's literal-equality base rate."
+}

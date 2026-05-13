@@ -19,6 +19,46 @@ concepts:
     family: response_mode
     description: Executable Python code response interpreted by the task scorer.
 
+  - concept_id: prompt_format.plain
+    family: prompt_format
+    description: Render system/user prompts and expected outputs using plain text field formatting.
+
+  - concept_id: prompt_format.json
+    family: prompt_format
+    description: Render expected outputs using JSON-oriented prompt formatting.
+
+  - concept_id: prompt_format.markdown
+    family: prompt_format
+    description: Render prompts and expected outputs using Markdown conventions.
+
+  - concept_id: prompt_format.yaml
+    family: prompt_format
+    description: Render expected outputs using YAML-oriented prompt formatting.
+
+  - concept_id: prompt_format.code_block
+    family: prompt_format
+    description: Render parser-facing code or query outputs as fenced code blocks.
+
+  - concept_id: table_serialization.markdown
+    family: table_serialization
+    description: Serialize table inputs as Markdown tables.
+
+  - concept_id: table_serialization.csv
+    family: table_serialization
+    description: Serialize table inputs as CSV text.
+
+  - concept_id: table_serialization.html
+    family: table_serialization
+    description: Serialize table inputs as HTML table markup.
+
+  - concept_id: table_serialization.json_records
+    family: table_serialization
+    description: Serialize table inputs as JSON row records.
+
+  - concept_id: table_serialization.json_columns_data
+    family: table_serialization
+    description: Serialize table inputs as compact columns/data JSON arrays.
+
   - concept_id: format.answer_only_minimality
     family: formatting
     description: Output contract that keeps the final answer minimal.

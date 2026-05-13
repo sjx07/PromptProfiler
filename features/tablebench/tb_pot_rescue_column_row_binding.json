@@ -1,0 +1,41 @@
+{
+  "canonical_id": "tb_pot_rescue_column_row_binding",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_error_rescue",
+  "value": "column_row_binding",
+  "theme": "tablebench-pot-rescue-add-one",
+  "tier": "round4_error_mode_rescue",
+  "provenance": "Derived from pot_all failures involving wrong columns, total-row handling, top-k, and inclusive ranges.",
+  "semantic_labels": [
+    {
+      "label": "table.column_row_binding",
+      "role": "error_rescue",
+      "description": "Bind computations to exact requested rows/columns and handle totals/ranges carefully."
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot",
+    "observed_error": "wrong filters, wrong top-k rows, total rows, or year ranges changed the answer"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Bind the computation to the exact columns, rows, and range named in the question. Treat year/date ranges as inclusive, exclude `total` or summary rows unless explicitly requested, and verify top/bottom-k selections before computing the final value.",
+          "ordinal": 71
+        }
+      }
+    }
+  ],
+  "rationale": "Targets multi-hop and time-based errors caused by selecting the wrong row/column subset."
+}

@@ -1,0 +1,25 @@
+{
+  "canonical_id": "pp_rules_commit_under_join_ambiguity",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "permissive-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "If more than one join path between the relevant tables looks plausible, pick the one that most directly connects the entities mentioned in the question and proceed. Do not refuse to answer or hedge merely because an alternative join path also exists."
+        }
+      }
+    }
+  ],
+  "rationale": "creative pp_: nudges threshold for committing to a join under ambiguity \u2014 distinct sub-aspect from column-match permissiveness."
+}

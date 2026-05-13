@@ -1,0 +1,54 @@
+{
+  "canonical_id": "tb_pot_rescue_anomaly_conservative",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_error_rescue",
+  "value": "anomaly_conservative_detection",
+  "theme": "tablebench-pot-rescue-add-one",
+  "tier": "round4_error_mode_rescue",
+  "provenance": "Derived from pot_all anomaly failures that over-detected natural scale differences or missed impossible planted values.",
+  "semantic_labels": [
+    {
+      "label": "anomaly.conservative_detection",
+      "role": "error_rescue",
+      "description": "Prefer impossible, contradictory, or planted extreme values; avoid normal scale differences."
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot",
+    "qsubtype": "AnomalyDetection",
+    "observed_error": "over-detected normal large countries/cities or missed impossible values"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "For anomaly questions, be conservative: prefer impossible values, sign errors, values outside valid bounds, contradictions with totals, or clear synthetic outliers. Do not mark naturally large countries, cities, or categories as anomalies solely because their scale is larger.",
+          "ordinal": 72
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "717336435fc9",
+        "payload": {
+          "content": "For anomaly answers, include the anomalous entity/row, the abnormal value, and a short reason; if no such anomaly is found, print exactly `No anomalies are detected in the table.`",
+          "ordinal": 33
+        }
+      }
+    }
+  ],
+  "rationale": "Targets anomaly-detection failures observed in pot_all."
+}

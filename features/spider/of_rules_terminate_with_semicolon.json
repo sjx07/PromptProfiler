@@ -1,0 +1,25 @@
+{
+  "canonical_id": "of_rules_terminate_with_semicolon",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "output-format",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "End the SQL query with a single trailing semicolon and emit no characters after it."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; probes whether a strict terminator constraint helps or over-constrains given Spider's grader tolerance."
+}

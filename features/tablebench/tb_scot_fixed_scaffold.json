@@ -1,0 +1,115 @@
+{
+  "canonical_id": "tb_scot_fixed_scaffold",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "scot_coalition_scaffold",
+  "value": "fixed_symbolic_trace_output_contract",
+  "theme": "tablebench-scot-loo",
+  "tier": "round4_scot_loo_base",
+  "provenance": "Manual TableBench SCoT decomposition for fixed profile scaffold.",
+  "semantic_labels": [
+    {
+      "label": "profile.scot",
+      "role": "profile"
+    },
+    {
+      "label": "persona.analyst",
+      "role": "persona"
+    },
+    {
+      "label": "persona.table_analyst",
+      "role": "persona"
+    },
+    {
+      "label": "reasoning.symbolic_cot",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.intermediate_work",
+      "role": "mechanism"
+    },
+    {
+      "label": "library.pandas",
+      "role": "runtime_binding"
+    },
+    {
+      "label": "format.answer_only",
+      "role": "format"
+    },
+    {
+      "label": "tablebench.json_columns_data",
+      "role": "runtime_binding"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "scot"
+  },
+  "requires": [
+    "_section_role",
+    "_section_table_handling",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a table analyst. Your task is to utilize the Python package 'pandas' to analyze the table and then answer questions.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "symbolic_trace",
+          "description": "Symbolic reasoning trace used to inspect or compute over the table.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "AnswerName1, AnswerName2...; each AnswerName must be a number or entity name, as short as possible, with no explanation.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Read the table as a JSON object with `columns` and `data`: `columns` gives the field names, and each row in `data` aligns positionally with those columns.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Use `symbolic_trace` for intermediate symbolic reasoning, then put only the final result in `answer`.",
+          "ordinal": 10
+        }
+      }
+    }
+  ],
+  "rationale": "Fixed SCoT scaffold for leave-one-out experiments: keeps the profile, symbolic_trace field, answer field, table serialization, and basic trace contract stable while non-basic trace rules vary."
+}

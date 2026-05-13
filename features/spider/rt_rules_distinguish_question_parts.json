@@ -1,0 +1,25 @@
+{
+  "canonical_id": "rt_rules_distinguish_question_parts",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "For questions containing multiple conditions joined by 'and', 'or', 'whose ... is the same as', or comparative phrasing, restate each condition separately and indicate whether it becomes a WHERE predicate, a self-join, or a subquery before producing the final SQL."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: targets the multi-condition Spider failure mode (e.g., 'same nationality as constructor') by demanding per-condition trace bound to the actual question text."
+}

@@ -1,0 +1,46 @@
+{
+  "canonical_id": "vi_rules_step_decomposition",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "verbosity-injection",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Before producing the SQL, articulate your approach in three steps: Step 1 \u2014 restate what the question is asking for. Step 2 \u2014 outline the operations needed (filter, join, aggregate, etc.). Step 3 \u2014 assemble the final query."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "breakdown",
+          "description": "Step-by-step breakdown of the problem before the final answer."
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Place all auxiliary thinking in the `breakdown` field. The `sql_query` field must contain only the final answer with no preamble, narration, or self-commentary."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; tests generic 3-step decomposition language without binding to actual schema entities \u2014 pure vi_ articulation overhead."
+}

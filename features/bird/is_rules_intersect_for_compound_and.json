@@ -1,0 +1,25 @@
+{
+  "canonical_id": "is_rules_intersect_for_compound_and",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question requires an entity to satisfy two conditions on the SAME column across DIFFERENT rows (e.g. 'students who took both math AND physics'), use `INTERSECT` between two SELECTs, not `WHERE col = 'math' AND col = 'physics'` (which is unsatisfiable on a single row)."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: promotes INTERSECT over conjunctive AND for cross-row compound predicates; targets a known systematic error mode."
+}

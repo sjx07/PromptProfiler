@@ -2,14 +2,38 @@
   "canonical_id": "facet_tcot_scaffold",
   "task": "sqa",
   "semantic_labels": [
-    {"label": "profile.tcot", "role": "profile"},
-    {"label": "persona.table_analyst", "role": "persona"},
-    {"label": "reasoning.text_trace", "role": "mechanism"},
-    {"label": "reasoning.explicit_intermediate_work", "role": "mechanism"},
-    {"label": "conversation.followup_context", "role": "context"},
-    {"label": "style.step_by_step", "role": "style_rule"},
-    {"label": "format.answer_only", "role": "format"},
-    {"label": "grounding.table_only", "role": "grounding"}
+    {
+      "label": "profile.tcot",
+      "role": "profile"
+    },
+    {
+      "label": "persona.table_analyst",
+      "role": "persona"
+    },
+    {
+      "label": "reasoning.text_trace",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.explicit_intermediate_work",
+      "role": "mechanism"
+    },
+    {
+      "label": "conversation.followup_context",
+      "role": "context"
+    },
+    {
+      "label": "style.step_by_step",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.answer_only",
+      "role": "format"
+    },
+    {
+      "label": "grounding.table_only",
+      "role": "grounding"
+    }
   ],
   "scope": {
     "dataset": "sqa",
@@ -29,8 +53,6 @@
     "facet_pot_exec_scaffold"
   ],
   "primitive_edits": [
-    {"func_type": "set_format", "params": {"style": "plain"}},
-    {"func_type": "set_table_format", "params": {"format": "markdown"}},
     {
       "func_type": "insert_node",
       "params": {

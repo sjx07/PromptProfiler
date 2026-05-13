@@ -1,0 +1,25 @@
+{
+  "canonical_id": "ag_rules_percentage_decomposition",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "aggregation-rule",
+  "tier": "A",
+  "provenance": "gepa_decompose",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question asks for a percentage, ratio, or proportion, decompose the answer into numerator and denominator. Use `SUM(CASE WHEN <condition> THEN 1 ELSE 0 END)` (or `SUM(CASE WHEN <condition> THEN 1.0 ELSE 0 END)`) for the numerator, `COUNT(*)` for the denominator over the same population, and multiply by 100.0 for a percent."
+        }
+      }
+    }
+  ],
+  "rationale": "gepa_decompose of round-3 aggregation_semantics_rule_02b958 (+0.083): percentage-question granularity = ratio shape, not single aggregate."
+}

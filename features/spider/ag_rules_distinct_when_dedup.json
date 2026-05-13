@@ -1,0 +1,25 @@
+{
+  "canonical_id": "ag_rules_distinct_when_dedup",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "aggregation-rule",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Decide deduplication from the question's referential intent. If the question asks for a set of distinct entities ('different X', 'distinct X', 'unique X', or 'how many X' where X is an entity that may appear in many rows after a join), use `DISTINCT` on the entity key or `COUNT(DISTINCT key)`. If the question asks for occurrence counts or row totals, do not deduplicate."
+        }
+      }
+    }
+  ],
+  "rationale": "creative: DISTINCT is granularity-by-identity \u2014 common error after joins inflate row counts. Distinct from idiom-shortcut: rule keys off question semantics, not on substituting an operator."
+}

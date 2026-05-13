@@ -1,0 +1,25 @@
+{
+  "canonical_id": "of_rules_single_line_no_fences",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "output-format",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Return the SQL query as a single line of plain text with no code fences, no markdown, and no leading or trailing commentary."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; tests whether stripping markdown wrappers aligns with Spider's execution-accuracy grader that runs the raw string."
+}

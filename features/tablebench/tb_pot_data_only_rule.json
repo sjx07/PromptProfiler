@@ -1,0 +1,39 @@
+{
+  "canonical_id": "tb_pot_data_only_rule",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_component",
+  "value": "data_only_rule",
+  "theme": "tablebench-pot-loo",
+  "tier": "round4_pot_loo_component",
+  "provenance": "Manual TableBench PoT decomposition.",
+  "semantic_labels": [
+    {
+      "label": "grounding.table_only",
+      "role": "grounding"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Your analysis must be based entirely on the above data.",
+          "ordinal": 50
+        }
+      }
+    }
+  ],
+  "rationale": "Switchable PoT grounding instruction."
+}

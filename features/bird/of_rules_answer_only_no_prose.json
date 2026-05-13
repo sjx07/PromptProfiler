@@ -1,0 +1,25 @@
+{
+  "canonical_id": "of_rules_answer_only_no_prose",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "output-format",
+  "tier": "A",
+  "provenance": "vista_synthesis",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "The response must contain only the SQL query itself. Do not include preambles such as 'Here is the query:', do not restate the question, and do not append commentary after the query."
+        }
+      }
+    }
+  ],
+  "rationale": "vista_synthesis: tests whether the parser tolerates surrounding prose; format-matched if extractor is strict."
+}

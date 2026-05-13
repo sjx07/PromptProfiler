@@ -1,0 +1,23 @@
+{
+  "canonical_id": "is_rules_quoted_col_exact_match",
+  "task": "bird",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "If a column name in the schema contains a hyphen (-), space, slash (/), or other non-identifier character, you MUST wrap it in backticks (`like-this`) and copy the exact name verbatim from the schema (case-sensitive). Do NOT rename or simplify (e.g. NSLP_Provision_Status is wrong if the schema says `NSLP Provision Status`)."
+        }
+      }
+    }
+  ],
+  "rationale": "Targets bird has_special_cols=yes failures (77% fail rate). Pattern: model rewrites quoted/special-char columns into snake_case identifiers, causing column_not_found errors. Predicate: schema has column matching r'[\\s\\-/]' or wrapped in backticks."
+}

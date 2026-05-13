@@ -1,0 +1,43 @@
+{
+  "canonical_id": "tb_pot_python_persona_rule",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "pot_component",
+  "value": "python_persona_rule",
+  "theme": "tablebench-pot-loo",
+  "tier": "round4_pot_loo_component",
+  "provenance": "Manual TableBench PoT decomposition.",
+  "semantic_labels": [
+    {
+      "label": "persona.analyst",
+      "role": "persona"
+    },
+    {
+      "label": "persona.python_analyst",
+      "role": "persona"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "pot"
+  },
+  "requires": [
+    "tb_pot_fixed_scaffold",
+    "_section_role"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a data analyst proficient in Python.",
+          "ordinal": 10
+        }
+      }
+    }
+  ],
+  "rationale": "Switchable PoT persona instruction, separated from the fixed code output contract."
+}

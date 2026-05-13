@@ -1,0 +1,36 @@
+{
+  "canonical_id": "table_serialization_json_columns_data",
+  "task": "tabfact",
+  "semantic_labels": [
+    {
+      "label": "table_serialization.json_columns_data",
+      "role": "table_serialization"
+    },
+    {
+      "label": "implementation.set_table_format",
+      "role": "implementation_surface"
+    }
+  ],
+  "scope": {
+    "dataset": "tabfact",
+    "axis": "table_serialization",
+    "value": "json_columns_data",
+    "implementation_surface": "set_table_format"
+  },
+  "requires": [],
+  "conflicts_with": [
+    "table_serialization_markdown",
+    "table_serialization_csv",
+    "table_serialization_html",
+    "table_serialization_json_records"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "set_table_format",
+      "params": {
+        "format": "json_columns_data"
+      }
+    }
+  ],
+  "rationale": "Explicit table serialization axis for tabfact: json_columns_data."
+}

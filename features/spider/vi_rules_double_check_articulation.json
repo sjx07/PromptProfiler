@@ -1,0 +1,25 @@
+{
+  "canonical_id": "vi_rules_double_check_articulation",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "verbosity-injection",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "After drafting your SQL, narrate a brief sanity check in plain language describing in general terms why the query should be correct. Then re-state the final SQL on its own."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; post-draft articulation overhead \u2014 generic 'narrate a sanity check' without referencing any specific schema element"
+}

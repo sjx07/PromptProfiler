@@ -1,0 +1,25 @@
+{
+  "canonical_id": "rt_rules_trace_aggregation_choice",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "reasoning-trace",
+  "tier": "A",
+  "provenance": "vista_synthesis",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "If the question contains words like 'how many', 'total', 'average', 'most', or 'at least N', state which column is being aggregated, which column drives the GROUP BY, and what the HAVING threshold is (if any) before writing the SQL."
+        }
+      }
+    }
+  ],
+  "rationale": "vista_synthesis: rt_-form rule that binds aggregation-trigger words in the actual question to specific schema columns; distinct from ag_ which would prescribe a default rather than ask for evidence."
+}

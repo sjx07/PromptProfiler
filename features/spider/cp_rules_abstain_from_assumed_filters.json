@@ -1,0 +1,25 @@
+{
+  "canonical_id": "cp_rules_abstain_from_assumed_filters",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "conservative-prior",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Do not add WHERE clauses for conditions that are not stated in the question. If the question does not specify a year, status, or category, leave that filter out rather than guessing a plausible default."
+        }
+      }
+    }
+  ],
+  "rationale": "creative cp_: tightens criterion for committing to extra predicates; tests whether suppressing assumed filters reduces over-constrained queries on Spider."
+}

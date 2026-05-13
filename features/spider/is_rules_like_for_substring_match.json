@@ -1,0 +1,25 @@
+{
+  "canonical_id": "is_rules_like_for_substring_match",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "idiom-shortcut",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "When the question asks for entries 'containing', 'starting with', 'ending with', or 'whose name has' a substring, use `col LIKE '%substr%'` (or `'substr%'` / `'%substr'`) rather than `col = 'substr'`. Equality only matches the full string and will miss partial matches the question intends."
+        }
+      }
+    }
+  ],
+  "rationale": "Promotes LIKE with wildcards over equality for substring-shaped questions \u2014 frequent Spider miss where models emit `=` for 'contains'-style natural-language predicates."
+}

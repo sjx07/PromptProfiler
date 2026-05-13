@@ -1,0 +1,196 @@
+{
+  "canonical_id": "tb_official_scot_full",
+  "task": "tablebench",
+  "target_module": "rules",
+  "axis": "prompt_family_profile",
+  "value": "official_scot_full",
+  "theme": "official-tablebench",
+  "tier": "round5_profile",
+  "provenance": "Multilingual-Multimodal-NLP/TableBench official SCoT prompts",
+  "semantic_labels": [
+    {
+      "label": "profile.scot",
+      "role": "profile"
+    },
+    {
+      "label": "persona.analyst",
+      "role": "persona"
+    },
+    {
+      "label": "persona.table_analyst",
+      "role": "persona"
+    },
+    {
+      "label": "reasoning.symbolic_cot",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.intermediate_work",
+      "role": "mechanism"
+    },
+    {
+      "label": "trace.tar",
+      "role": "operation"
+    },
+    {
+      "label": "operation.python_action",
+      "role": "operation"
+    },
+    {
+      "label": "library.pandas",
+      "role": "runtime_binding"
+    },
+    {
+      "label": "format.answer_only",
+      "role": "format"
+    },
+    {
+      "label": "grounding.table_only",
+      "role": "grounding"
+    },
+    {
+      "label": "tablebench.json_columns_data",
+      "role": "runtime_binding"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench"
+  },
+  "requires": [
+    "_section_role",
+    "_section_table_handling",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "tb_official_dp_full",
+    "tb_official_tcot_full",
+    "tb_official_pot_full"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a table analyst. Your task is to utilize the Python package 'pandas' to analyze the table and then answer questions.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "symbolic_trace",
+          "description": "Repeated Thought, Action, and Result steps used to inspect or compute over the table.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "AnswerName1, AnswerName2...; each AnswerName must be a number or entity name, as short as possible, with no explanation.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Read the table as a JSON object with `columns` and `data`: `columns` gives the field names, and each row in `data` aligns positionally with those columns.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Use `symbolic_trace` to reason in repeated Thought, Action, Result steps. ",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "When you think the actions are enough to achieve the final answer, give the conclusion. End the trace with a concluding check that the selected table evidence answers the question, then put only the final result in `answer`.",
+          "ordinal": 100
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "You should act in following patterns step by step to analyze the table.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Thought: You should always think about what to do to interact with Python code base on Result.",
+          "ordinal": 30
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Action: the action can **ONLY** be single line python code.",
+          "ordinal": 40
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Result: Simulate the result of the execution of the python code in Action, analyse that result and decide whether to continue or not.",
+          "ordinal": 50
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "(This thought/Action/Result can repeat N times).",
+          "ordinal": 60
+        }
+      }
+    }
+  ],
+  "rationale": "MVP composite FACET implementation of the official TableBench SCoT prompt family: table-analyst role, TableBench-style columns/data JSON table rendering, symbolic action trace, and concise FACET-compatible answer contract."
+}

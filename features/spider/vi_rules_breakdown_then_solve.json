@@ -1,0 +1,25 @@
+{
+  "canonical_id": "vi_rules_breakdown_then_solve",
+  "task": "spider",
+  "target_module": "rules",
+  "theme": "verbosity-injection",
+  "tier": "A",
+  "provenance": "creative",
+  "requires": [
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Let's break this down. First, restate the problem in your own words. Second, outline the general approach you intend to take. Third, produce the final SQL query."
+        }
+      }
+    }
+  ],
+  "rationale": "creative; canonical 'let's break this down' verbosity preamble \u2014 generic restate/outline/produce sequence with no input binding"
+}
