@@ -1,0 +1,48 @@
+{
+  "canonical_id": "contract_wikitable_answer_surface_pack",
+  "task": "wtq",
+  "semantic_labels": [
+    {"label": "contract.wikitable.exact_cell_surface", "role": "answer_contract"},
+    {"label": "contract.wikitable.parser_safe_answer_list", "role": "answer_contract"},
+    {"label": "source_family.wiki_table", "role": "source_family"},
+    {"label": "feature_mode.blocked_pack", "role": "experiment_design"}
+  ],
+  "scope": {
+    "dataset": "wtq",
+    "source_family": "wiki_table",
+    "feature_mode": "blocked",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "When the answer is a table cell, copy the smallest complete cell value that answers the question. Preserve hyphens, slashes, parentheses, dates, scores, units, qualifiers, and country/code suffixes that are inside that cell. Do not append neighboring columns unless the question asks for them.",
+          "ordinal": 30
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "If the answer has multiple values, separate complete answer values with ` | ` rather than commas. Keep commas only when they are part of a single cell value.",
+          "ordinal": 30
+        }
+      }
+    }
+  ],
+  "rationale": "WTQ wiki-table contract pack: separates answer-surface and parser-boundary effects from domain semantics before testing blocked domain heuristics."
+}
