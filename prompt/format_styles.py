@@ -100,6 +100,31 @@ def _extract_quoted_field(text: str, field_name: str) -> Optional[str]:
         return raw
 
 
+def _strip_enclosing_markdown_fence(text: str) -> str:
+    """Strip a full-response fenced block while preserving inner content.
+
+    Models sometimes answer YAML prompts with:
+
+        ```yaml
+        answer: value
+        ```
+
+    The YAML parser should see only the inner YAML; otherwise the closing
+    fence can be captured as part of the final field value.
+    """
+    stripped = (text or "").strip()
+    if not stripped.startswith("```"):
+        return text
+    match = re.fullmatch(
+        r"```[a-zA-Z0-9_+-]*[ \t]*\n?(.*?)\n?```",
+        stripped,
+        flags=re.DOTALL,
+    )
+    if not match:
+        return text
+    return match.group(1).strip()
+
+
 def fallback_parse_output(response: str, output_fields: Dict[str, str]) -> Dict[str, Any]:
     """Fallback parser that tries multiple parsing strategies.
 
@@ -119,7 +144,7 @@ def fallback_parse_output(response: str, output_fields: Dict[str, str]) -> Dict[
         Dictionary mapping field names to extracted values
     """
     result = {}
-    response_stripped = response.strip()
+    response_stripped = _strip_enclosing_markdown_fence(response).strip()
 
     # Strategy 0a: If json-repair is installed, let it handle everything
     # (unescaped newlines, trailing commas, unquoted keys, ...).
@@ -553,7 +578,7 @@ class PlainStyle(FormatStyle):
     def parse_output(self, response: str, output_fields: Dict[str, str]) -> Dict[str, Any]:
         """Parse plain text response where values extend until the next field."""
         result = {}
-        response_stripped = response.strip()
+        response_stripped = _strip_enclosing_markdown_fence(response).strip()
         field_names = list(output_fields.keys())
 
         if not field_names:
@@ -777,7 +802,7 @@ class YAMLStyle(FormatStyle):
     def parse_output(self, response: str, output_fields: Dict[str, str]) -> Dict[str, Any]:
         """Parse YAML-style response where values extend until the next field."""
         result = {}
-        response_stripped = response.strip()
+        response_stripped = _strip_enclosing_markdown_fence(response).strip()
         field_names = list(output_fields.keys())
 
         if not field_names:

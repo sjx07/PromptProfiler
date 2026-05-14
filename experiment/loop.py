@@ -185,7 +185,8 @@ def _run_and_eval_plan(
             logger.info("Running config %d/%d (id=%d, %d queries) ...",
                         i + 1, len(config_queue), cid, len(queries))
             run_config(store, cid, queries, task, model, llm_call,
-                       num_workers=num_workers, on_conflict=on_conflict)
+                       num_workers=num_workers, on_conflict=on_conflict,
+                       phase=phase)
 
             # ── submit eval to background ─────────────────────────
             eval_task = task_cls()  # fresh instance for thread safety

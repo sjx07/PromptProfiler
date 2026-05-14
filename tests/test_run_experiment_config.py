@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from core.store import CubeStore, OnConflict
+from experiment.planner import RunEntry
 from run_experiment import _generator_kwargs, _llm_sampling_kwargs
 
 
@@ -119,5 +120,63 @@ def test_scores_by_config_can_filter_dataset():
                 "max_score": 0.25,
             }
         ]
+    finally:
+        store.close()
+
+
+def test_run_and_eval_plan_passes_phase_to_runner(monkeypatch):
+    from experiment import loop as loop_module
+
+    class _Task:
+        scorer = "dummy"
+
+        def bind(self, state, *, example_pool=None):
+            self.state = state
+
+    phases = []
+
+    def fake_run_config(
+        store,
+        config_id,
+        queries,
+        task,
+        model,
+        llm_call,
+        *,
+        num_workers,
+        on_conflict,
+        phase=None,
+    ):
+        phases.append(phase)
+
+    def fake_evaluate_config(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(loop_module, "run_config", fake_run_config)
+    monkeypatch.setattr(loop_module, "evaluate_config", fake_evaluate_config)
+
+    store = CubeStore(":memory:")
+    try:
+        store.upsert_queries(
+            [{
+                "query_id": "q1",
+                "dataset": "wtq",
+                "content": "question",
+                "meta": {"split": "test"},
+            }],
+            on_conflict=OnConflict.ERROR,
+        )
+
+        loop_module._run_and_eval_plan(
+            store,
+            [RunEntry(config_id=1, func_ids=[], query_ids=["q1"])],
+            _Task,
+            "model",
+            lambda *_args, **_kwargs: {},
+            phase="lengthfix",
+            dataset="wtq",
+        )
+
+        assert phases == ["lengthfix"]
     finally:
         store.close()
