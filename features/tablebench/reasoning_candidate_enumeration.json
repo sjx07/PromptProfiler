@@ -1,8 +1,8 @@
 {
-  "canonical_id": "reason_verify_before_output",
+  "canonical_id": "reasoning_candidate_enumeration",
   "task": "tablebench",
   "semantic_labels": [
-    {"label": "reasoning.verify_before_output", "role": "mechanism"},
+    {"label": "reasoning.candidate_enumeration", "role": "mechanism"},
     {"label": "style.internal_procedure", "role": "style_rule"},
     {"label": "format.dp_preserving", "role": "format"}
   ],
@@ -24,11 +24,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Before writing `answer`, internally verify that the final value matches the question wording, the relevant table cells, and the expected answer granularity. Then output only the verified final answer.",
+          "content": "For count, all-match, superlative, ranking, anomaly, or trend questions, internally enumerate the candidate rows or values before selecting the final answer. Do not skip ties or qualifying rows.",
           "ordinal": 40
         }
       }
     }
   ],
-  "rationale": "Prompt-only DP-preserving reasoning behavior: final answer verification without exposing a visible reasoning field."
+  "rationale": "Prompt-only DP-preserving reasoning behavior: exhaustive candidate enumeration before final selection."
 }

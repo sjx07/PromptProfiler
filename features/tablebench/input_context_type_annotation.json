@@ -1,30 +1,30 @@
 {
-  "canonical_id": "ctx_prepend_column_stats",
-  "task": "wtq",
+  "canonical_id": "input_context_type_annotation",
+  "task": "tablebench",
   "semantic_labels": [
-    {"label": "input_context.column_statistics", "role": "mechanism"},
-    {"label": "context_builder.column_stats_summary", "role": "implementation"},
+    {"label": "input_context.type_annotation", "role": "mechanism"},
+    {"label": "context_builder.column_type_annotation", "role": "implementation"},
     {"label": "implementation.input_transform", "role": "implementation_surface"},
     {"label": "cost.lightweight_deterministic", "role": "cost"}
   ],
   "scope": {
-    "dataset": "wtq",
+    "dataset": "tablebench",
     "profile": "dp",
     "implementation_surface": "input_transform",
     "cost_dependency": "deterministic_preprocess"
   },
   "requires": [
-    "facet_dp_scaffold"
+    "tb_official_dp_full"
   ],
   "conflicts_with": [],
   "primitive_edits": [
     {
       "func_type": "input_transform",
       "params": {
-        "fn": "prepend_stats",
+        "fn": "annotate_types",
         "kwargs": {}
       }
     }
   ],
-  "rationale": "WTQ input-context feature: prepend deterministic column type/cardinality/range statistics to the serialized table."
+  "rationale": "TableBench input-context feature aligned with WTQ: annotate column headers with lightweight inferred types before table serialization."
 }

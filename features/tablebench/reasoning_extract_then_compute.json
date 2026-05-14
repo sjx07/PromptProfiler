@@ -1,19 +1,19 @@
 {
-  "canonical_id": "reason_extract_then_compute",
-  "task": "wtq",
+  "canonical_id": "reasoning_extract_then_compute",
+  "task": "tablebench",
   "semantic_labels": [
     {"label": "reasoning.extract_then_compute", "role": "mechanism"},
     {"label": "style.internal_procedure", "role": "style_rule"},
     {"label": "format.dp_preserving", "role": "format"}
   ],
   "scope": {
-    "dataset": "wtq",
+    "dataset": "tablebench",
     "profile": "dp",
     "implementation_surface": "task_or_user_instruction",
     "cost_dependency": "prompt_only"
   },
   "requires": [
-    "facet_dp_scaffold",
+    "tb_official_dp_full",
     "_section_reasoning"
   ],
   "conflicts_with": [],
@@ -24,7 +24,7 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "For numeric or aggregate questions, internally extract the required cell values first, then compute the requested count, comparison, sum, difference, average, or rank. Put only the computed final value in `answer`.",
+          "content": "For numeric or aggregate questions, internally extract the required cell values first, then compute the requested count, comparison, sum, difference, average, rate, or rank. Put only the computed final value in `answer`.",
           "ordinal": 40
         }
       }

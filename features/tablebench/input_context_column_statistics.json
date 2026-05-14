@@ -1,9 +1,9 @@
 {
-  "canonical_id": "ctx_prune_columns_12",
+  "canonical_id": "input_context_column_statistics",
   "task": "tablebench",
   "semantic_labels": [
-    {"label": "input_context.column_selection", "role": "mechanism"},
-    {"label": "context_builder.relevance_column_pruning", "role": "implementation"},
+    {"label": "input_context.column_statistics", "role": "mechanism"},
+    {"label": "context_builder.column_stats_summary", "role": "implementation"},
     {"label": "implementation.input_transform", "role": "implementation_surface"},
     {"label": "cost.lightweight_deterministic", "role": "cost"}
   ],
@@ -21,13 +21,10 @@
     {
       "func_type": "input_transform",
       "params": {
-        "fn": "prune_columns",
-        "kwargs": {
-          "max_cols": 12,
-          "min_keep": 3
-        }
+        "fn": "prepend_stats",
+        "kwargs": {}
       }
     }
   ],
-  "rationale": "TableBench input-context feature aligned with WTQ: keep at most 12 relevance-scored columns before table serialization."
+  "rationale": "TableBench input-context feature aligned with WTQ: prepend deterministic column type/cardinality/range statistics to the serialized table."
 }

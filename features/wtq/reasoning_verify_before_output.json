@@ -1,19 +1,19 @@
 {
-  "canonical_id": "reason_filter_then_extract",
-  "task": "tablebench",
+  "canonical_id": "reasoning_verify_before_output",
+  "task": "wtq",
   "semantic_labels": [
-    {"label": "reasoning.filter_then_extract", "role": "mechanism"},
+    {"label": "reasoning.verify_before_output", "role": "mechanism"},
     {"label": "style.internal_procedure", "role": "style_rule"},
     {"label": "format.dp_preserving", "role": "format"}
   ],
   "scope": {
-    "dataset": "tablebench",
+    "dataset": "wtq",
     "profile": "dp",
     "implementation_surface": "task_or_user_instruction",
     "cost_dependency": "prompt_only"
   },
   "requires": [
-    "tb_official_dp_full",
+    "facet_dp_scaffold",
     "_section_reasoning"
   ],
   "conflicts_with": [],
@@ -24,11 +24,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Before deciding internally, first identify the relevant columns and rows, ignore distractor rows, then extract the answer from those cells. Keep the visible `answer` field concise.",
+          "content": "Before writing `answer`, internally verify that the final value matches the question wording, the relevant table cells, and the expected answer granularity. Then output only the verified final answer.",
           "ordinal": 40
         }
       }
     }
   ],
-  "rationale": "Prompt-only DP-preserving reasoning behavior: filter table evidence before extracting the answer."
+  "rationale": "Prompt-only DP-preserving reasoning behavior: final answer verification without exposing a visible reasoning field."
 }

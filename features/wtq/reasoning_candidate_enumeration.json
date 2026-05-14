@@ -1,8 +1,8 @@
 {
-  "canonical_id": "reason_enumerate_then_select",
+  "canonical_id": "reasoning_candidate_enumeration",
   "task": "wtq",
   "semantic_labels": [
-    {"label": "reasoning.enumerate_then_select", "role": "mechanism"},
+    {"label": "reasoning.candidate_enumeration", "role": "mechanism"},
     {"label": "style.internal_procedure", "role": "style_rule"},
     {"label": "format.dp_preserving", "role": "format"}
   ],

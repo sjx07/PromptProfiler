@@ -1,19 +1,19 @@
 {
-  "canonical_id": "reason_enumerate_then_select",
-  "task": "tablebench",
+  "canonical_id": "reasoning_extract_then_compute",
+  "task": "wtq",
   "semantic_labels": [
-    {"label": "reasoning.enumerate_then_select", "role": "mechanism"},
+    {"label": "reasoning.extract_then_compute", "role": "mechanism"},
     {"label": "style.internal_procedure", "role": "style_rule"},
     {"label": "format.dp_preserving", "role": "format"}
   ],
   "scope": {
-    "dataset": "tablebench",
+    "dataset": "wtq",
     "profile": "dp",
     "implementation_surface": "task_or_user_instruction",
     "cost_dependency": "prompt_only"
   },
   "requires": [
-    "tb_official_dp_full",
+    "facet_dp_scaffold",
     "_section_reasoning"
   ],
   "conflicts_with": [],
@@ -24,11 +24,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "For count, all-match, superlative, ranking, anomaly, or trend questions, internally enumerate the candidate rows or values before selecting the final answer. Do not skip ties or qualifying rows.",
+          "content": "For numeric or aggregate questions, internally extract the required cell values first, then compute the requested count, comparison, sum, difference, average, or rank. Put only the computed final value in `answer`.",
           "ordinal": 40
         }
       }
     }
   ],
-  "rationale": "Prompt-only DP-preserving reasoning behavior: exhaustive candidate enumeration before final selection."
+  "rationale": "Prompt-only DP-preserving reasoning behavior: separate evidence extraction from computation."
 }

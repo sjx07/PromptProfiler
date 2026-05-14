@@ -1,5 +1,5 @@
 {
-  "canonical_id": "ctx_filter_rows_relevance_50",
+  "canonical_id": "input_context_row_selection_relevance_50",
   "task": "tablebench",
   "semantic_labels": [
     {"label": "input_context.row_selection", "role": "mechanism"},

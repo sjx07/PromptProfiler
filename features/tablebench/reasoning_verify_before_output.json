@@ -1,8 +1,8 @@
 {
-  "canonical_id": "reason_extract_then_compute",
+  "canonical_id": "reasoning_verify_before_output",
   "task": "tablebench",
   "semantic_labels": [
-    {"label": "reasoning.extract_then_compute", "role": "mechanism"},
+    {"label": "reasoning.verify_before_output", "role": "mechanism"},
     {"label": "style.internal_procedure", "role": "style_rule"},
     {"label": "format.dp_preserving", "role": "format"}
   ],
@@ -24,11 +24,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "For numeric or aggregate questions, internally extract the required cell values first, then compute the requested count, comparison, sum, difference, average, rate, or rank. Put only the computed final value in `answer`.",
+          "content": "Before writing `answer`, internally verify that the final value matches the question wording, the relevant table cells, and the expected answer granularity. Then output only the verified final answer.",
           "ordinal": 40
         }
       }
     }
   ],
-  "rationale": "Prompt-only DP-preserving reasoning behavior: separate evidence extraction from computation."
+  "rationale": "Prompt-only DP-preserving reasoning behavior: final answer verification without exposing a visible reasoning field."
 }

@@ -188,7 +188,9 @@ def infer_concept(
             return label, "response_mode", "high"
         if label.startswith("reasoning.") and label not in RESPONSE_LABEL_MAP:
             return label, "reasoning_behavior", "high"
-        if label.startswith("input_context.") or label.startswith("context."):
+        if label.startswith("input_context."):
+            return label, "input_context_builder", "high"
+        if label.startswith("context."):
             concept = label.replace("context.", "input_context.", 1)
             return concept, "input_context_builder", "high"
         if label.startswith("demonstration."):
@@ -218,14 +220,16 @@ def infer_concept(
         return "response.sql_program", "response_mode", "medium"
 
     reasoning_patterns = [
-        ("filter_then_extract", "reasoning.filter_then_extract"),
-        ("filter-then-extract", "reasoning.filter_then_extract"),
+        ("filter_then_extract", "reasoning.evidence_localization"),
+        ("filter-then-extract", "reasoning.evidence_localization"),
+        ("evidence_localization", "reasoning.evidence_localization"),
         ("extract_then_compute", "reasoning.extract_then_compute"),
         ("extract-then-compute", "reasoning.extract_then_compute"),
         ("decompose", "reasoning.decomposition"),
         ("decomposition", "reasoning.decomposition"),
         ("subquestion", "reasoning.decomposition"),
-        ("enumerate", "reasoning.enumerate_then_select"),
+        ("candidate_enumeration", "reasoning.candidate_enumeration"),
+        ("enumerate", "reasoning.candidate_enumeration"),
         ("verify", "reasoning.verify_before_output"),
         ("verification", "reasoning.verify_before_output"),
         ("rewrite", "reasoning.query_rewriting"),

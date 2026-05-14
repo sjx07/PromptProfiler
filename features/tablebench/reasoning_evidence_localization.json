@@ -1,19 +1,19 @@
 {
-  "canonical_id": "reason_filter_then_extract",
-  "task": "wtq",
+  "canonical_id": "reasoning_evidence_localization",
+  "task": "tablebench",
   "semantic_labels": [
-    {"label": "reasoning.filter_then_extract", "role": "mechanism"},
+    {"label": "reasoning.evidence_localization", "role": "mechanism"},
     {"label": "style.internal_procedure", "role": "style_rule"},
     {"label": "format.dp_preserving", "role": "format"}
   ],
   "scope": {
-    "dataset": "wtq",
+    "dataset": "tablebench",
     "profile": "dp",
     "implementation_surface": "task_or_user_instruction",
     "cost_dependency": "prompt_only"
   },
   "requires": [
-    "facet_dp_scaffold",
+    "tb_official_dp_full",
     "_section_reasoning"
   ],
   "conflicts_with": [],

@@ -1,9 +1,9 @@
 {
-  "canonical_id": "ctx_prune_columns_12",
+  "canonical_id": "input_context_row_selection_relevance_50",
   "task": "wtq",
   "semantic_labels": [
-    {"label": "input_context.column_selection", "role": "mechanism"},
-    {"label": "context_builder.relevance_column_pruning", "role": "implementation"},
+    {"label": "input_context.row_selection", "role": "mechanism"},
+    {"label": "context_builder.relevance_row_filter", "role": "implementation"},
     {"label": "implementation.input_transform", "role": "implementation_surface"},
     {"label": "cost.lightweight_deterministic", "role": "cost"}
   ],
@@ -21,13 +21,13 @@
     {
       "func_type": "input_transform",
       "params": {
-        "fn": "prune_columns",
+        "fn": "filter_rows",
         "kwargs": {
-          "max_cols": 12,
-          "min_keep": 3
+          "max_rows": 50,
+          "strategy": "relevance"
         }
       }
     }
   ],
-  "rationale": "WTQ input-context feature: keep at most 12 question-relevant columns while preserving a minimum context floor."
+  "rationale": "WTQ input-context feature: keep at most 50 rows selected by deterministic question-table lexical relevance."
 }

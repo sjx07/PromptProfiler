@@ -1,8 +1,8 @@
 {
-  "canonical_id": "reason_verify_before_output",
+  "canonical_id": "reasoning_evidence_localization",
   "task": "wtq",
   "semantic_labels": [
-    {"label": "reasoning.verify_before_output", "role": "mechanism"},
+    {"label": "reasoning.evidence_localization", "role": "mechanism"},
     {"label": "style.internal_procedure", "role": "style_rule"},
     {"label": "format.dp_preserving", "role": "format"}
   ],
@@ -24,11 +24,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Before writing `answer`, internally verify that the final value matches the question wording, the relevant table cells, and the expected answer granularity. Then output only the verified final answer.",
+          "content": "Before deciding internally, first identify the relevant columns and rows, ignore distractor rows, then extract the answer from those cells. Keep the visible `answer` field concise.",
           "ordinal": 40
         }
       }
     }
   ],
-  "rationale": "Prompt-only DP-preserving reasoning behavior: final answer verification without exposing a visible reasoning field."
+  "rationale": "Prompt-only DP-preserving reasoning behavior: filter table evidence before extracting the answer."
 }
