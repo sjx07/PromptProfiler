@@ -485,9 +485,9 @@ def comparison_examples(
     target_config_id: int,
     direction: str = "both",
     filters: Optional[Sequence[FilterSpec]] = None,
-    limit: int = 100,
+    limit: Optional[int] = 100,
 ) -> List[Dict[str, Any]]:
-    """Rows where base and target agree or disagree, with raw previews."""
+    """Rows where base and target agree or disagree, disagreement first."""
     if direction not in {"both", "up", "down", "agree"}:
         raise ValueError("direction must be one of: both, up, down, agree")
     rows = _comparison_rows(
@@ -497,7 +497,7 @@ def comparison_examples(
         base_config_id=base_config_id,
         target_config_id=target_config_id,
         filters=filters,
-        limit=limit,
+        limit=None,
     )
     out: List[Dict[str, Any]] = []
     for r in rows:
@@ -511,9 +511,15 @@ def comparison_examples(
             continue
         rec = dict(r)
         rec["direction"] = d
+        rec["scoreDelta"] = (
+            None
+            if r["baseScore"] is None or r["targetScore"] is None
+            else float(r["targetScore"]) - float(r["baseScore"])
+        )
         out.append(rec)
-        if len(out) >= limit:
-            break
+    out.sort(key=_comparison_example_sort_key)
+    if limit is not None and int(limit) > 0:
+        out = out[:int(limit)]
     return out
 
 
@@ -525,7 +531,7 @@ def examples(
     config_ids: Optional[Sequence[int]] = None,
     filters: Optional[Sequence[FilterSpec]] = None,
     score_order: str = "asc",
-    limit: int = 100,
+    limit: Optional[int] = 100,
 ) -> List[Dict[str, Any]]:
     """Execution examples for a selected config/slice."""
     compiler = _QueryCompiler()
@@ -548,6 +554,8 @@ def examples(
         where.append(f"e.config_id IN ({','.join('?' * len(ids))})")
         params.extend(ids)
     direction = "DESC" if score_order.lower() == "desc" else "ASC"
+    limit_sql = "" if limit is None or int(limit) <= 0 else "LIMIT ?"
+    limit_params: List[Any] = [] if limit is None or int(limit) <= 0 else [int(limit)]
     sql = f"""
         SELECT e.execution_id,
                e.config_id,
@@ -573,10 +581,10 @@ def examples(
         WHERE e.model = ?
           {('AND ' + ' AND '.join(where)) if where else ''}
         ORDER BY ev.score {direction}, e.config_id, e.query_id
-        LIMIT ?
+        {limit_sql}
     """
     rows = store._get_conn().execute(
-        sql, tuple(base_params + params + [int(limit)])
+        sql, tuple(base_params + params + limit_params)
     ).fetchall()
     return [_example_from_row(r) for r in rows]
 
@@ -948,6 +956,20 @@ def _comparison_rows(
             "targetRawPreview": _preview(r["target_raw_response"]),
         })
     return out
+
+
+def _comparison_example_sort_key(row: Dict[str, Any]) -> Tuple[int, float, str]:
+    direction_priority = {"down": 0, "up": 1, "agree": 2}
+    delta = row.get("scoreDelta")
+    if delta is None:
+        base = row.get("baseScore")
+        target = row.get("targetScore")
+        delta = 0.0 if base is None or target is None else float(target) - float(base)
+    return (
+        direction_priority.get(str(row.get("direction") or "agree"), 3),
+        -abs(float(delta or 0.0)),
+        str(row.get("queryId") or ""),
+    )
 
 
 def _example_from_row(row: sqlite3.Row) -> Dict[str, Any]:

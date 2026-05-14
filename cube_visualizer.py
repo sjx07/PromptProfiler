@@ -195,7 +195,7 @@ def make_handler(app: CubeApp):
             config_ids=_int_list(body.get("configIds")),
             filters=body.get("filters") or [],
             score_order=str(body.get("scoreOrder") or "asc"),
-            limit=int(body.get("limit") or 100),
+            limit=_request_limit(body.get("limit"), default=100),
         )
 
     def _post_compare(body: Dict[str, Any], _qs: Dict[str, list]) -> Any:
@@ -217,7 +217,7 @@ def make_handler(app: CubeApp):
             target_config_id=int(_required(body, "targetConfigId")),
             direction=str(body.get("direction") or "both"),
             filters=body.get("filters") or [],
-            limit=int(body.get("limit") or 100),
+            limit=_request_limit(body.get("limit"), default=100),
         )
 
     def _post_diagnostics(body: Dict[str, Any], _qs: Dict[str, list]) -> Any:
@@ -323,6 +323,13 @@ def _int_list(value: Any) -> Optional[list[int]]:
     if isinstance(value, str):
         value = [v.strip() for v in value.split(",") if v.strip()]
     return [int(v) for v in value]
+
+
+def _request_limit(value: Any, *, default: int) -> Optional[int]:
+    if value is None or value == "":
+        return default
+    n = int(value)
+    return None if n <= 0 else n
 
 
 def _first_qs(qs: Dict[str, list], key: str) -> Optional[str]:
@@ -491,6 +498,9 @@ INDEX_HTML = r"""<!doctype html>
       width: 100%;
       table-layout: fixed;
     }
+    table.full-table {
+      table-layout: auto;
+    }
     th, td {
       border-bottom: 1px solid var(--surface-2);
       padding: 6px 8px;
@@ -499,6 +509,13 @@ INDEX_HTML = r"""<!doctype html>
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    td.full-text, th.full-text {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     th {
       position: sticky;
@@ -576,6 +593,13 @@ INDEX_HTML = r"""<!doctype html>
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
+    }
+    button.mini {
+      min-height: 24px;
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-size: 11px;
+      white-space: nowrap;
     }
     @media (max-width: 1100px) {
       .app { grid-template-columns: 1fr; }
@@ -1027,7 +1051,7 @@ INDEX_HTML = r"""<!doctype html>
           configIds: [slice.configId],
           filters: analysisFilters(filtersFromGroup(slice.group)),
           scoreOrder: 'asc',
-          limit: 100
+          limit: 0
         }
       });
       renderExamples(rows);
@@ -1036,11 +1060,12 @@ INDEX_HTML = r"""<!doctype html>
 
     function renderExamples(rows) {
       $('exampleCount').textContent = `${rows.length} rows`;
+      $('examplesTable').className = 'full-table';
       $('examplesTable').innerHTML = `
         <thead><tr>
           <th style="width:86px">exec</th><th style="width:64px">score</th>
           <th style="width:68px">think</th><th style="width:74px">finish</th>
-          <th>question</th><th>prediction</th>
+          <th class="full-text">question</th><th class="full-text">prediction</th>
         </tr></thead>
         <tbody>
           ${rows.map(r => `<tr class="selectable" data-execution="${r.executionId}">
@@ -1048,8 +1073,8 @@ INDEX_HTML = r"""<!doctype html>
             <td>${fmtScore(r.score)}</td>
             <td class="${Number(r.reasoningChars || 0) > 0 ? 'good' : 'muted'}" title="${esc(r.rawReasoningPreview || '')}">${fmtChars(r.reasoningChars)}</td>
             <td title="${esc(r.finishReason || '')}">${esc(r.finishReason || '')}</td>
-            <td title="${esc(r.question)}">${esc(r.question)}</td>
-            <td title="${esc(r.prediction)}">${esc(r.prediction)}</td>
+            <td class="full-text">${esc(r.question)}</td>
+            <td class="full-text">${esc(r.prediction)}</td>
           </tr>`).join('')}
         </tbody>`;
       $('examplesTable').querySelectorAll('tr[data-execution]').forEach(tr => {
@@ -1135,7 +1160,7 @@ INDEX_HTML = r"""<!doctype html>
           targetConfigId: scope.targetConfigId,
           direction: 'both',
           filters: benchmarkFilters(),
-          limit: 80
+          limit: 0
         }
       });
       $('analysisPane').innerHTML = `
@@ -1145,18 +1170,27 @@ INDEX_HTML = r"""<!doctype html>
           <div class="metric"><div class="k">target</div><div class="v">${fmtScore(summary.avgTarget)}</div></div>
           <div class="metric"><div class="k">delta</div><div class="v">${fmtDelta(summary.avgDelta)}</div></div>
         </div>
-        <table>
-          <thead><tr><th style="width:68px">dir</th><th style="width:82px">base</th><th style="width:82px">target</th><th>question</th><th>prediction</th></tr></thead>
-          <tbody>${rows.map(r => `<tr class="selectable" data-execution="${r.targetExecutionId}">
+        <table class="full-table">
+          <thead><tr>
+            <th style="width:68px">dir</th><th style="width:92px">artifact</th>
+            <th style="width:82px">base</th><th style="width:82px">target</th>
+            <th class="full-text">question</th><th class="full-text">base prediction</th><th class="full-text">target prediction</th>
+          </tr></thead>
+          <tbody>${rows.map(r => `<tr>
             <td class="${r.direction === 'up' ? 'good' : r.direction === 'down' ? 'bad' : ''}">${r.direction}</td>
+            <td>
+              <button class="mini" data-execution="${r.baseExecutionId}">base</button>
+              <button class="mini" data-execution="${r.targetExecutionId}">target</button>
+            </td>
             <td>${fmtScore(r.baseScore)}</td>
             <td>${fmtScore(r.targetScore)}</td>
-            <td title="${esc(r.question)}">${esc(r.question)}</td>
-            <td title="${esc(r.targetPrediction)}">${esc(r.targetPrediction)}</td>
+            <td class="full-text">${esc(r.question)}</td>
+            <td class="full-text">${esc(r.basePrediction)}</td>
+            <td class="full-text">${esc(r.targetPrediction)}</td>
           </tr>`).join('')}</tbody>
         </table>`;
-      $('analysisPane').querySelectorAll('tr[data-execution]').forEach(tr => {
-        tr.addEventListener('click', () => loadArtifact(Number(tr.dataset.execution)));
+      $('analysisPane').querySelectorAll('button[data-execution]').forEach(btn => {
+        btn.addEventListener('click', () => loadArtifact(Number(btn.dataset.execution)));
       });
       setStatus('Compare loaded');
     }
