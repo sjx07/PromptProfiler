@@ -1,0 +1,31 @@
+{
+  "canonical_id": "reasoning_evidence_localization",
+  "task": "bird",
+  "semantic_labels": [
+    {"label": "reasoning.evidence_localization", "role": "mechanism"},
+    {"label": "text2sql.schema_linking", "role": "domain_mapping"},
+    {"label": "text2sql.evidence_conditioning", "role": "domain_mapping"},
+    {"label": "format.sql_output_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "bird",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Internally localize the question and evidence to the exact schema tables, columns, join keys, formulas, and filter values before writing SQL. Use only schema- or evidence-grounded items in the final query.",
+          "ordinal": 50
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only SQL-preserving reasoning behavior: bind the generated query to localized schema and evidence."
+}

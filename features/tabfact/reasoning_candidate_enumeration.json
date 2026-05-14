@@ -1,0 +1,31 @@
+{
+  "canonical_id": "reasoning_candidate_enumeration",
+  "task": "tabfact",
+  "semantic_labels": [
+    {"label": "reasoning.candidate_enumeration", "role": "mechanism"},
+    {"label": "verification.boolean_verdict", "role": "verification"},
+    {"label": "format.dp_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "tabfact",
+    "profile": "dp",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Internally enumerate the table rows or values that could support and contradict the statement, then choose the verdict best supported by that evidence. Put only `True` or `False` in `verdict`.",
+          "ordinal": 60
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only DP-preserving reasoning behavior: compare support and contradiction candidates before emitting the boolean verdict."
+}

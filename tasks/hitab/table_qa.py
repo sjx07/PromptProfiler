@@ -9,6 +9,15 @@ from typing import Any, Dict, List
 from task import BaseTask
 
 
+_OUTPUT_TO_TABLE_FORMAT = {
+    "json": "json_records",
+    "markdown": "markdown",
+    "plain": "markdown",
+    "yaml": "markdown",
+    "code_block": "json_records",
+}
+
+
 class HiTabQA(BaseTask):
     name = "hitab_qa"
     scorer = "denotation_acc"
@@ -27,13 +36,34 @@ class HiTabQA(BaseTask):
         return {"answer": ", ".join(str(v) for v in values)}
 
     def build_record(self, query: dict, meta: dict, raw: dict) -> dict:
-        from tasks.hitab.loaders import table_content_to_markdown
+        from tasks.hitab.loaders import table_content_to_markdown, table_content_to_records
+        from tasks.wtq.table_formats import get_table_formatter
 
         table_content = raw.get("table_content", {})
         question = raw.get("question", query.get("content", ""))
-        table_md = table_content_to_markdown(table_content)
+        fmt = "markdown"
+        has_input_transforms = False
+        if self._prompt_state is not None:
+            explicit = self._prompt_state.metadata.get("table_format")
+            if explicit:
+                fmt = explicit
+            else:
+                style = self._prompt_state.format_style_name
+                fmt = _OUTPUT_TO_TABLE_FORMAT.get(style, "markdown")
+            has_input_transforms = bool(self._prompt_state.metadata.get("input_transforms"))
+
+        if fmt == "markdown" and not has_input_transforms:
+            table_str = table_content_to_markdown(table_content)
+        else:
+            header, rows = table_content_to_records(table_content)
+            header, rows = self._apply_transforms(header, rows, question)
+            table_name = raw.get("table_id", "") or raw.get("table_source", "")
+            table_str = get_table_formatter(fmt)(header, rows, table_name)
+            if self._pending_stats:
+                table_str = self._pending_stats + "\n\n" + table_str
+
         return {
-            "table": table_md,
+            "table": table_str,
             "question": question,
         }
 

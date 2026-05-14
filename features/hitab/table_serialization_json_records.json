@@ -1,0 +1,29 @@
+{
+  "canonical_id": "table_serialization_json_records",
+  "task": "hitab",
+  "semantic_labels": [
+    {"label": "table_serialization.json_records", "role": "table_serialization"},
+    {"label": "implementation.set_table_format", "role": "implementation_surface"},
+    {"label": "table.hierarchical_headers_flattened", "role": "table_structure"}
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "axis": "table_serialization",
+    "value": "json_records",
+    "implementation_surface": "set_table_format"
+  },
+  "requires": [],
+  "conflicts_with": [
+    "table_serialization_markdown",
+    "table_serialization_csv",
+    "table_serialization_html",
+    "table_serialization_json_columns_data"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "set_table_format",
+      "params": {"format": "json_records"}
+    }
+  ],
+  "rationale": "Explicit table serialization axis for HiTab using flattened hierarchical headers: json records."
+}

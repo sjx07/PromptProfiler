@@ -1,0 +1,30 @@
+{
+  "canonical_id": "reasoning_candidate_enumeration",
+  "task": "spider",
+  "semantic_labels": [
+    {"label": "reasoning.candidate_enumeration", "role": "mechanism"},
+    {"label": "text2sql.schema_linking", "role": "domain_mapping"},
+    {"label": "format.sql_output_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "spider",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Before committing to the final SQL, internally compare plausible tables, columns, joins, filters, and aggregations from the schema, then choose the candidate query that best matches the question. Output only the final SQL.",
+          "ordinal": 60
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only SQL-preserving reasoning behavior: compare candidate schema/query interpretations before SQL emission."
+}

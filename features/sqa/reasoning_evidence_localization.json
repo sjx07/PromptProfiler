@@ -1,0 +1,31 @@
+{
+  "canonical_id": "reasoning_evidence_localization",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "reasoning.evidence_localization", "role": "mechanism"},
+    {"label": "grounding.cell_evidence", "role": "grounding"},
+    {"label": "format.dp_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "dp",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Before answering, internally locate the table columns, rows, and prior-turn references that ground the answer. Use only that localized evidence when filling `answer`.",
+          "ordinal": 50
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only DP-preserving reasoning behavior: bind the answer to localized table and conversation evidence."
+}

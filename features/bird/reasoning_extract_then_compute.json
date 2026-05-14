@@ -1,0 +1,31 @@
+{
+  "canonical_id": "reasoning_extract_then_compute",
+  "task": "bird",
+  "semantic_labels": [
+    {"label": "reasoning.extract_then_compute", "role": "mechanism"},
+    {"label": "text2sql.operator_grounding", "role": "domain_mapping"},
+    {"label": "text2sql.evidence_conditioning", "role": "domain_mapping"},
+    {"label": "format.sql_output_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "bird",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "For numeric, aggregate, comparison, or ranking questions, internally identify source columns, evidence-defined formulas, and filters first, then express the required computation using SQL aggregation, arithmetic, ORDER BY, LIMIT, GROUP BY, or HAVING as appropriate. Output only the final SQL.",
+          "ordinal": 40
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only SQL-preserving reasoning behavior: separate schema/evidence extraction from SQL operator construction."
+}

@@ -19,6 +19,10 @@ concepts:
     family: response_mode
     description: Executable Python code response interpreted by the task scorer.
 
+  - concept_id: response.sql_program
+    family: response_mode
+    description: SQL query as the final executable program output.
+
   - concept_id: prompt_format.plain
     family: prompt_format
     description: Render system/user prompts and expected outputs using plain text field formatting.
@@ -89,16 +93,16 @@ concepts:
 
   - concept_id: input_context.type_annotation
     family: input_context
-    description: Add lightweight inferred type hints to table columns.
+    description: Add lightweight inferred type hints to table columns or SQL schema columns.
 
   - concept_id: input_context.row_selection
     family: input_context
-    description: Reduce table rows before prompt rendering.
+    description: Reduce table rows before prompt rendering; not applicable when the benchmark exposes schema but not row contents.
 
   - concept_id: input_context.column_selection
     family: input_context
-    description: Reduce table columns before prompt rendering.
+    description: Reduce table columns or SQL schema items before prompt rendering.
 
   - concept_id: input_context.column_statistics
     family: input_context
-    description: Add deterministic column cardinality, type, or range summaries.
+    description: Add deterministic column, table, or schema inventory summaries.

@@ -1,0 +1,30 @@
+{
+  "canonical_id": "reasoning_verify_before_output",
+  "task": "spider",
+  "semantic_labels": [
+    {"label": "reasoning.verify_before_output", "role": "mechanism"},
+    {"label": "constraint.final_answer_check", "role": "constraint"},
+    {"label": "format.sql_output_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "spider",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Before output, internally verify that the SQL uses only schema columns, has a valid join path, answers every part of the question, and returns the requested answer grain. Output only the final SQL statement.",
+          "ordinal": 70
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only SQL-preserving reasoning behavior: final schema/query consistency check before SQL emission."
+}

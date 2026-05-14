@@ -1,0 +1,31 @@
+{
+  "canonical_id": "reasoning_extract_then_compute",
+  "task": "tabfact",
+  "semantic_labels": [
+    {"label": "reasoning.extract_then_compute", "role": "mechanism"},
+    {"label": "style.internal_procedure", "role": "style_rule"},
+    {"label": "format.dp_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "tabfact",
+    "profile": "dp",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "For count, comparison, ranking, or arithmetic statements, internally extract the relevant table values first, then compute the claimed value and compare it to the statement. Put only `True` or `False` in `verdict`.",
+          "ordinal": 40
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only DP-preserving reasoning behavior: separate evidence extraction and computation before boolean verification."
+}

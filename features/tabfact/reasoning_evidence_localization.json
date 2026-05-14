@@ -1,0 +1,31 @@
+{
+  "canonical_id": "reasoning_evidence_localization",
+  "task": "tabfact",
+  "semantic_labels": [
+    {"label": "reasoning.evidence_localization", "role": "mechanism"},
+    {"label": "grounding.cell_evidence", "role": "grounding"},
+    {"label": "format.dp_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "tabfact",
+    "profile": "dp",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Before deciding the verdict, internally locate the exact columns and rows that the statement depends on. Treat the verdict as True only if that localized table evidence supports every required part.",
+          "ordinal": 50
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only DP-preserving reasoning behavior: bind the verdict to localized table evidence."
+}

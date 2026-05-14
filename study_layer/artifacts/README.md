@@ -10,3 +10,8 @@ Boundary:
 - `variant_id`: matrix row handle used by a benchmark execution manifest.
 
 Runtime code should continue to load from `features/<task>`. Matrix compilers and exporters can read this artifact library to recover cross-task feature vectors.
+
+Current review artifacts:
+
+- `aligned_benchmark_feature_taxonomy_v1.md` / `.html`: aligned benchmark x taxonomy coverage with implemented, native, N/A, and missing statuses.
+- `feature_concepts_v0.yaml`: top-down concept vocabulary used by the coverage matrix and execution specs.

@@ -120,6 +120,14 @@ class SequentialQA(BaseTask):
 
         header = list(table.get("headers", []))
         rows = [list(r) for r in table.get("rows", [])]
+        history_parts = []
+        for turn in history:
+            q = turn.get("question", "")
+            a = turn.get("answer", [])
+            a_str = ", ".join(str(v) for v in a) if isinstance(a, list) else str(a)
+            history_parts.append(f"{q} {a_str}".strip())
+        transform_text = " ".join([question, *history_parts]).strip()
+        header, rows = self._apply_transforms(header, rows, transform_text)
         fmt = "markdown"
         if self._prompt_state is not None:
             explicit = self._prompt_state.metadata.get("table_format")
@@ -129,6 +137,8 @@ class SequentialQA(BaseTask):
                 style = self._prompt_state.format_style_name
                 fmt = _OUTPUT_TO_TABLE_FORMAT.get(style, "markdown")
         table_str = get_table_formatter(fmt)(header, rows, table_name)
+        if self._pending_stats:
+            table_str = self._pending_stats + "\n\n" + table_str
 
         history_str = ""
         if history:

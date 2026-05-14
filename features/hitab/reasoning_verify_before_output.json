@@ -1,0 +1,32 @@
+{
+  "canonical_id": "reasoning_verify_before_output",
+  "task": "hitab",
+  "semantic_labels": [
+    {"label": "reasoning.verify_before_output", "role": "mechanism"},
+    {"label": "constraint.final_answer_check", "role": "constraint"},
+    {"label": "table.hierarchical_headers", "role": "table_structure"},
+    {"label": "format.dp_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "profile": "dp",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Before output, internally verify that the answer matches the question, respects the hierarchical header path, and is present in or computed from the table. If multiple values are needed, include all and only those values.",
+          "ordinal": 70
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only DP-preserving reasoning behavior: final hierarchical-grounding check without adding a visible reasoning field."
+}

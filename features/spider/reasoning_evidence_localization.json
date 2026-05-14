@@ -1,0 +1,30 @@
+{
+  "canonical_id": "reasoning_evidence_localization",
+  "task": "spider",
+  "semantic_labels": [
+    {"label": "reasoning.evidence_localization", "role": "mechanism"},
+    {"label": "text2sql.schema_linking", "role": "domain_mapping"},
+    {"label": "format.sql_output_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "spider",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["_section_rules"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "0408c65f2e17",
+        "payload": {
+          "content": "Internally localize the question to the exact schema tables, columns, join keys, and filter values before writing SQL. Use only schema-grounded items in the final query.",
+          "ordinal": 50
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only SQL-preserving reasoning behavior: bind the generated query to localized schema evidence."
+}

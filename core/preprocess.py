@@ -464,7 +464,225 @@ def localize_error(record: Dict[str, Any], **kwargs) -> Dict[str, Any]:
     return record
 
 
+@register_record("focus_schema_by_question")
+def focus_schema_by_question(
+    record: Dict[str, Any],
+    *,
+    max_tables: int = 8,
+    max_cols_per_table: int = 12,
+    min_tables: int = 1,
+) -> Dict[str, Any]:
+    """Prune a SQL schema to question/evidence-relevant tables and columns."""
+    schema_text = record.get("schema", "")
+    if not schema_text:
+        return record
+
+    blocks = _parse_schema_blocks_with_columns(schema_text)
+    if not blocks:
+        return record
+
+    context = " ".join([
+        str(record.get("question", "")),
+        str(record.get("evidence", "")),
+    ])
+    terms = _text_terms(context)
+    if not terms:
+        return record
+
+    scored: list[tuple[float, int, dict[str, Any]]] = []
+    for idx, block in enumerate(blocks):
+        table_score = _schema_name_score(block["table"], terms, context)
+        column_scores = [
+            (col, _schema_name_score(col["name"], terms, context))
+            for col in block["columns"]
+        ]
+        score = table_score * 2.0 + sum(s for _col, s in column_scores)
+        scored.append((score, idx, {**block, "column_scores": column_scores}))
+
+    positive = [item for item in scored if item[0] > 0]
+    if not positive:
+        return record
+
+    positive.sort(key=lambda item: (-item[0], item[1]))
+    keep_count = max(min_tables, min(max_tables, len(positive)))
+    keep_indices = {idx for _score, idx, _block in positive[:keep_count]}
+    by_idx = {idx: block for _score, idx, block in scored}
+
+    focused_blocks: list[str] = []
+    for _score, idx, block in scored:
+        if idx not in keep_indices:
+            continue
+        focused_blocks.append(_render_focused_schema_block(
+            by_idx[idx],
+            max_cols_per_table=max_cols_per_table,
+        ))
+
+    if focused_blocks:
+        record["schema"] = "\n\n".join(focused_blocks)
+    return record
+
+
+@register_record("prepend_schema_stats")
+def prepend_schema_stats(record: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+    """Add a compact schema summary before the full schema text."""
+    schema_text = record.get("schema", "")
+    if not schema_text:
+        return record
+
+    blocks = _parse_schema_blocks_with_columns(schema_text)
+    if not blocks:
+        return record
+
+    n_tables = len(blocks)
+    n_columns = sum(len(block["columns"]) for block in blocks)
+    table_parts = [
+        f"{block['table']}({len(block['columns'])} cols)"
+        for block in blocks[:12]
+    ]
+    if len(blocks) > 12:
+        table_parts.append(f"... +{len(blocks) - 12} tables")
+    evidence_flag = "yes" if str(record.get("evidence", "")).strip() else "no"
+    summary = (
+        "Schema summary:\n"
+        f"- tables: {n_tables}\n"
+        f"- columns: {n_columns}\n"
+        f"- evidence provided: {evidence_flag}\n"
+        f"- table inventory: {', '.join(table_parts)}"
+    )
+    record["schema"] = summary + "\n\n" + schema_text
+    return record
+
+
+@register_record("annotate_schema_types")
+def annotate_schema_types(
+    record: Dict[str, Any],
+    *,
+    max_tables: int = 12,
+    max_cols_per_table: int = 18,
+) -> Dict[str, Any]:
+    """Prepend a compact table/column type inventory to SQL schema input."""
+    schema_text = record.get("schema", "")
+    if not schema_text:
+        return record
+
+    blocks = _parse_schema_blocks_with_columns(schema_text)
+    if not blocks:
+        return record
+
+    lines = ["Schema type hints:"]
+    for block in blocks[:max_tables]:
+        cols = []
+        for col in block["columns"][:max_cols_per_table]:
+            col_type = col.get("type") or "UNKNOWN"
+            cols.append(f"{col['name']}:{col_type}")
+        if len(block["columns"]) > max_cols_per_table:
+            cols.append(f"... +{len(block['columns']) - max_cols_per_table} cols")
+        lines.append(f"- {block['table']}: {', '.join(cols)}")
+    if len(blocks) > max_tables:
+        lines.append(f"- ... +{len(blocks) - max_tables} tables")
+
+    record["schema"] = "\n".join(lines) + "\n\n" + schema_text
+    return record
+
+
 # ── Record transform helpers ─────────────────────────────────────────
+
+
+def _text_terms(text: str) -> set[str]:
+    return {
+        t
+        for t in re.findall(r"[A-Za-z0-9_]+", text.lower())
+        if len(t) > 1 and t not in {
+            "the", "and", "for", "with", "from", "that", "this", "what",
+            "which", "where", "when", "who", "how", "many", "much",
+        }
+    }
+
+
+def _schema_name_score(name: str, terms: set[str], text: str) -> float:
+    lowered = name.lower()
+    score = 0.0
+    if lowered and lowered in text.lower():
+        score += 4.0
+    name_terms = _text_terms(name.replace("_", " "))
+    score += len(name_terms & terms)
+    return score
+
+
+def _parse_schema_blocks_with_columns(schema_text: str) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
+    for m in re.finditer(
+        r'(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"\[]?(\w+)[`"\]]?\s*\((.*?)\)\s*;?)',
+        schema_text,
+        re.IGNORECASE | re.DOTALL,
+    ):
+        table_name = m.group(2)
+        body = m.group(3)
+        columns = []
+        for raw_line in body.splitlines():
+            line = raw_line.strip().rstrip(",")
+            col_m = re.match(r'[`"\[]?([^`"\]\s,]+)[`"\]]?\s+([A-Za-z0-9_()]+)', line)
+            if not col_m:
+                continue
+            col_name = col_m.group(1)
+            if col_name.upper() in {"PRIMARY", "FOREIGN", "UNIQUE", "CHECK", "CONSTRAINT"}:
+                continue
+            columns.append({
+                "name": col_name,
+                "type": col_m.group(2),
+                "line": raw_line,
+            })
+        blocks.append({
+            "table": table_name,
+            "text": m.group(1).strip(),
+            "body": body,
+            "columns": columns,
+        })
+    return blocks
+
+
+def _render_focused_schema_block(
+    block: dict[str, Any],
+    *,
+    max_cols_per_table: int,
+) -> str:
+    columns = block.get("columns", [])
+    column_scores = block.get("column_scores", [])
+    if not columns or len(columns) <= max_cols_per_table:
+        return block["text"]
+
+    ranked = sorted(
+        enumerate(column_scores),
+        key=lambda item: (-item[1][1], item[0]),
+    )
+    selected_names: list[str] = []
+    for _idx, (col, score) in ranked:
+        if score <= 0 and selected_names:
+            continue
+        selected_names.append(col["name"])
+        if len(selected_names) >= max_cols_per_table:
+            break
+    if len(selected_names) < max_cols_per_table:
+        for col in columns:
+            if col["name"] not in selected_names:
+                selected_names.append(col["name"])
+            if len(selected_names) >= max_cols_per_table:
+                break
+    selected = set(selected_names)
+
+    rendered_cols = [
+        col["line"].rstrip(",")
+        for col in columns
+        if col["name"] in selected
+    ]
+    if not rendered_cols:
+        return block["text"]
+
+    return (
+        f"CREATE TABLE `{block['table']}` (\n"
+        + ",\n".join(rendered_cols)
+        + "\n);"
+    )
 
 
 def _resolve_aliases(sql: str) -> Dict[str, str]:
