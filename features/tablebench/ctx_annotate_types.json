@@ -1,0 +1,30 @@
+{
+  "canonical_id": "ctx_annotate_types",
+  "task": "tablebench",
+  "semantic_labels": [
+    {"label": "input_context.type_annotation", "role": "mechanism"},
+    {"label": "context_builder.column_type_annotation", "role": "implementation"},
+    {"label": "implementation.input_transform", "role": "implementation_surface"},
+    {"label": "cost.lightweight_deterministic", "role": "cost"}
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "dp",
+    "implementation_surface": "input_transform",
+    "cost_dependency": "deterministic_preprocess"
+  },
+  "requires": [
+    "tb_official_dp_full"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "input_transform",
+      "params": {
+        "fn": "annotate_types",
+        "kwargs": {}
+      }
+    }
+  ],
+  "rationale": "TableBench input-context feature aligned with WTQ: annotate column headers with lightweight inferred types before table serialization."
+}
