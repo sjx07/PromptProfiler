@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import textwrap
+import json
 from typing import Any, Callable, Dict
 
 PARSER_REGISTRY: Dict[str, Callable[[str, Any], str]] = {}
@@ -44,7 +45,7 @@ def parse_answer_field(response_text: str, task: Any) -> str:
         if parsed:
             val = parsed.get("answer", "")
             if isinstance(val, list):
-                answer = ", ".join(str(v) for v in val).strip()
+                answer = json.dumps([str(v) for v in val], ensure_ascii=False)
             else:
                 answer = str(val).strip()
             if answer:

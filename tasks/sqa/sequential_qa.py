@@ -1,6 +1,7 @@
 """Sequential Question Answering task — parse answers, score via denotation accuracy."""
 from __future__ import annotations
 
+import ast
 import json
 import re
 from typing import Any, Dict, List
@@ -177,13 +178,22 @@ class SequentialQA(BaseTask):
                 prediction[len("__CODE__"):].strip(),
                 raw,
             )
-            prediction = "" if code_result is None else str(code_result)
+            prediction = "" if code_result is None else _format_prediction_value(code_result)
 
         gold_norm = {_normalize(str(v)) for v in gold_answer}
         pred_values = _parse_prediction(prediction)
         pred_norm = {_normalize(v) for v in pred_values}
+        parse_strategy = "default"
 
-        match = pred_norm == gold_norm
+        match = False
+        for strategy, values in _parse_prediction_candidates(prediction):
+            norm = {_normalize(v) for v in values}
+            if norm == gold_norm:
+                pred_values = values
+                pred_norm = norm
+                parse_strategy = strategy
+                match = True
+                break
         score_val = 1.0 if match else 0.0
 
         metrics = {
@@ -192,6 +202,7 @@ class SequentialQA(BaseTask):
             "pred_normalized": sorted(pred_norm),
             "gold": gold_answer,
             "gold_normalized": sorted(gold_norm),
+            "parse_strategy": parse_strategy,
         }
         if code_attempted:
             metrics["code_executed"] = code_error is None and code_result is not None
@@ -221,10 +232,10 @@ def _extract_answer(text: str) -> str:
                 if key in parsed:
                     val = parsed[key]
                     if isinstance(val, list):
-                        return ", ".join(str(v) for v in val)
+                        return json.dumps([str(v) for v in val], ensure_ascii=False)
                     return str(val).strip()
         if isinstance(parsed, list):
-            return ", ".join(str(v) for v in parsed)
+            return json.dumps([str(v) for v in parsed], ensure_ascii=False)
     except (json.JSONDecodeError, TypeError):
         pass
 
@@ -268,22 +279,100 @@ def _normalize(v: str) -> str:
 
 def _parse_prediction(prediction: str) -> List[str]:
     """Parse a prediction string into a list of values."""
+    candidates = _parse_prediction_candidates(prediction)
+    return candidates[0][1] if candidates else []
+
+
+def _parse_prediction_candidates(prediction: str) -> List[tuple[str, List[str]]]:
+    """Return plausible SQA answer-list parses.
+
+    SQA gold answers are lists of table-cell strings. Plain comma splitting is
+    unsafe because cell values often contain commas, especially thousands
+    separators and locations. Keep strict structured formats first, then add
+    compatibility fallbacks for older free-form runs.
+    """
     prediction = prediction.strip()
+    if not prediction:
+        return [("empty", [])]
+
+    candidates: List[tuple[str, List[str]]] = []
 
     try:
         parsed = json.loads(prediction)
         if isinstance(parsed, list):
-            return [str(v).strip() for v in parsed]
+            _add_candidate(candidates, "json_list", [str(v).strip() for v in parsed])
+        elif isinstance(parsed, dict):
+            for key in ("answer", "result", "value", "response"):
+                if key in parsed:
+                    value = parsed[key]
+                    if isinstance(value, list):
+                        _add_candidate(
+                            candidates,
+                            "json_dict_list",
+                            [str(v).strip() for v in value],
+                        )
+                    else:
+                        _add_candidate(
+                            candidates,
+                            "json_dict_scalar",
+                            [str(value).strip()],
+                        )
+                    break
     except (json.JSONDecodeError, TypeError):
         pass
 
-    if "|" in prediction:
-        parts = prediction.split("|")
-    elif "," in prediction and "\n" not in prediction:
-        parts = prediction.split(",")
-    elif "\n" in prediction:
-        parts = prediction.split("\n")
-    else:
-        parts = [prediction]
+    try:
+        parsed = ast.literal_eval(prediction)
+        if isinstance(parsed, (list, tuple, set)):
+            _add_candidate(candidates, "python_list", [str(v).strip() for v in parsed])
+    except (ValueError, SyntaxError, TypeError):
+        pass
 
-    return [p.strip() for p in parts if p.strip()]
+    if "|" in prediction:
+        _add_candidate(candidates, "pipe", prediction.split("|"))
+    if "\n" in prediction:
+        _add_candidate(candidates, "newline", prediction.split("\n"))
+
+    numeric_values = _parse_numeric_thousands_list(prediction)
+    if numeric_values:
+        _add_candidate(candidates, "numeric_thousands_list", numeric_values)
+
+    if "," in prediction and "\n" not in prediction:
+        _add_candidate(candidates, "comma_legacy", prediction.split(","))
+
+    _add_candidate(candidates, "whole", [prediction])
+    return candidates
+
+
+def _format_prediction_value(value: Any) -> str:
+    if isinstance(value, (list, tuple, set)):
+        return json.dumps([str(v) for v in value], ensure_ascii=False)
+    return str(value)
+
+
+def _add_candidate(
+    candidates: List[tuple[str, List[str]]],
+    strategy: str,
+    values: List[str],
+) -> None:
+    cleaned = [str(v).strip() for v in values if str(v).strip()]
+    if not any(existing == cleaned for _name, existing in candidates):
+        candidates.append((strategy, cleaned))
+
+
+def _parse_numeric_thousands_list(prediction: str) -> List[str]:
+    """Parse lists such as ``20,000, 15,200`` without splitting thousands."""
+    text = prediction.strip()
+    if not text:
+        return []
+    token_re = re.compile(
+        r"(?<![\w.])[$£€]?-?\d{1,3}(?:,\d{3})+(?:\.\d+)?%?(?![\w.])"
+        r"|(?<![\w.])[$£€]?-?\d+(?:\.\d+)?%?(?![\w.])"
+    )
+    matches = list(token_re.finditer(text))
+    if not matches:
+        return []
+    remainder = token_re.sub("", text)
+    if re.sub(r"[\s,;|]+", "", remainder):
+        return []
+    return [m.group(0).strip() for m in matches]

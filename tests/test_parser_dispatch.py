@@ -92,6 +92,50 @@ def test_sqa_parse_answer_returns_plain(tmp_mock_task):
     assert result == "Lee"
 
 
+def test_sqa_parse_answer_preserves_json_list(tmp_mock_task):
+    import json
+
+    from tasks.sqa.parsers import PARSER_REGISTRY
+
+    parser = PARSER_REGISTRY["answer"]
+    result = parser('{"answer": ["20,000", "15,200"]}', tmp_mock_task)
+
+    assert json.loads(result) == ["20,000", "15,200"]
+
+
+def test_sqa_score_numeric_thousands_multi_answer_string():
+    from tasks.sqa.sequential_qa import SequentialQA
+
+    values = [
+        "20,000", "20,000", "15,200", "290,000",
+        "16,750", "30,000", "31,750", "114,430",
+        "46,250", "51,000", "41,350", "47,500",
+        "27,330", "38,350", "60,950", "34,250",
+    ]
+
+    score, metrics = SequentialQA().score(
+        ", ".join(values),
+        {"gold_answer": values},
+    )
+
+    assert score == 1.0
+    assert metrics["parse_strategy"] == "numeric_thousands_list"
+    assert "114430" in metrics["pred_normalized"]
+    assert "20000" in metrics["pred_normalized"]
+
+
+def test_sqa_score_python_list_with_commas_inside_values():
+    from tasks.sqa.sequential_qa import SequentialQA
+
+    score, metrics = SequentialQA().score(
+        "['Valley HS (Las Vegas, NV)', 'Saugus (CA) HS']",
+        {"gold_answer": ["Valley HS (Las Vegas, NV)", "Saugus (CA) HS"]},
+    )
+
+    assert score == 1.0
+    assert metrics["parse_strategy"] == "python_list"
+
+
 def test_sqa_code_score_executes_dataframe():
     from tasks.sqa.sequential_qa import SequentialQA
 
