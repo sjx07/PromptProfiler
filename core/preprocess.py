@@ -306,15 +306,21 @@ def _detect_column_type(values: List[str], sample_size: int = 20) -> str:
     sample = values[:sample_size]
     n = len(sample)
 
+    # Percentage must be detected before numeric types. Otherwise whole-number
+    # percentages such as "10%" collapse into plain integers.
+    n_percent = sum(1 for v in sample if _parse_percent(v) is not None)
+    if n_percent > n * 0.7:
+        return "percent"
+
     # Integer
-    n_int = sum(1 for v in sample if v.strip().replace(",", "").replace("$", "").replace("%", "").lstrip("-").isdigit())
+    n_int = sum(1 for v in sample if _strip_numeric_affixes(v).lstrip("-").isdigit())
     if n_int > n * 0.7:
         return "int"
 
     # Float
     n_float = 0
     for v in sample:
-        cleaned = v.strip().replace(",", "").replace("$", "").replace("%", "")
+        cleaned = _strip_numeric_affixes(v)
         try:
             float(cleaned)
             n_float += 1
@@ -331,6 +337,23 @@ def _detect_column_type(values: List[str], sample_size: int = 20) -> str:
         return "date"
 
     return "str"
+
+
+def _strip_numeric_affixes(value: str) -> str:
+    return value.strip().replace(",", "").replace("$", "")
+
+
+def _parse_percent(value: str) -> float | None:
+    cleaned = _strip_numeric_affixes(value)
+    if not cleaned.endswith("%"):
+        return None
+    number = cleaned[:-1].strip()
+    if not number:
+        return None
+    try:
+        return float(number)
+    except ValueError:
+        return None
 
 
 # ══════════════════════════════════════════════════════════════════════

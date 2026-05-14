@@ -13,7 +13,7 @@ from typing import List, Optional
 def annotate_types(header: List[str], rows: List[List[str]]) -> List[str]:
     """Add type annotations to column headers based on value inspection.
 
-    Scans column values and appends (int), (float), (date), or (str).
+    Scans column values and appends (int), (float), (percent), (date), or (str).
     Returns new header list; rows are unchanged.
     """
     if not header or not rows:
@@ -108,11 +108,28 @@ def compute_column_stats(header: List[str], rows: List[List[str]]) -> str:
         n_unique = len(set(values))
         n_total = len(values)
 
-        if col_type in ("int", "float"):
+        if col_type == "percent":
+            nums = []
+            for v in values:
+                parsed = _parse_percent(v)
+                if parsed is not None:
+                    nums.append(parsed)
+            if nums:
+                lo, hi = min(nums), max(nums)
+                if n_unique <= 5:
+                    unique_vals = sorted({_format_percent(n) for n in nums})
+                    parts.append(f"{col_name} (percent, {n_unique} values: {', '.join(unique_vals)})")
+                else:
+                    parts.append(
+                        f"{col_name} (percent, range {_format_percent(lo)}–{_format_percent(hi)}, {n_unique} unique)"
+                    )
+            else:
+                parts.append(f"{col_name} (str, {n_unique} unique)")
+        elif col_type in ("int", "float"):
             # Parse numeric values for range
             nums = []
             for v in values:
-                cleaned = v.replace(",", "").replace("$", "").replace("£", "").replace("€", "").replace("%", "")
+                cleaned = _strip_numeric_affixes(v)
                 try:
                     nums.append(float(cleaned))
                 except ValueError:
@@ -145,7 +162,7 @@ def compute_column_stats(header: List[str], rows: List[List[str]]) -> str:
 def _detect_column_type(values: List[str], sample_size: int = 20) -> str:
     """Detect column type from sampled values.
 
-    Returns: "int", "float", "date", or "str".
+    Returns: "int", "float", "percent", "date", or "str".
     """
     if not values:
         return "str"
@@ -153,10 +170,19 @@ def _detect_column_type(values: List[str], sample_size: int = 20) -> str:
     sample = values[:sample_size]
     n = len(sample)
 
+    # Try percentage before integer/float so whole-number percentages do not
+    # collapse into plain integers.
+    n_percent = 0
+    for v in sample:
+        if _parse_percent(v) is not None:
+            n_percent += 1
+    if n_percent > n * 0.7:
+        return "percent"
+
     # Try integer
     n_int = 0
     for v in sample:
-        cleaned = v.strip().replace(",", "").replace("$", "").replace("£", "").replace("€", "").replace("%", "")
+        cleaned = _strip_numeric_affixes(v)
         if cleaned.lstrip("-").isdigit():
             n_int += 1
     if n_int > n * 0.7:
@@ -165,7 +191,7 @@ def _detect_column_type(values: List[str], sample_size: int = 20) -> str:
     # Try float
     n_float = 0
     for v in sample:
-        cleaned = v.strip().replace(",", "").replace("$", "").replace("£", "").replace("€", "").replace("%", "")
+        cleaned = _strip_numeric_affixes(v)
         try:
             float(cleaned)
             n_float += 1
@@ -188,3 +214,32 @@ def _detect_column_type(values: List[str], sample_size: int = 20) -> str:
         return "date"
 
     return "str"
+
+
+def _strip_numeric_affixes(value: str) -> str:
+    return (
+        value.strip()
+        .replace(",", "")
+        .replace("$", "")
+        .replace("£", "")
+        .replace("€", "")
+    )
+
+
+def _parse_percent(value: str) -> Optional[float]:
+    cleaned = _strip_numeric_affixes(value)
+    if not cleaned.endswith("%"):
+        return None
+    number = cleaned[:-1].strip()
+    if not number:
+        return None
+    try:
+        return float(number)
+    except ValueError:
+        return None
+
+
+def _format_percent(value: float) -> str:
+    if value == int(value):
+        return f"{int(value)}%"
+    return f"{value:g}%"
