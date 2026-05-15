@@ -1,5 +1,5 @@
 {
-  "canonical_id": "_section_rules",
+  "canonical_id": "_section_format_fix",
   "task": "wtq",
   "requires": [],
   "conflicts_with": [],
@@ -10,11 +10,11 @@
         "node_type": "section",
         "parent_id": "__root__",
         "payload": {
-          "title": "rules",
-          "ordinal": 10,
+          "title": "format_fix",
+          "ordinal": 30,
           "is_system": true,
           "min_rules": 0,
-          "max_rules": 12
+          "max_rules": 4
         }
       }
     }

@@ -2,28 +2,17 @@
   "canonical_id": "table_serialization_json_columns_data",
   "task": "wtq",
   "semantic_labels": [
-    {
-      "label": "table_serialization.json_columns_data",
-      "role": "table_serialization"
-    },
-    {
-      "label": "implementation.set_table_format",
-      "role": "implementation_surface"
-    }
+    {"label": "table_serialization.json_columns_data", "role": "table_serialization"},
+    {"label": "implementation.set_table_format", "role": "implementation_surface"}
   ],
   "scope": {
     "dataset": "wtq",
     "axis": "table_serialization",
     "value": "json_columns_data",
-    "implementation_surface": "set_table_format"
+    "fixed_base": true
   },
   "requires": [],
-  "conflicts_with": [
-    "table_serialization_markdown",
-    "table_serialization_csv",
-    "table_serialization_html",
-    "table_serialization_json_records"
-  ],
+  "conflicts_with": [],
   "primitive_edits": [
     {
       "func_type": "set_table_format",
@@ -32,5 +21,5 @@
       }
     }
   ],
-  "rationale": "Explicit table serialization axis for wtq: json_columns_data."
+  "rationale": "Fixed base table serialization for the WTQ/SQA fresh base run."
 }

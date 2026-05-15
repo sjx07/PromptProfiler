@@ -2,28 +2,17 @@
   "canonical_id": "prompt_format_plain",
   "task": "sqa",
   "semantic_labels": [
-    {
-      "label": "prompt_format.plain",
-      "role": "prompt_format"
-    },
-    {
-      "label": "implementation.set_format",
-      "role": "implementation_surface"
-    }
+    {"label": "prompt_format.plain", "role": "prompt_format"},
+    {"label": "implementation.set_format", "role": "implementation_surface"}
   ],
   "scope": {
     "dataset": "sqa",
     "axis": "prompt_format",
     "value": "plain",
-    "implementation_surface": "set_format"
+    "fixed_base": true
   },
   "requires": [],
-  "conflicts_with": [
-    "prompt_format_json",
-    "prompt_format_markdown",
-    "prompt_format_yaml",
-    "prompt_format_code_block"
-  ],
+  "conflicts_with": [],
   "primitive_edits": [
     {
       "func_type": "set_format",
@@ -32,5 +21,5 @@
       }
     }
   ],
-  "rationale": "Explicit prompt rendering format axis for sqa: plain."
+  "rationale": "Fixed base prompt format for the WTQ/SQA fresh base run."
 }

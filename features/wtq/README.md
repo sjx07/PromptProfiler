@@ -1,9 +1,17 @@
-# wtq Feature Set
+# WTQ Fresh Base Features
 
-Status: active runtime feature inventory for systematic prompt-feature experiments.
+Status: active runtime inventory for the WTQ/SQA fresh base-design round.
 
-Formatting policy:
+This directory intentionally contains only the fixed base features needed to
+run a measurement-stable WTQ base prompt. Older active features were archived
+under `features_legacy/active_pre_wtq_sqa_base_20260514/`.
 
-- prompt rendering is controlled by explicit `prompt_format_*` features.
-- table serialization is controlled by explicit `table_serialization_*` features.
-- response/scaffold/profile features should not include `set_format` or `set_table_format`; matrix specs select those axes separately.
+The base fixes:
+- direct-answer table QA scaffold;
+- plain prompt rendering;
+- `json_columns_data` table serialization;
+- JSON-list answer interface contract.
+
+Reasoning, context-builder, domain-heuristic, and alternative formatting
+features should be added in later rounds as study features, not silently folded
+into this base.

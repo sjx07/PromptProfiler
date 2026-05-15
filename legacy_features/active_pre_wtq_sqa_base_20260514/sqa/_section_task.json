@@ -1,6 +1,6 @@
 {
-  "canonical_id": "_section_rules",
-  "task": "wtq",
+  "canonical_id": "_section_task",
+  "task": "sqa",
   "requires": [],
   "conflicts_with": [],
   "primitive_edits": [
@@ -10,11 +10,11 @@
         "node_type": "section",
         "parent_id": "__root__",
         "payload": {
-          "title": "rules",
-          "ordinal": 10,
+          "title": "task",
+          "ordinal": 5,
           "is_system": true,
           "min_rules": 0,
-          "max_rules": 12
+          "max_rules": 1
         }
       }
     }

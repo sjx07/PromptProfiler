@@ -1,0 +1,36 @@
+{
+  "canonical_id": "prompt_format_plain",
+  "task": "wtq",
+  "semantic_labels": [
+    {
+      "label": "prompt_format.plain",
+      "role": "prompt_format"
+    },
+    {
+      "label": "implementation.set_format",
+      "role": "implementation_surface"
+    }
+  ],
+  "scope": {
+    "dataset": "wtq",
+    "axis": "prompt_format",
+    "value": "plain",
+    "implementation_surface": "set_format"
+  },
+  "requires": [],
+  "conflicts_with": [
+    "prompt_format_json",
+    "prompt_format_markdown",
+    "prompt_format_yaml",
+    "prompt_format_code_block"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "set_format",
+      "params": {
+        "style": "plain"
+      }
+    }
+  ],
+  "rationale": "Explicit prompt rendering format axis for wtq: plain."
+}

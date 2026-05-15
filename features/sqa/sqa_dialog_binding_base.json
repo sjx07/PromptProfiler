@@ -1,0 +1,43 @@
+{
+  "canonical_id": "sqa_dialog_binding_base",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "conversation.followup_scope", "role": "task_scaffold"},
+    {"label": "grounding.prior_answers", "role": "task_scaffold"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "task_view": "sequential_table_qa",
+    "fixed_base": true
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Resolve references in the current question, such as these, those, them, it, that one, or which one, against the most relevant prior turn before reading the table.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "When a prior answer defines a candidate set, answer within that set unless the current question explicitly asks for a new global result.",
+          "ordinal": 21
+        }
+      }
+    }
+  ],
+  "rationale": "Fixed SQA task scaffold: without dialog binding the task definition is under-specified rather than a prompt feature under study."
+}

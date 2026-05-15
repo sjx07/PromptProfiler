@@ -73,7 +73,11 @@ def parse_answer_field(response_text: str, task: Any) -> str:
     if task._prompt_state is not None:
         parsed = task._prompt_state.parse_output(response_text)
         if parsed:
-            answer = str(parsed.get("answer", "")).strip()
+            val = parsed.get("answer", "")
+            if isinstance(val, list):
+                answer = json.dumps([str(v) for v in val], ensure_ascii=False)
+            else:
+                answer = str(val).strip()
             if answer:
                 return answer
     return _extract_answer_fallback(response_text)

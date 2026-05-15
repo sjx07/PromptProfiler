@@ -201,6 +201,17 @@ def fallback_parse_output(response: str, output_fields: Dict[str, str]) -> Dict[
     except (json.JSONDecodeError, AttributeError):
         pass
 
+    # Strategy 1b: Field label followed by a JSON value, e.g.
+    # ``answer: ["A, B", "C"]``. The generic key-value regex below stops at
+    # commas, which corrupts JSON arrays used as parser-safe answer contracts.
+    for field_name in output_fields.keys():
+        val = _extract_json_value_after_field(response_stripped, field_name)
+        if val is not None:
+            result[field_name] = val
+    if result:
+        logger.debug("Successfully parsed field-labeled JSON values")
+        return result
+
     # Strategy 2: Try key-value pairs with various separators
     for field_name in output_fields.keys():
         patterns = [
@@ -243,6 +254,24 @@ def fallback_parse_output(response: str, output_fields: Dict[str, str]) -> Dict[
         result[field_name] = response_stripped
 
     return result
+
+
+def _extract_json_value_after_field(response: str, field_name: str) -> Any:
+    """Extract a JSON value after a labeled field, or None if not present.
+
+    This intentionally uses ``JSONDecoder.raw_decode`` instead of regex capture
+    so arrays containing commas remain intact.
+    """
+    pattern = rf"['\"]?{re.escape(field_name)}['\"]?\s*:\s*"
+    decoder = json.JSONDecoder()
+    for match in re.finditer(pattern, response, re.IGNORECASE | re.MULTILINE):
+        tail = response[match.end():].lstrip()
+        try:
+            value, _end = decoder.raw_decode(tail)
+        except json.JSONDecodeError:
+            continue
+        return value
+    return None
 
 
 
