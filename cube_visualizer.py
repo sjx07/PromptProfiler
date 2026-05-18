@@ -749,6 +749,13 @@ INDEX_HTML = r"""<!doctype html>
       }[ch]));
     }
 
+    function fmtCellValue(value) {
+      if (value === null || value === undefined) return '';
+      if (Array.isArray(value)) return value.map(v => String(v ?? '')).join(' | ');
+      if (typeof value === 'object') return JSON.stringify(value);
+      return String(value);
+    }
+
     async function api(path, options = {}) {
       const response = await fetch(path, {
         method: options.body ? 'POST' : 'GET',
@@ -1065,7 +1072,7 @@ INDEX_HTML = r"""<!doctype html>
         <thead><tr>
           <th style="width:86px">exec</th><th style="width:64px">score</th>
           <th style="width:68px">think</th><th style="width:74px">finish</th>
-          <th class="full-text">question</th><th class="full-text">prediction</th>
+          <th class="full-text">question</th><th class="full-text">gold</th><th class="full-text">prediction</th>
         </tr></thead>
         <tbody>
           ${rows.map(r => `<tr class="selectable" data-execution="${r.executionId}">
@@ -1074,6 +1081,7 @@ INDEX_HTML = r"""<!doctype html>
             <td class="${Number(r.reasoningChars || 0) > 0 ? 'good' : 'muted'}" title="${esc(r.rawReasoningPreview || '')}">${fmtChars(r.reasoningChars)}</td>
             <td title="${esc(r.finishReason || '')}">${esc(r.finishReason || '')}</td>
             <td class="full-text">${esc(r.question)}</td>
+            <td class="full-text">${esc(fmtCellValue(r.gold))}</td>
             <td class="full-text">${esc(r.prediction)}</td>
           </tr>`).join('')}
         </tbody>`;
@@ -1174,7 +1182,7 @@ INDEX_HTML = r"""<!doctype html>
           <thead><tr>
             <th style="width:68px">dir</th><th style="width:92px">artifact</th>
             <th style="width:82px">base</th><th style="width:82px">target</th>
-            <th class="full-text">question</th><th class="full-text">base prediction</th><th class="full-text">target prediction</th>
+            <th class="full-text">question</th><th class="full-text">gold</th><th class="full-text">base prediction</th><th class="full-text">target prediction</th>
           </tr></thead>
           <tbody>${rows.map(r => `<tr>
             <td class="${r.direction === 'up' ? 'good' : r.direction === 'down' ? 'bad' : ''}">${r.direction}</td>
@@ -1185,6 +1193,7 @@ INDEX_HTML = r"""<!doctype html>
             <td>${fmtScore(r.baseScore)}</td>
             <td>${fmtScore(r.targetScore)}</td>
             <td class="full-text">${esc(r.question)}</td>
+            <td class="full-text">${esc(fmtCellValue(r.gold))}</td>
             <td class="full-text">${esc(r.basePrediction)}</td>
             <td class="full-text">${esc(r.targetPrediction)}</td>
           </tr>`).join('')}</tbody>
