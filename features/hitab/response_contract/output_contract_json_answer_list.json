@@ -1,0 +1,57 @@
+{
+  "canonical_id": "output_contract_json_answer_list",
+  "task": "hitab",
+  "semantic_labels": [
+    {"label": "output_contract.interface", "role": "interface_contract"},
+    {"label": "format.field_schema_contract", "role": "format_contract"},
+    {"label": "format.answer_list_contract", "role": "format_contract"}
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "task_view": "wikitable_question_answering",
+    "output_contract": "json_answer_list",
+    "fixed_base": true
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "Return the final answer as a JSON array of strings. For one answer, return a one-element array. Preserve each complete table-cell value as one string.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "In the `answer` field, output a JSON array of strings, for example `[\"value1\", \"value2\"]`. Do not output a comma-separated string, explanation, markdown, or extra keys.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "If the question has a single answer, still use a one-element array. If a table cell contains commas, keep the whole cell as one array item.",
+          "ordinal": 91
+        }
+      }
+    }
+  ],
+  "rationale": "Fixed parser-safe HiTab answer interface. This is measurement infrastructure for the fresh base, not a study feature in this round."
+}

@@ -1,0 +1,46 @@
+{
+  "canonical_id": "output_contract_json_verdict",
+  "task": "tabfact",
+  "semantic_labels": [
+    {"label": "output_contract.interface", "role": "interface_contract"},
+    {"label": "format.field_schema_contract", "role": "format_contract"},
+    {"label": "format.boolean_verdict_contract", "role": "format_contract"}
+  ],
+  "scope": {
+    "dataset": "tab_fact",
+    "task_view": "wikitable_fact_verification",
+    "output_contract": "json_verdict",
+    "fixed_base": true
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "verdict",
+          "description": "Return only a JSON boolean-compatible verdict: True if the statement is supported by the table, False otherwise.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "In the `verdict` field, output only `True` or `False`. Do not output an explanation, markdown, or extra keys.",
+          "ordinal": 90
+        }
+      }
+    }
+  ],
+  "rationale": "Fixed parser-safe TabFact verdict interface. This is measurement infrastructure for the fresh base, not a study feature in this round."
+}

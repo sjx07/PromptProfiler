@@ -1,0 +1,48 @@
+{
+  "canonical_id": "contract_table_answer_surface_pack",
+  "task": "tablebench",
+  "semantic_labels": [
+    {"label": "contract.table.exact_cell_surface", "role": "answer_contract"},
+    {"label": "contract.table.official_answer_surface", "role": "answer_contract"},
+    {"label": "source_family.mixed_table_benchmark", "role": "source_family"},
+    {"label": "feature_mode.blocked_pack", "role": "experiment_design"}
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "source_family": "mixed_table_benchmark",
+    "feature_mode": "blocked",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "When the answer is a table cell or table-derived value, copy the smallest complete answer value that satisfies the question. Preserve signs, decimals, percentages, units, dates, hyphens, slashes, and short labels that are part of the answer.",
+          "ordinal": 30
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Respect the official TableBench answer surface: concise answer only, no explanation unless the question or record-specific contract asks for a brief analysis conclusion.",
+          "ordinal": 30
+        }
+      }
+    }
+  ],
+  "rationale": "TableBench answer-surface contract pack: separates answer-boundary effects from task semantics while preserving the official scorer's expected answer form."
+}

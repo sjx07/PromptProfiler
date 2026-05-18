@@ -1,0 +1,33 @@
+{
+  "canonical_id": "reasoning_intermediate_evidence_table",
+  "task": "tablebench",
+  "semantic_labels": [
+    {"label": "reasoning.intermediate_evidence_table", "role": "mechanism"},
+    {"label": "reasoning.representation_scaffold", "role": "mechanism"},
+    {"label": "style.internal_procedure", "role": "style_rule"},
+    {"label": "format.dp_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "dp",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": false
+  },
+  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Internally build a minimal evidence table containing only the relevant columns, rows, and cell values. Answer from that reduced evidence table, but do not print the evidence table.",
+          "ordinal": 54
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only private representation scaffold for TableBench."
+}

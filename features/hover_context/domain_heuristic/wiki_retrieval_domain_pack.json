@@ -1,0 +1,84 @@
+{
+  "canonical_id": "wiki_retrieval_domain_pack",
+  "task": "hover_context",
+  "semantic_labels": [
+    {"label": "domain.wikipedia_title_aliases", "role": "domain_heuristic"},
+    {"label": "domain.wikipedia_2017_corpus", "role": "domain_heuristic"},
+    {"label": "retrieval.bm25_keyword_matching", "role": "domain_heuristic"}
+  ],
+  "scope": {
+    "dataset": "hover_context",
+    "source_family": "wikipedia_abstracts",
+    "implementation_surface": "blocked_domain_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_retrieval_scaffold",
+    "_section_retrieval_strategy",
+    "_section_evidence_summary"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "The retriever searches Wikipedia abstracts. Prefer canonical article-title words, proper nouns, dates, and relation keywords over long natural-language clauses.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop3",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "For the final query, keep only discriminative title-like terms, aliases, dates, or relation anchors that can retrieve a missing supporting title.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "Treat the passage title as evidence. If a title or alias matches the claim, preserve it verbatim in the summary.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "target_module": "summarize2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "Carry forward Wikipedia title matches, aliases, disambiguators, and relation anchors that connect hop-2 passages to the claim.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "If the claim mentions a year, include the year as a standalone token when it helps disambiguate the missing evidence.",
+          "ordinal": 100
+        }
+      }
+    }
+  ],
+  "rationale": "Blocked Wikipedia retrieval domain heuristic pack for HoVer. This is a dataset/source feature, not a visible reasoning scaffold."
+}

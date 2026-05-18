@@ -1,0 +1,90 @@
+{
+  "canonical_id": "reasoning_scaffold_visible_plan",
+  "task": "tabfact",
+  "semantic_labels": [
+    {
+      "label": "reasoning.visible_plan",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.visible_scaffold",
+      "role": "mechanism"
+    },
+    {
+      "label": "implementation.output_schema",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "format.reasoning_answer_object",
+      "role": "format_contract"
+    }
+  ],
+  "scope": {
+    "dataset": "tabfact",
+    "profile": "visible_reasoning_plan",
+    "implementation_surface": "output_schema_and_task_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true,
+    "answer_contract": "json_object_reasoning_answer"
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "output_contract_json_verdict",
+    "reasoning_scaffold_visible_evidence",
+    "reasoning_scaffold_visible_operation",
+    "reasoning_scaffold_visible_workpad"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "reasoning",
+          "description": "A concise visible plan: identify target columns/rows, the needed table operation, and any aggregation/comparison.",
+          "ordinal": 86
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "Return the final verdict as exactly `true` or `false`.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Use the `reasoning` field as a short plan before the final answer. Name the relevant columns/rows and table operation, then keep `answer` as the final denotation.",
+          "ordinal": 70
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Return only a valid JSON object with the requested reasoning field(s) and `answer`. The `answer` value must be exactly `true` or `false`.",
+          "ordinal": 92
+        }
+      }
+    }
+  ],
+  "rationale": "Visible reasoning scaffold for tabfact; pair with private reasoning rules to make reasoning behavior observable without changing the aligned private-rule taxonomy."
+}

@@ -1,0 +1,74 @@
+{
+  "canonical_id": "reasoning_scaffold_visible_plan",
+  "task": "wtq",
+  "semantic_labels": [
+    {"label": "reasoning.visible_plan", "role": "mechanism"},
+    {"label": "reasoning.visible_scaffold", "role": "mechanism"},
+    {"label": "implementation.output_schema", "role": "implementation_surface"},
+    {"label": "format.reasoning_answer_object", "role": "format_contract"}
+  ],
+  "scope": {
+    "dataset": "wtq",
+    "profile": "visible_reasoning",
+    "implementation_surface": "output_schema_and_task_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true,
+    "answer_contract": "json_object_reasoning_answer_list"
+  },
+  "requires": ["facet_dp_scaffold", "_section_reasoning", "_section_format_fix"],
+  "conflicts_with": [
+    "output_contract_json_answer_list",
+    "reasoning_scaffold_visible_evidence",
+    "reasoning_scaffold_visible_operation",
+    "reasoning_scaffold_visible_workpad"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "reasoning",
+          "description": "A concise visible plan: identify the target columns/rows, the needed table operation, and any aggregation/comparison. Keep it short.",
+          "ordinal": 89
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "Return the final answer as a JSON array of strings. For one answer, return a one-element array. Preserve each complete table-cell value as one string.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Use the `reasoning` field as a short plan before the final answer. The plan should name the relevant columns/rows and the table operation, then the `answer` field must contain only the final answer list.",
+          "ordinal": 70
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Return only a valid JSON object with exactly `reasoning` and `answer`. The `answer` value must be a JSON array of strings.",
+          "ordinal": 92
+        }
+      }
+    }
+  ],
+  "rationale": "Visible plan-answer scaffold for testing whether an explicit reasoning field changes WTQ behavior beyond private DP-preserving rules."
+}

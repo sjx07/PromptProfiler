@@ -48,7 +48,8 @@ from core.func_registry import MAIN_MODULE, make_func_id, _canonicalize_insert_n
 
 logger = logging.getLogger(__name__)
 
-# Package-default base path for feature files: features/<task>/<feature>.json
+# Package-default base path for feature files:
+# features/<task>/<feature>.json or features/<task>/<family>/<feature>.json
 # Override via FeatureRegistry.load(features_base=...) or env PROMPTPROFILER_FEATURES_BASE.
 _FEATURES_BASE = Path(__file__).parent.parent / "features"
 
@@ -256,7 +257,7 @@ class FeatureRegistry:
 
     @classmethod
     def load(cls, task: str, features_base: Optional[Path] = None) -> "FeatureRegistry":
-        """Load all feature specs for a task from features/<task>/*.json.
+        """Load all feature specs for a task from features/<task>/**/*.json.
 
         Args:
             task: Task name (subdirectory under features_base).
@@ -283,7 +284,7 @@ class FeatureRegistry:
                 raise FileNotFoundError(f"Feature directory not found: {task_dir}")
 
         features: Dict[str, dict] = {}
-        for path in sorted(task_dir.glob("*.json")):
+        for path in sorted(task_dir.rglob("*.json")):
             try:
                 spec = json.loads(path.read_text())
                 # canonical_id: explicit field > legacy feature_id field > filename stem

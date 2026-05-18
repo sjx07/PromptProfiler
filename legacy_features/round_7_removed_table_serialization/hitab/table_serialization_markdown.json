@@ -1,0 +1,36 @@
+{
+  "canonical_id": "table_serialization_markdown",
+  "task": "hitab",
+  "semantic_labels": [
+    {
+      "label": "table_serialization.markdown",
+      "role": "table_serialization"
+    },
+    {
+      "label": "implementation.set_table_format",
+      "role": "implementation_surface"
+    }
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "axis": "table_serialization",
+    "value": "markdown",
+    "implementation_surface": "set_table_format"
+  },
+  "requires": [],
+  "conflicts_with": [
+    "table_serialization_csv",
+    "table_serialization_html",
+    "table_serialization_json_records",
+    "table_serialization_json_columns_data"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "set_table_format",
+      "params": {
+        "format": "markdown"
+      }
+    }
+  ],
+  "rationale": "Explicit table serialization axis for hitab: markdown."
+}

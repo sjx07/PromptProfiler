@@ -1,0 +1,25 @@
+{
+  "canonical_id": "prompt_format_plain",
+  "task": "tabfact",
+  "semantic_labels": [
+    {"label": "prompt_format.plain", "role": "prompt_format"},
+    {"label": "implementation.set_format", "role": "implementation_surface"}
+  ],
+  "scope": {
+    "dataset": "tab_fact",
+    "axis": "prompt_format",
+    "value": "plain",
+    "fixed_base": true
+  },
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "set_format",
+      "params": {
+        "style": "plain"
+      }
+    }
+  ],
+  "rationale": "Fixed base prompt format for the TabFact aligned screen."
+}

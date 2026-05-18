@@ -1,0 +1,72 @@
+{
+  "canonical_id": "facet_dp_scaffold",
+  "task": "tabfact",
+  "semantic_labels": [
+    {"label": "profile.dp", "role": "profile"},
+    {"label": "persona.table_fact_checker", "role": "persona"},
+    {"label": "reasoning.direct", "role": "mechanism"},
+    {"label": "grounding.table_only", "role": "grounding"}
+  ],
+  "scope": {
+    "dataset": "tab_fact",
+    "profile": "dp",
+    "fixed_base": true
+  },
+  "requires": [
+    "_section_role",
+    "_section_task",
+    "_section_rules",
+    "_section_table_handling",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a careful table fact checker.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "c8a44f4feada",
+        "payload": {
+          "content": "Decide whether the statement is supported by the table. Use only the table content.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "verdict",
+          "description": "True if the statement is supported by the table, False otherwise.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Treat every meaningful part of the statement as needing support from the table.",
+          "ordinal": 10
+        }
+      }
+    }
+  ],
+  "rationale": "TabFact fixed direct-verdict scaffold aligned with the WTQ/SQA direct-prediction scaffold. Reasoning remains private; no visible reasoning field is added."
+}

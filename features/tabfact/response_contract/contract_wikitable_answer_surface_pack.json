@@ -1,0 +1,47 @@
+{
+  "canonical_id": "contract_wikitable_answer_surface_pack",
+  "task": "tabfact",
+  "semantic_labels": [
+    {"label": "output_contract.boolean_verdict_surface", "role": "interface_contract"},
+    {"label": "format.verdict_granularity", "role": "format_contract"},
+    {"label": "feature_mode.blocked_pack", "role": "experiment_design"}
+  ],
+  "scope": {
+    "dataset": "tab_fact",
+    "task_view": "wikitable_fact_verification",
+    "feature_mode": "blocked",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_rules",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "c8a44f4feada",
+        "payload": {
+          "content": "A statement is `True` only when all of its meaningful claims are supported by the table. Choose `False` if the table contradicts any part or if a required comparison/count/entity relation is not supported.",
+          "ordinal": 45
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "The visible output must be exactly one verdict value: `True` or `False`.",
+          "ordinal": 92
+        }
+      }
+    }
+  ],
+  "rationale": "TabFact answer-surface and truth-condition pack aligned conceptually with the WTQ/SQA wiki-table answer contract pack."
+}

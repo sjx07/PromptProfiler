@@ -1,0 +1,46 @@
+{
+  "canonical_id": "decision_heuristic_hop2",
+  "task": "hover_context",
+  "semantic_labels": [
+    {"label": "decision_heuristic.drop_resolved_entities", "role": "mechanism"},
+    {"label": "decision_heuristic.target_unresolved_evidence", "role": "mechanism"},
+    {"label": "module.create_query_hop2", "role": "target_module"}
+  ],
+  "scope": {
+    "dataset": "hover_context",
+    "implementation_surface": "module_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_retrieval_scaffold",
+    "_section_retrieval_strategy"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "If a claim entity is already grounded by hop-1 titles or summary evidence, avoid using it as the main query head.",
+          "ordinal": 50
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Target the entity, relation, date, work title, or organization that remains uncovered after hop 1.",
+          "ordinal": 60
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only retrieval decision heuristic for choosing the second-hop query target."
+}

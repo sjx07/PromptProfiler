@@ -1,0 +1,170 @@
+{
+  "canonical_id": "facet_retrieval_scaffold",
+  "task": "hover_context",
+  "semantic_labels": [
+    {"label": "profile.direct_retrieval", "role": "profile"},
+    {"label": "grounding.wikipedia_passages", "role": "grounding"},
+    {"label": "pipeline.multi_hop_retrieval", "role": "task_family"}
+  ],
+  "scope": {
+    "dataset": "hover_context",
+    "profile": "direct_retrieval",
+    "fixed_base": true
+  },
+  "requires": [
+    "_section_role",
+    "_section_task",
+    "_section_retrieval_strategy",
+    "_section_evidence_summary",
+    "_section_format_fix",
+    "prompt_format_json"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "b178d907a289",
+        "payload": {
+          "content": "You are a careful Wikipedia evidence summarizer for multi-hop fact verification.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "072d142f177f",
+        "payload": {
+          "content": "Summarize only passage facts that can help verify the claim or identify the next missing supporting title.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "b178d907a289",
+        "payload": {
+          "content": "You are a careful Wikipedia search-query writer for multi-hop fact verification.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "072d142f177f",
+        "payload": {
+          "content": "Write one focused query for the missing second-hop evidence needed to verify the claim.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "summarize2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "b178d907a289",
+        "payload": {
+          "content": "You are a careful Wikipedia evidence summarizer for multi-hop fact verification.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "summarize2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "072d142f177f",
+        "payload": {
+          "content": "Summarize only new hop-2 passage facts that connect to the prior context and the claim.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop3",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "b178d907a289",
+        "payload": {
+          "content": "You are a careful Wikipedia search-query writer for final-hop fact verification evidence.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop3",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "072d142f177f",
+        "payload": {
+          "content": "Write one focused query for the remaining third-hop evidence needed to cover the claim's supporting titles.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Return only the requested JSON object with the `summary` field.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "summarize2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Return only the requested JSON object with the `summary` field.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Return only the requested JSON object with the `query` field.",
+          "ordinal": 10
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop3",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Return only the requested JSON object with the `query` field.",
+          "ordinal": 10
+        }
+      }
+    }
+  ],
+  "rationale": "Fixed HoVer direct-retrieval scaffold. It uses summary/query-only module outputs and no visible reasoning field."
+}

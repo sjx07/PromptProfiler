@@ -1,0 +1,31 @@
+{
+  "canonical_id": "reasoning_candidate_enumeration",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "reasoning.candidate_enumeration", "role": "mechanism"},
+    {"label": "style.internal_procedure", "role": "style_rule"},
+    {"label": "format.dp_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "dp",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Internally enumerate candidate rows or answer values that match the current question and conversation history, then choose the candidate best supported by the table. Put only the chosen value in `answer`.",
+          "ordinal": 60
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only DP-preserving reasoning behavior: compare candidate answers before emitting the final denotation."
+}

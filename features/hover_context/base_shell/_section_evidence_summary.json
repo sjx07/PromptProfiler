@@ -1,0 +1,68 @@
+{
+  "canonical_id": "_section_evidence_summary",
+  "task": "hover_context",
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "section",
+        "parent_id": "__root__",
+        "payload": {
+          "title": "evidence_summary",
+          "ordinal": 20,
+          "is_system": true,
+          "min_rules": 0,
+          "max_rules": 12
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "section",
+        "parent_id": "__root__",
+        "payload": {
+          "title": "evidence_summary",
+          "ordinal": 20,
+          "is_system": true,
+          "min_rules": 0,
+          "max_rules": 12
+        }
+      }
+    },
+    {
+      "target_module": "summarize2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "section",
+        "parent_id": "__root__",
+        "payload": {
+          "title": "evidence_summary",
+          "ordinal": 20,
+          "is_system": true,
+          "min_rules": 0,
+          "max_rules": 12
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop3",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "section",
+        "parent_id": "__root__",
+        "payload": {
+          "title": "evidence_summary",
+          "ordinal": 20,
+          "is_system": true,
+          "min_rules": 0,
+          "max_rules": 12
+        }
+      }
+    }
+  ]
+}

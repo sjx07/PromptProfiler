@@ -1,0 +1,90 @@
+{
+  "canonical_id": "reasoning_scaffold_visible_evidence",
+  "task": "tablebench",
+  "semantic_labels": [
+    {
+      "label": "reasoning.visible_evidence",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.visible_scaffold",
+      "role": "mechanism"
+    },
+    {
+      "label": "implementation.output_schema",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "format.reasoning_answer_object",
+      "role": "format_contract"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "visible_reasoning_evidence",
+    "implementation_surface": "output_schema_and_task_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true,
+    "answer_contract": "json_object_reasoning_answer"
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "output_contract_tablebench_answer_string",
+    "reasoning_scaffold_visible_plan",
+    "reasoning_scaffold_visible_operation",
+    "reasoning_scaffold_visible_workpad"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "evidence",
+          "description": "A concise visible evidence summary listing only the relevant row/column/cell facts used to answer.",
+          "ordinal": 86
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "Return the final answer as a short string. Preserve the full cell value when the answer is copied from the table.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Use the `evidence` field to show only the table facts needed for the answer. Then write the final answer in `answer`.",
+          "ordinal": 70
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Return only a valid JSON object with the requested reasoning field(s) and `answer`. The `answer` value must be the final short answer string.",
+          "ordinal": 92
+        }
+      }
+    }
+  ],
+  "rationale": "Visible reasoning scaffold for tablebench; pair with private reasoning rules to make reasoning behavior observable without changing the aligned private-rule taxonomy."
+}

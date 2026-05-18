@@ -1,0 +1,30 @@
+{
+  "canonical_id": "input_context_column_statistics",
+  "task": "tablebench",
+  "semantic_labels": [
+    {"label": "input_context.column_statistics", "role": "mechanism"},
+    {"label": "context_builder.column_stats_summary", "role": "implementation"},
+    {"label": "implementation.input_transform", "role": "implementation_surface"},
+    {"label": "cost.lightweight_deterministic", "role": "cost"}
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "dp",
+    "implementation_surface": "input_transform",
+    "cost_dependency": "deterministic_preprocess"
+  },
+  "requires": [
+    "facet_dp_scaffold"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "input_transform",
+      "params": {
+        "fn": "prepend_stats",
+        "kwargs": {}
+      }
+    }
+  ],
+  "rationale": "TableBench input-context feature: prepend deterministic column type/cardinality/range statistics to the serialized table."
+}

@@ -1,0 +1,52 @@
+{
+  "canonical_id": "domain_wikitable_source_semantics_pack",
+  "task": "hitab",
+  "semantic_labels": [
+    {"label": "domain.wikitable.sports_competition_semantics", "role": "missing_domain_knowledge"},
+    {"label": "domain.wikitable.election_political_result", "role": "missing_domain_knowledge"},
+    {"label": "domain.wikitable.media_episode_credit", "role": "missing_domain_knowledge"},
+    {"label": "domain.wikitable.music_chart_release", "role": "missing_domain_knowledge"},
+    {"label": "domain.wikitable.geo_admin_entity", "role": "missing_domain_knowledge"},
+    {"label": "domain.wikitable.identifier_rank_code", "role": "missing_domain_knowledge"},
+    {"label": "source_family.wiki_table", "role": "source_family"},
+    {"label": "feature_mode.blocked_pack", "role": "experiment_design"}
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "source_family": "wiki_table",
+    "feature_mode": "blocked",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Use Wikipedia table semantics when interpreting column names. Sports: score strings are complete results unless margin/difference is asked; duplicate Score columns attach to adjacent teams; Rank/Place/Position/Seed/Pick are ordinal fields, while Points, Score totals, Attendance, and Medals are magnitude fields. Elections: Candidate, Incumbent, Party, District/Riding, Result, Votes, and % are distinct roles; votes are counts and % is share. Media: Episode title, episode number, season number, series number, production code, air date, director, writer, viewers, rating, and share are distinct. Music: song, single, album, artist, producer, featured guest, sales, and chart position are distinct; chart positions are chart-specific ranks. Geography: country, county, city, state/province, location, venue, nationality, and represent are not interchangeable. Identifier tables: route codes, episode numbers, Unicode glyphs, production codes, and ranks are identifiers, not names.",
+          "ordinal": 40
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Before answering, choose the table role requested by the question, then select the matching column/value. If the question asks for a named entity, do not return its identifier, rank, code, glyph, or neighboring metric unless the question explicitly asks for that field.",
+          "ordinal": 50
+        }
+      }
+    }
+  ],
+  "rationale": "HiTab source-triggered domain semantics pack distilled from cube failures and GEPA-style missing-domain-knowledge blocks. This is a blocked feature, not a fine-grained add-one primitive."
+}

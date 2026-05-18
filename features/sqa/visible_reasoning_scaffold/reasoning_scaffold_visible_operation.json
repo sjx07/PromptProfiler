@@ -1,0 +1,74 @@
+{
+  "canonical_id": "reasoning_scaffold_visible_operation",
+  "task": "sqa",
+  "semantic_labels": [
+    {"label": "reasoning.visible_symbolic_operation", "role": "mechanism"},
+    {"label": "reasoning.visible_scaffold", "role": "mechanism"},
+    {"label": "implementation.output_schema", "role": "implementation_surface"},
+    {"label": "format.operation_answer_object", "role": "format_contract"}
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "profile": "visible_reasoning",
+    "implementation_surface": "output_schema_and_task_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true,
+    "answer_contract": "json_object_operation_answer_list"
+  },
+  "requires": ["facet_dp_scaffold", "_section_reasoning", "_section_format_fix", "sqa_dialog_binding_base"],
+  "conflicts_with": [
+    "output_contract_json_answer_list",
+    "reasoning_scaffold_visible_plan",
+    "reasoning_scaffold_visible_evidence",
+    "reasoning_scaffold_visible_workpad"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "operation",
+          "description": "A compact symbolic operation for the current turn, including any reference resolution plus filter/select/count/aggregate/compare/list operation.",
+          "ordinal": 89
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "Return the final answer for the current turn as a JSON array of strings. For one answer, return a one-element array. Preserve each complete table-cell value as one string.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Write a compact symbolic table operation in `operation`, including prior-turn reference resolution if needed. Then put only the final answer list in `answer`.",
+          "ordinal": 72
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Return only a valid JSON object with exactly `operation` and `answer`. The `answer` value must be a JSON array of strings.",
+          "ordinal": 92
+        }
+      }
+    }
+  ],
+  "rationale": "Visible operation-answer scaffold for testing whether explicit symbolic table-operation representation improves SQA behavior."
+}

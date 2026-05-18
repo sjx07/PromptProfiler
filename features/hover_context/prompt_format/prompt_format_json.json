@@ -1,0 +1,23 @@
+{
+  "canonical_id": "prompt_format_json",
+  "task": "hover_context",
+  "semantic_labels": [
+    {"label": "prompt_format.json", "role": "prompt_format"},
+    {"label": "implementation.set_format", "role": "implementation_surface"}
+  ],
+  "scope": {
+    "dataset": "hover_context",
+    "axis": "prompt_format",
+    "value": "json",
+    "fixed_base": true
+  },
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {"target_module": "summarize1", "func_type": "set_format", "params": {"style": "json"}},
+    {"target_module": "create_query_hop2", "func_type": "set_format", "params": {"style": "json"}},
+    {"target_module": "summarize2", "func_type": "set_format", "params": {"style": "json"}},
+    {"target_module": "create_query_hop3", "func_type": "set_format", "params": {"style": "json"}}
+  ],
+  "rationale": "Fixed parser-safe prompt renderer for HoVer module outputs. This preserves summary/query-only outputs and does not add a visible reasoning field."
+}

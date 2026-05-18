@@ -1,0 +1,57 @@
+{
+  "canonical_id": "output_contract_tablebench_answer_string",
+  "task": "tablebench",
+  "semantic_labels": [
+    {"label": "output_contract.interface", "role": "interface_contract"},
+    {"label": "format.field_schema_contract", "role": "format_contract"},
+    {"label": "format.official_answer_string_contract", "role": "format_contract"}
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "task_view": "tablebench_textual_answer",
+    "output_contract": "official_answer_string",
+    "fixed_base": true
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "answer",
+          "description": "Return the final answer in the official TableBench answer form: `AnswerName1, AnswerName2...`. Use the shortest answer string that satisfies the question.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "Put the final answer directly in the `answer` field. Do not output JSON, markdown, labels, prefixes, explanations, or extra keys.",
+          "ordinal": 90
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "When there are multiple answer values, use the official comma-separated answer form `AnswerName1, AnswerName2...` unless a record-specific TableBench contract says otherwise.",
+          "ordinal": 91
+        }
+      }
+    }
+  ],
+  "rationale": "Fixed TableBench answer interface that triggers the task's official qtype/qsubtype-specific contract injection while avoiding a visible reasoning field."
+}

@@ -1,0 +1,58 @@
+{
+  "canonical_id": "query_decomposition_hop2",
+  "task": "hover_context",
+  "semantic_labels": [
+    {"label": "query_decomposition.split_compound_claim", "role": "mechanism"},
+    {"label": "query_decomposition.single_bridge_entity", "role": "mechanism"},
+    {"label": "module.create_query_hop2", "role": "target_module"}
+  ],
+  "scope": {
+    "dataset": "hover_context",
+    "implementation_surface": "module_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_retrieval_scaffold",
+    "_section_retrieval_strategy"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "If the claim is compound, split it into claim parts and target the part not already covered by the first-hop summary.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Write the hop-2 query around exactly one unresolved bridge entity or relation; do not enumerate all claim entities.",
+          "ordinal": 30
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Drop negation words from the search query; Wikipedia abstracts usually retrieve positive entity and relation descriptions.",
+          "ordinal": 40
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only query decomposition feature for the second HoVer retrieval hop."
+}

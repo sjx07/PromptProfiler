@@ -1,0 +1,27 @@
+{
+  "canonical_id": "prompt_format_json",
+  "task": "tabfact",
+  "semantic_labels": [
+    {"label": "prompt_format.json", "role": "prompt_format"},
+    {"label": "implementation.set_format", "role": "implementation_surface"}
+  ],
+  "scope": {
+    "dataset": "tab_fact",
+    "axis": "prompt_format",
+    "value": "json",
+    "implementation_surface": "set_format"
+  },
+  "requires": [],
+  "conflicts_with": [
+    "prompt_format_plain"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "set_format",
+      "params": {
+        "style": "json"
+      }
+    }
+  ],
+  "rationale": "Explicit prompt rendering format axis for TabFact: json."
+}

@@ -625,68 +625,36 @@ def test_tablebench_metrics_include_normalized_answer_values():
     assert metrics["normalized_gold"] == "united states"
 
 
-def test_tablebench_feature_directory_only_has_sections_and_official_full_profiles():
+def test_tablebench_feature_directory_has_aligned_round7_inventory():
     reg = FeatureRegistry.load(task="tablebench")
 
-    expected_sections_and_profiles = {
+    expected_base = {
         "_section_format_fix",
         "_section_reasoning",
         "_section_role",
         "_section_rules",
-        "_section_strategy",
         "_section_table_handling",
         "_section_task",
-        "tb_official_dp_full",
-        "tb_official_tcot_full",
-        "tb_official_scot_full",
-        "tb_official_pot_full",
+        "facet_dp_scaffold",
     }
-    expected_pot_components = {
-        "tb_pot_fixed_scaffold",
-        "tb_pot_reasoning_field",
-        "tb_pot_approach_then_code_rule",
-        "tb_pot_code_concise_rule",
-        "tb_pot_code_readable_rule",
-        "tb_pot_code_comment_rule",
-        "tb_pot_data_only_rule",
-        "tb_pot_executable_code_rule",
-        "tb_pot_python_persona_rule",
+    expected_table_serialization = {
+        "table_serialization_html",
+        "table_serialization_json_columns_data",
+        "table_serialization_json_records",
     }
-    expected_tcot_components = {
-        "tb_tcot_fixed_scaffold",
-        "tb_tcot_step_by_step_rule",
-        "tb_tcot_table_only_rule",
+    expected_visible_reasoning = {
+        "reasoning_scaffold_visible_evidence",
+        "reasoning_scaffold_visible_operation",
+        "reasoning_scaffold_visible_plan",
+        "reasoning_scaffold_visible_workpad",
     }
-    expected_scot_components = {
-        "tb_scot_fixed_scaffold",
-        "tb_scot_pattern_intro_rule",
-        "tb_scot_thought_rule",
-        "tb_scot_action_python_rule",
-        "tb_scot_result_simulation_rule",
-        "tb_scot_repeat_rule",
-        "tb_scot_concluding_check_rule",
-    }
-    expected_pot_rescue_components = {
-        "tb_pot_rescue_no_dataframe_print",
-        "tb_pot_rescue_precision_units",
-        "tb_pot_rescue_answer_type_gate",
-        "tb_pot_rescue_numeric_normalization",
-        "tb_pot_rescue_column_row_binding",
-        "tb_pot_rescue_anomaly_conservative",
-        "tb_pot_rescue_causal_evidence_shape",
-        "tb_pot_rescue_minimum_delta_nonnegative",
-    }
-
     features = set(reg.list_features())
 
-    assert expected_sections_and_profiles <= features
-    assert features <= (
-        expected_sections_and_profiles
-        | expected_pot_components
-        | expected_tcot_components
-        | expected_scot_components
-        | expected_pot_rescue_components
-    )
+    assert expected_base <= features
+    assert expected_table_serialization <= features
+    assert expected_visible_reasoning <= features
+    assert "table_serialization_csv" not in features
+    assert "table_serialization_markdown" not in features
 
 
 def test_official_pot_full_feature_uses_executable_tablebench_guidelines():

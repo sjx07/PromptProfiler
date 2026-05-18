@@ -1,0 +1,46 @@
+{
+  "canonical_id": "query_self_check",
+  "task": "hover_context",
+  "semantic_labels": [
+    {"label": "verification.private_query_check", "role": "mechanism"},
+    {"label": "module.create_query", "role": "target_module"},
+    {"label": "output.visible_reasoning_absent", "role": "contract"}
+  ],
+  "scope": {
+    "dataset": "hover_context",
+    "implementation_surface": "module_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_retrieval_scaffold",
+    "_section_retrieval_strategy"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Before returning the query, privately check that it would likely retrieve new titles rather than repeating the hop-1 result set.",
+          "ordinal": 80
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop3",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Before returning the query, privately check that it targets remaining missing evidence rather than restating the whole claim.",
+          "ordinal": 80
+        }
+      }
+    }
+  ],
+  "rationale": "Private verification as prompt control only. It intentionally adds no visible reasoning output field."
+}

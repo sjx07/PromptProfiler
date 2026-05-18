@@ -1,0 +1,58 @@
+{
+  "canonical_id": "evidence_summarization_hop1",
+  "task": "hover_context",
+  "semantic_labels": [
+    {"label": "evidence_summarization.quote_entities", "role": "mechanism"},
+    {"label": "evidence_summarization.filter_irrelevant", "role": "mechanism"},
+    {"label": "module.summarize1", "role": "target_module"}
+  ],
+  "scope": {
+    "dataset": "hover_context",
+    "implementation_surface": "module_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_retrieval_scaffold",
+    "_section_evidence_summary"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "Retain every claim-relevant proper noun verbatim; do not paraphrase person, organization, work, location, or title names.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "Use at most two short sentences per relevant passage and include the passage title before the evidence sentence.",
+          "ordinal": 30
+        }
+      }
+    },
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "If a passage does not match any claim entity or relation, mark it as irrelevant instead of carrying it forward.",
+          "ordinal": 40
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only evidence summarization feature for HoVer hop 1. It changes summary content, not output fields."
+}

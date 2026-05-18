@@ -1,0 +1,49 @@
+{
+  "canonical_id": "domain_table_source_semantics_pack",
+  "task": "tablebench",
+  "semantic_labels": [
+    {"label": "domain.tablebench.qtype_semantics", "role": "task_semantics"},
+    {"label": "domain.tablebench.numerical_reasoning", "role": "task_semantics"},
+    {"label": "domain.tablebench.data_analysis", "role": "task_semantics"},
+    {"label": "source_family.mixed_table_benchmark", "role": "source_family"},
+    {"label": "feature_mode.blocked_pack", "role": "experiment_design"}
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "source_family": "mixed_table_benchmark",
+    "feature_mode": "blocked",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Use the TableBench task intent when interpreting the question. For fact checking, decide whether the statement is supported by the table. For numerical reasoning, compute the requested count, comparison, rank, arithmetic value, or lookup from table cells. For data analysis, answer the requested analysis type such as anomaly, correlation, trend, impact, causal, descriptive, or statistical analysis.",
+          "ordinal": 40
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Before answering, identify the relevant rows, columns, and qtype-specific operation. Do not substitute a neighboring metric, identifier, rank, or descriptive label for the value requested by the question.",
+          "ordinal": 50
+        }
+      }
+    }
+  ],
+  "rationale": "TableBench task-semantics pack for mixed table tasks. This is a blocked feature, not a fine-grained add-one primitive."
+}

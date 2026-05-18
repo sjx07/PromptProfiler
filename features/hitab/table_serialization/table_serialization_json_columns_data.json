@@ -1,0 +1,25 @@
+{
+  "canonical_id": "table_serialization_json_columns_data",
+  "task": "hitab",
+  "semantic_labels": [
+    {"label": "table_serialization.json_columns_data", "role": "table_serialization"},
+    {"label": "implementation.set_table_format", "role": "implementation_surface"}
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "axis": "table_serialization",
+    "value": "json_columns_data",
+    "fixed_base": true
+  },
+  "requires": [],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "set_table_format",
+      "params": {
+        "format": "json_columns_data"
+      }
+    }
+  ],
+  "rationale": "Fixed base table serialization for the HiTab/SQA fresh base run."
+}
