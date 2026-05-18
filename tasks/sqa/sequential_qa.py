@@ -7,6 +7,7 @@ import re
 from typing import Any, Dict, List
 
 from task import BaseTask
+from tasks.answer_normalization import normalize_numeric_grouping
 from tasks.code_result_utils import (
     dataframe_to_records,
     execute_python_code,
@@ -264,8 +265,7 @@ def _normalize(v: str) -> str:
     v = v.strip().lower()
     v = v.strip(".,;:!?\"'")
     v = re.sub(r"\s+", " ", v)
-    v = v.replace("\xa0", " ")
-    v = v.replace(",", "")
+    v = normalize_numeric_grouping(v)
     try:
         num = float(v)
         if num == int(num):
@@ -365,8 +365,9 @@ def _parse_numeric_thousands_list(prediction: str) -> List[str]:
     text = prediction.strip()
     if not text:
         return []
+    grouped_sep = "[, \u00a0\u202f\u2007\u2009]"
     token_re = re.compile(
-        r"(?<![\w.])[$£€]?-?\d{1,3}(?:,\d{3})+(?:\.\d+)?%?(?![\w.])"
+        rf"(?<![\w.])[$£€]?-?\d{{1,3}}(?:{grouped_sep}\d{{3}})+(?:\.\d+)?%?(?![\w.])"
         r"|(?<![\w.])[$£€]?-?\d+(?:\.\d+)?%?(?![\w.])"
     )
     matches = list(token_re.finditer(text))

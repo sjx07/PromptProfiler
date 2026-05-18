@@ -7,6 +7,7 @@ import re
 from typing import Any, Dict, List
 
 from task import BaseTask
+from tasks.answer_normalization import normalize_numeric_grouping
 
 
 _OUTPUT_TO_TABLE_FORMAT = {
@@ -242,8 +243,7 @@ def _normalize_value(v: str) -> str:
     v = v.strip().lower()
     v = v.strip(".,;:!?\"'")
     v = re.sub(r"\s+", " ", v)
-    v = v.replace("\xa0", " ")
-    v = v.replace(",", "")
+    v = normalize_numeric_grouping(v)
     v = v.replace("%", "")
     try:
         num = float(v)

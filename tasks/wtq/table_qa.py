@@ -6,6 +6,7 @@ import re
 from typing import Any, Dict, List
 
 from task import BaseTask
+from tasks.answer_normalization import normalize_numeric_grouping
 from tasks.code_result_utils import (
     dataframe_to_records,
     execute_python_code,
@@ -331,10 +332,8 @@ def _normalize_value(v: str) -> str:
     v = v.strip(".,;:!?\"'")
     # Normalize whitespace
     v = re.sub(r"\s+", " ", v)
-    # Remove non-breaking spaces
-    v = v.replace("\xa0", " ")
     # Normalize common number formats
-    v = v.replace(",", "")  # Remove thousand separators
+    v = normalize_numeric_grouping(v)
     # Try to normalize to number if possible
     try:
         num = float(v)

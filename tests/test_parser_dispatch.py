@@ -69,6 +69,16 @@ def test_wtq_score_normalizes_unicode_dash_variants():
     assert metrics["gold_normalized"] == ["18-12"]
 
 
+def test_wtq_score_normalizes_space_grouped_thousands():
+    from tasks.wtq.table_qa import TableQA
+
+    score, metrics = TableQA().score('["4 000"]', {"gold_answers": ["4000"]})
+
+    assert score == 1.0
+    assert metrics["pred_normalized"] == ["4000"]
+    assert metrics["gold_normalized"] == ["4000"]
+
+
 # ── SQA parsers ───────────────────────────────────────────────────────
 
 def test_sqa_registry_keys():
@@ -122,6 +132,26 @@ def test_sqa_score_numeric_thousands_multi_answer_string():
     assert metrics["parse_strategy"] == "numeric_thousands_list"
     assert "114430" in metrics["pred_normalized"]
     assert "20000" in metrics["pred_normalized"]
+
+
+def test_sqa_score_normalizes_space_grouped_thousands():
+    from tasks.sqa.sequential_qa import SequentialQA
+
+    score, metrics = SequentialQA().score(
+        '["4 000"]',
+        {"gold_answer": ["4000"]},
+    )
+
+    assert score == 1.0
+    assert metrics["parse_strategy"] == "json_list"
+    assert metrics["pred_normalized"] == ["4000"]
+    assert metrics["gold_normalized"] == ["4000"]
+
+    score, metrics = SequentialQA().score("4 000", {"gold_answer": ["4000"]})
+
+    assert score == 1.0
+    assert metrics["parse_strategy"] == "numeric_thousands_list"
+    assert metrics["pred_normalized"] == ["4000"]
 
 
 def test_sqa_score_python_list_with_commas_inside_values():
