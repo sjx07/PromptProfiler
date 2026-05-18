@@ -547,8 +547,9 @@ def _render_markdown(
 
 
 def _default_out_dir(config_path: Path) -> Path:
-    if config_path.parent.name == "configs":
-        return config_path.parent.parent / "dry_runs" / config_path.stem
+    for parent in [config_path.parent, *config_path.parents]:
+        if parent.name == "configs":
+            return parent.parent / "dry_runs" / config_path.stem
     return Path("dry_runs") / config_path.stem
 
 
