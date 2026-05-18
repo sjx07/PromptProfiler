@@ -17,7 +17,7 @@ def seed_queries_wtq(
     max_queries: int = 0,
     sample_seed: int = 0,
     on_conflict: OnConflict = OnConflict.SKIP,
-) -> int:
+) -> List[str]:
     """Load WikiTableQuestions and seed queries into the unified store.
 
     Args:
@@ -25,6 +25,9 @@ def seed_queries_wtq(
         max_queries: Limit number of queries (0 = all).
         sample_seed: If > 0, randomly sample max_queries indices with this
             seed (reproducible). If 0, take the first max_queries.
+
+    Returns:
+        Query IDs for exactly the rows considered by this seed call.
     """
     from datasets import load_dataset
 
@@ -44,12 +47,13 @@ def seed_queries_wtq(
             ds = ds.select(range(max_queries))
 
     queries: List[Dict[str, Any]] = []
-    for i, row in enumerate(ds):
+    for row in ds:
         question = row["question"]
         table = row["table"]
         answers = row["answers"]
 
-        query_id = make_query_id("wtq", question, context=f"{split}:{i}")
+        source_id = str(row["id"])
+        query_id = make_query_id("wtq", question, context=f"{split}:{source_id}")
         queries.append({
             "query_id": query_id,
             "dataset": "wtq",
@@ -73,7 +77,7 @@ def seed_queries_wtq(
 
     store.upsert_queries(queries, on_conflict=on_conflict)
     logger.info("Seeded %d WTQ queries (split=%s)", len(queries), split)
-    return len(queries)
+    return [q["query_id"] for q in queries]
 
 
 def table_to_markdown(header: List[str], rows: List[List[str]], name: str = "") -> str:

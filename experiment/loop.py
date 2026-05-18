@@ -127,6 +127,7 @@ def _run_and_eval_plan(
     example_pool: Optional[list] = None,
     phase: str | None = None,
     dataset: str = "",
+    retry_errors: bool = False,
 ) -> None:
     """Run configs and evaluate them in a pipelined fashion.
 
@@ -186,7 +187,7 @@ def _run_and_eval_plan(
                         i + 1, len(config_queue), cid, len(queries))
             run_config(store, cid, queries, task, model, llm_call,
                        num_workers=num_workers, on_conflict=on_conflict,
-                       phase=phase)
+                       phase=phase, retry_errors=retry_errors)
 
             # ── submit eval to background ─────────────────────────
             eval_task = task_cls()  # fresh instance for thread safety

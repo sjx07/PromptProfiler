@@ -92,7 +92,7 @@ def seed_queries_sqa(
     max_queries: int = 0,
     sample_seed: int = 0,
     on_conflict: OnConflict = OnConflict.SKIP,
-) -> int:
+) -> List[str]:
     """Load SQA dataset from local TSV files and seed queries into the store.
 
     Args:
@@ -104,6 +104,9 @@ def seed_queries_sqa(
             seed and take entire sequences until reaching ~max_queries
             turns. Preserves conversation history. If 0, take the first
             max_queries rows (history may be partial).
+
+    Returns:
+        Query IDs for exactly the rows considered by this seed call.
     """
     tsv_name = SPLIT_FILES.get(split)
     if not tsv_name:
@@ -156,7 +159,7 @@ def seed_queries_sqa(
     table_cache: Dict[str, Dict[str, Any]] = {}
 
     queries: List[Dict[str, Any]] = []
-    for i, row in enumerate(rows):
+    for row in rows:
         question = row["question"]
         position = int(row["position"])
         seq_key = f"{row['id']}-{row['annotator']}"
@@ -179,7 +182,8 @@ def seed_queries_sqa(
         answer_text = _parse_list_field(row["answer_text"])
         answer_coords = _parse_list_field(row["answer_coordinates"])
 
-        query_id = make_query_id("sqa", question, context=f"{split}:{i}")
+        source_id = f"{row['id']}:{row['annotator']}:{row['position']}"
+        query_id = make_query_id("sqa", question, context=f"{split}:{source_id}")
         queries.append({
             "query_id": query_id,
             "dataset": "sqa",
@@ -206,4 +210,4 @@ def seed_queries_sqa(
 
     store.upsert_queries(queries, on_conflict=on_conflict)
     logger.info("Seeded %d SQA queries (split=%s)", len(queries), split)
-    return len(queries)
+    return [q["query_id"] for q in queries]

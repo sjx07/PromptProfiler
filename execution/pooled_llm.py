@@ -37,6 +37,7 @@ class PooledLLMCall:
         temperature: float | None = 0.0,
         top_p: float | None = None,
         top_k: int | None = None,
+        request_timeout: int = 240,
     ) -> None:
 
         self._model = model
@@ -53,7 +54,7 @@ class PooledLLMCall:
             if _openai is None:
                 raise ImportError("openai package required for external API mode: pip install openai")
             _key = api_key or os.environ.get("OPENAI_API_KEY", "no-key")
-            self._ext_client = _openai.OpenAI(base_url=base_url, api_key=_key)
+            self._ext_client = _openai.OpenAI(base_url=base_url, api_key=_key, timeout=request_timeout)
         else:
             # Local vLLM port-pooling mode
             self._clients = {
@@ -63,6 +64,7 @@ class PooledLLMCall:
                     ports=ports,
                     labels=labels or {},
                     store=vllm_store,
+                    timeout=request_timeout,
                 )
                 for p in ports
             }

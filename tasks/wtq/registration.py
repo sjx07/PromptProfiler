@@ -7,14 +7,20 @@ from task_registry import register_task, seed_predicates_for_dataset
 from tasks.wtq.table_qa import TableQA
 
 
-def _seed_table_qa(store: Any, cfg: Dict[str, Any], split: str) -> None:
+def _seed_table_qa(store: Any, cfg: Dict[str, Any], split: str) -> list[str]:
     from tasks.wtq.loaders import seed_queries_wtq
     import tasks.wtq.predicates  # noqa: F401
 
     max_queries = int(cfg.get("max_queries", 0) or 0)
     sample_seed = int(cfg.get("sample_seed", 0) or 0)
-    seed_queries_wtq(store, split, max_queries=max_queries, sample_seed=sample_seed)
+    query_ids = seed_queries_wtq(
+        store,
+        split,
+        max_queries=max_queries,
+        sample_seed=sample_seed,
+    )
     seed_predicates_for_dataset(store, dataset="wtq")
+    return query_ids
 
 
 register_task(

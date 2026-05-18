@@ -315,11 +315,17 @@ class CubeStore:
         ).fetchone()
         return dict(row) if row else None
 
-    def get_cached_query_ids(self, config_id: int, model: str) -> Set[str]:
-        rows = self._get_conn().execute(
-            "SELECT query_id FROM execution WHERE config_id = ? AND model = ?",
-            (config_id, model),
-        ).fetchall()
+    def get_cached_query_ids(
+        self,
+        config_id: int,
+        model: str,
+        *,
+        include_errors: bool = True,
+    ) -> Set[str]:
+        sql = "SELECT query_id FROM execution WHERE config_id = ? AND model = ?"
+        if not include_errors:
+            sql += " AND (error IS NULL OR error = '')"
+        rows = self._get_conn().execute(sql, (config_id, model)).fetchall()
         return {r[0] for r in rows}
 
     def insert_execution(
@@ -342,6 +348,40 @@ class CubeStore:
         phase: Optional[str] = None,
         on_conflict: OnConflict = OnConflict.ERROR,
     ) -> int:
+        if on_conflict == OnConflict.REPLACE:
+            phase_ids = json.dumps([phase]) if phase else "[]"
+            payload = (
+                config_id, query_id, model,
+                system_prompt, user_content, raw_response, raw_reasoning, prediction,
+                latency_ms, prompt_tokens, completion_tokens, finish_reason,
+                error, phase_ids, json.dumps(meta or {}),
+            )
+            with self._cursor() as cur:
+                cur.execute(
+                    """INSERT INTO execution
+                       (config_id, query_id, model,
+                        system_prompt, user_content, raw_response, raw_reasoning, prediction,
+                        latency_ms, prompt_tokens, completion_tokens, finish_reason,
+                        error, phase_ids, meta)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(config_id, query_id, model) DO UPDATE SET
+                        system_prompt = excluded.system_prompt,
+                        user_content = excluded.user_content,
+                        raw_response = excluded.raw_response,
+                        raw_reasoning = excluded.raw_reasoning,
+                        prediction = excluded.prediction,
+                        latency_ms = excluded.latency_ms,
+                        prompt_tokens = excluded.prompt_tokens,
+                        completion_tokens = excluded.completion_tokens,
+                        finish_reason = excluded.finish_reason,
+                        error = excluded.error,
+                        phase_ids = excluded.phase_ids,
+                        meta = excluded.meta""",
+                    payload,
+                )
+            existing = self.get_cached_execution(config_id, query_id, model)
+            return int(existing["execution_id"]) if existing else 0
+
         clause = _SQL_CLAUSE[on_conflict]
         phase_ids = json.dumps([phase]) if phase else "[]"
         if on_conflict == OnConflict.WARN:

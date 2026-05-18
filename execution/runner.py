@@ -41,6 +41,7 @@ def run_config(
     dry_run: bool = False,
     on_conflict: OnConflict = OnConflict.SKIP,
     phase: str | None = None,
+    retry_errors: bool = False,
 ) -> Dict[str, Any]:
     """Run a config against queries using a task.
 
@@ -60,7 +61,11 @@ def run_config(
         Progress dict with done/total/remaining/newly_executed.
     """
     # Check cache — intersect with current query set
-    all_cached = store.get_cached_query_ids(config_id, model)
+    all_cached = store.get_cached_query_ids(
+        config_id,
+        model,
+        include_errors=not retry_errors,
+    )
     query_ids = {q["query_id"] for q in queries}
     cached = all_cached & query_ids
     uncached = [q for q in queries if q["query_id"] not in cached]
@@ -167,7 +172,7 @@ def run_config(
             error=error,
             meta=meta,
             phase=phase,
-            on_conflict=on_conflict,
+            on_conflict=OnConflict.REPLACE if retry_errors else on_conflict,
         )
 
     progress = _make_progress_bar(

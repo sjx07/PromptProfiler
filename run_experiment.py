@@ -41,12 +41,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from autovllm.store import TrajectoryStore as VLLMStore
-
 from common import seed_funcs
 from core.feature_registry import FeatureRegistry
 from core.store import CubeStore, OnConflict
-from execution.pooled_llm import PooledLLMCall
 from experiment.config_generators import generate, REGISTRY as GEN_REGISTRY
 from experiment.loop import _run_and_eval_plan
 from experiment.planner import RunEntry
@@ -134,6 +131,59 @@ def _example_seed_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
                         cfg.get("sample_seed", 0))) or 0
     )
     return out
+
+
+def _seeded_query_ids(seed_result: Any) -> List[str] | None:
+    """Extract exact query IDs from task seeders that expose them.
+
+    Older task seeders return ``None`` or a count, so callers must keep the
+    split-based fallback for backward compatibility.
+    """
+    if isinstance(seed_result, dict):
+        values = seed_result.get("query_ids")
+        if isinstance(values, list):
+            return [str(v) for v in values]
+    if isinstance(seed_result, (list, tuple)) and all(isinstance(v, str) for v in seed_result):
+        return list(seed_result)
+    return None
+
+
+def _load_queries_by_ids(conn: Any, query_ids: List[str]) -> List[dict]:
+    if not query_ids:
+        return []
+
+    rows_by_id: Dict[str, dict] = {}
+    chunk_size = 900
+    for i in range(0, len(query_ids), chunk_size):
+        chunk = query_ids[i:i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
+        rows = conn.execute(
+            f"SELECT * FROM query WHERE query_id IN ({placeholders})",
+            chunk,
+        ).fetchall()
+        rows_by_id.update({r["query_id"]: dict(r) for r in rows})
+    return [rows_by_id[qid] for qid in query_ids if qid in rows_by_id]
+
+
+def _load_seeded_or_split_queries(
+    conn: Any,
+    *,
+    dataset_key: str,
+    split: str,
+    seeded_query_ids: List[str] | None,
+    max_queries: int = 0,
+) -> List[dict]:
+    if seeded_query_ids is not None:
+        return _load_queries_by_ids(conn, seeded_query_ids)
+
+    rows = conn.execute(
+        "SELECT * FROM query WHERE dataset = ? AND json_extract(meta, '$.split') = ?",
+        (dataset_key, split),
+    ).fetchall()
+    queries = [dict(r) for r in rows]
+    if max_queries > 0:
+        queries = queries[:max_queries]
+    return queries
 
 
 # ── feature materialization ───────────────────────────────────────────
@@ -257,6 +307,8 @@ def main():
     api_key = os.environ.get(cfg["api_key_env"], "") if cfg.get("api_key_env") else None
     max_queries = cfg.get("max_queries", 0)
     max_tokens = int(cfg.get("max_tokens", 2048))
+    request_timeout = int(cfg.get("request_timeout", 240))
+    retry_errors = bool(cfg.get("retry_errors", False))
     llm_sampling_kwargs = _llm_sampling_kwargs(cfg)
     n_samples = cfg.get("n_samples", 200)
     seed = cfg.get("seed", 42)
@@ -285,7 +337,8 @@ def main():
     logger.info("Feature registry synced: %s", sync_result)
 
     # ── seed dataset queries ─────────────────────────────────────────
-    task_entry.seeder_fn(store, cfg, split)
+    seed_result = task_entry.seeder_fn(store, cfg, split)
+    seeded_query_ids = _seeded_query_ids(seed_result)
 
     # ── materialize features → func specs ────────────────────────────
     full_specs, base_ids, bundles, base_feature_hashes, conflicts = _build_feature_bundles(
@@ -301,7 +354,10 @@ def main():
             raise ValueError("'example_split' required when any feature uses add_example")
         if example_split == split:
             raise ValueError(f"example_split must differ from split (both are {example_split!r})")
-        task_entry.seeder_fn(store, _example_seed_cfg(cfg), example_split)
+        example_seed_result = task_entry.seeder_fn(store, _example_seed_cfg(cfg), example_split)
+        example_query_ids = _seeded_query_ids(example_seed_result)
+    else:
+        example_query_ids = None
 
     # ── base config ──────────────────────────────────────────────────
     base_cid = store.get_or_create_config(
@@ -318,27 +374,31 @@ def main():
     # ── queries ──────────────────────────────────────────────────────
     dataset_key = task_entry.dataset_key_fn(cfg)
     conn = store._get_conn()
-    rows = conn.execute(
-        "SELECT * FROM query WHERE dataset = ? AND json_extract(meta, '$.split') = ?",
-        (dataset_key, split),
-    ).fetchall()
-    queries = [dict(r) for r in rows]
-    if max_queries > 0:
-        queries = queries[:max_queries]
+    queries = _load_seeded_or_split_queries(
+        conn,
+        dataset_key=dataset_key,
+        split=split,
+        seeded_query_ids=seeded_query_ids,
+        max_queries=max_queries,
+    )
     query_ids = [q["query_id"] for q in queries]
     logger.info("Queries: %d (dataset=%s split=%s)", len(queries), dataset_key, split)
 
     # ── example pool ─────────────────────────────────────────────────
     example_pool = None
     if has_examples:
-        pool_rows = conn.execute(
-            "SELECT * FROM query WHERE dataset = ? AND json_extract(meta, '$.split') = ?",
-            (dataset_key, example_split),
-        ).fetchall()
-        example_pool = [dict(r) for r in pool_rows]
+        example_pool = _load_seeded_or_split_queries(
+            conn,
+            dataset_key=dataset_key,
+            split=example_split,
+            seeded_query_ids=example_query_ids,
+        )
         logger.info("Example pool: %d queries (split=%s)", len(example_pool), example_split)
 
     # ── LLM call setup ───────────────────────────────────────────────
+    from autovllm.store import TrajectoryStore as VLLMStore
+    from execution.pooled_llm import PooledLLMCall
+
     slots_per_port = max(1, num_workers // len(ports))
     llm_call = PooledLLMCall(
         model, ports, slots_per_port=slots_per_port,
@@ -350,14 +410,16 @@ def main():
         base_url=base_url,
         api_key=api_key,
         max_tokens=max_tokens,
+        request_timeout=request_timeout,
         **llm_sampling_kwargs,
     )
     logger.info(
-        "Port pool: %s, %d workers, %d slots/port, max_tokens=%d, sampling=%s",
+        "Port pool: %s, %d workers, %d slots/port, max_tokens=%d, request_timeout=%ds, sampling=%s",
         ports,
         num_workers,
         slots_per_port,
         max_tokens,
+        request_timeout,
         llm_sampling_kwargs,
     )
 
@@ -387,7 +449,10 @@ def main():
     )
     logger.info("Generated %d configs (%s)", len(configs), experiment_type)
 
-    plan = [RunEntry(config_id=base_cid, func_ids=base_ids, query_ids=query_ids)]
+    include_base = bool(cfg.get("include_base", True))
+    plan = []
+    if include_base:
+        plan.append(RunEntry(config_id=base_cid, func_ids=base_ids, query_ids=query_ids))
     for cid, func_ids, meta in configs:
         plan.append(RunEntry(config_id=cid, func_ids=func_ids, query_ids=query_ids, meta=meta))
 
@@ -398,11 +463,21 @@ def main():
     _run_and_eval_plan(store, plan, task_cls, model, llm_call,
                        num_workers=num_workers, on_conflict=OnConflict.SKIP,
                        example_pool=example_pool, phase=phase,
-                       dataset=dataset_key)
+                       dataset=dataset_key, retry_errors=retry_errors)
 
     # ── print summary ────────────────────────────────────────────────
+    summary_base_cid = base_cid
+    summary_baseline_label = cfg.get("summary_baseline_label")
+    if summary_baseline_label:
+        matched = [cid for cid, _func_ids, meta in configs if meta.get("label") == summary_baseline_label]
+        if not matched:
+            raise ValueError(
+                f"summary_baseline_label={summary_baseline_label!r} does not match any generated coalition label"
+            )
+        summary_base_cid = matched[0]
+
     _print_results(
-        store, task_cls, model, base_cid, configs, experiment_type, task_name,
+        store, task_cls, model, summary_base_cid, configs, experiment_type, task_name,
         dataset=dataset_key, query_ids=query_ids,
     )
 
@@ -417,7 +492,7 @@ def _run_iterative(
     store: CubeStore,
     task_cls: type,
     model: str,
-    llm_call: PooledLLMCall,
+    llm_call: Any,
     *,
     base_cid: int,
     base_ids: List[str],
@@ -529,6 +604,7 @@ def _print_results(
             sign = "+" if delta >= 0 else ""
             label = (
                 meta.get("canonical_id")
+                or meta.get("label")
                 or (f"-{meta['removed_canonical_id']}" if "removed_canonical_id" in meta else None)
                 or (f"{meta['n_features']}feats" if "n_features" in meta else None)
                 or f"c{s['config_id']}"

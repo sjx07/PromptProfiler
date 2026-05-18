@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class TaskEntry:
     task_cls: type
-    seeder_fn: Callable  # (store, cfg, split) -> None
+    seeder_fn: Callable  # (store, cfg, split) -> optional seeded query IDs
     dataset_key_fn: Callable  # (cfg) -> str
 
 
