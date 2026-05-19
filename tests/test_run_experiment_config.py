@@ -1,6 +1,8 @@
 """Regression tests for run_experiment config plumbing."""
 from __future__ import annotations
 
+from threading import Event
+
 from core.store import CubeStore, OnConflict
 from experiment.planner import RunEntry
 from run_experiment import _generator_kwargs, _llm_sampling_kwargs
@@ -146,6 +148,7 @@ def test_run_and_eval_plan_passes_phase_to_runner(monkeypatch):
         num_workers,
         on_conflict,
         phase=None,
+        retry_errors=False,
     ):
         phases.append(phase)
 
@@ -178,5 +181,91 @@ def test_run_and_eval_plan_passes_phase_to_runner(monkeypatch):
         )
 
         assert phases == ["lengthfix"]
+    finally:
+        store.close()
+
+
+def test_batched_plan_pipelines_eval_before_all_execution_finishes(monkeypatch):
+    from experiment import loop as loop_module
+
+    class _Task:
+        scorer = "dummy"
+
+    first_eval_started = Event()
+    eval_calls = []
+    batch_returned = False
+
+    def fake_bind_task_for_config(*_args, **_kwargs):
+        return _Task()
+
+    def fake_run_config_batch(
+        store,
+        work_items,
+        model,
+        llm_call,
+        *,
+        num_workers,
+        on_conflict,
+        phase=None,
+        retry_errors=False,
+        on_item_done=None,
+    ):
+        nonlocal batch_returned
+        assert [item["config_id"] for item in work_items] == [1, 2]
+
+        on_item_done(1)
+        assert first_eval_started.wait(1), "config 1 eval did not start while batch was still running"
+        assert not batch_returned
+        assert eval_calls == [1]
+
+        on_item_done(2)
+        batch_returned = True
+
+    def fake_evaluate_config(store, config_id, model, task, **_kwargs):
+        eval_calls.append(config_id)
+        if config_id == 1:
+            first_eval_started.set()
+        return None
+
+    monkeypatch.setattr(loop_module, "_bind_task_for_config", fake_bind_task_for_config)
+    monkeypatch.setattr(loop_module, "run_config_batch", fake_run_config_batch)
+    monkeypatch.setattr(loop_module, "evaluate_config", fake_evaluate_config)
+
+    store = CubeStore(":memory:")
+    try:
+        store.upsert_queries(
+            [
+                {
+                    "query_id": "q1",
+                    "dataset": "wtq",
+                    "content": "question 1",
+                    "meta": {"split": "test"},
+                },
+                {
+                    "query_id": "q2",
+                    "dataset": "wtq",
+                    "content": "question 2",
+                    "meta": {"split": "test"},
+                },
+            ],
+            on_conflict=OnConflict.ERROR,
+        )
+
+        loop_module._run_and_eval_plan(
+            store,
+            [
+                RunEntry(config_id=1, func_ids=[], query_ids=["q1"]),
+                RunEntry(config_id=2, func_ids=[], query_ids=["q2"]),
+            ],
+            _Task,
+            "model",
+            lambda *_args, **_kwargs: {},
+            dataset="wtq",
+            batch_configs=True,
+            eval_pool_size=2,
+        )
+
+        assert batch_returned
+        assert eval_calls == [1, 2]
     finally:
         store.close()

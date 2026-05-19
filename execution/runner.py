@@ -145,12 +145,17 @@ def run_config_batch(
     on_conflict: OnConflict = OnConflict.SKIP,
     phase: str | None = None,
     retry_errors: bool = False,
+    on_item_done: Callable[[int], None] | None = None,
 ) -> Dict[str, Any]:
     """Run uncached query/config pairs through one shared worker pool.
 
     Each work item must contain ``config_id``, ``query``, and a task instance
     already bound for that config. This keeps prompt construction config-aware
     while letting the LLM queue batch across configs.
+
+    ``on_item_done`` is called from the coordinator thread after each work item
+    finishes or raises unexpectedly. It lets the experiment loop submit
+    per-config evaluation while the shared execution pool is still running.
     """
     if not work_items:
         logger.info("Batched config execution: no uncached work")
@@ -176,10 +181,14 @@ def run_config_batch(
     if num_workers <= 1:
         with progress as pbar:
             for item in work_items:
-                if _run_item(item):
-                    err_count += 1
-                if pbar is not None:
-                    pbar.update(1)
+                try:
+                    if _run_item(item):
+                        err_count += 1
+                finally:
+                    if on_item_done is not None:
+                        on_item_done(int(item["config_id"]))
+                    if pbar is not None:
+                        pbar.update(1)
     else:
         with progress as pbar, ThreadPoolExecutor(max_workers=num_workers) as pool:
             futures = {pool.submit(_run_item, item): item for item in work_items}
@@ -195,6 +204,8 @@ def run_config_batch(
                         item.get("config_id"), query_id, exc,
                     )
                 finally:
+                    if on_item_done is not None:
+                        on_item_done(int(item["config_id"]))
                     if pbar is not None:
                         pbar.update(1)
 
