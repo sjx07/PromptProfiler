@@ -57,6 +57,14 @@
     {
       "label": "domain_hint_rule.wtq.filter_then_project",
       "role": "included_rule"
+    },
+    {
+      "label": "heuristic_scope.source_surface_transfer_candidate",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "transfer_scope.cross_benchmark_when_source_surface_matches",
+      "role": "transfer_scope"
     }
   ],
   "scope": {
@@ -77,7 +85,10 @@
       "wtq.filter_then_project"
     ],
     "prompt_surface": "clean_rule_bundle",
-    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text."
+    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text.",
+    "heuristic_scope": "source_surface_transfer_candidate",
+    "transfer_scope": "cross_benchmark_when_source_surface_matches",
+    "transfer_note": "Flat WikiTable source-surface rules can be tested on other table benchmarks when matching headers/cells/operations are present."
   },
   "requires": [
     "facet_dp_scaffold",

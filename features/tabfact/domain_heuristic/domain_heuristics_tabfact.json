@@ -49,6 +49,14 @@
     {
       "label": "domain_hint_rule.tabfact.adjacent_role_groups",
       "role": "included_rule"
+    },
+    {
+      "label": "heuristic_scope.task_conditioned_source_surface",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "transfer_scope.partial_transfer_with_verdict_task_conditioning",
+      "role": "transfer_scope"
     }
   ],
   "scope": {
@@ -67,7 +75,10 @@
       "tabfact.adjacent_role_groups"
     ],
     "prompt_surface": "clean_rule_bundle",
-    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text."
+    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text.",
+    "heuristic_scope": "task_conditioned_source_surface",
+    "transfer_scope": "partial_transfer_with_verdict_task_conditioning",
+    "transfer_note": "Rules mix WikiTable source semantics with statement-verdict behavior; transfer should condition on both source surface and verdict-style task form."
   },
   "requires": [
     "facet_dp_scaffold",

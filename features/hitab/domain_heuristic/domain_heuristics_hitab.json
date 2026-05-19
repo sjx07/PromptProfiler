@@ -49,6 +49,14 @@
     {
       "label": "domain_hint_rule.hitab.total_vs_subcategory",
       "role": "included_rule"
+    },
+    {
+      "label": "heuristic_scope.source_structure_transfer_candidate",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "transfer_scope.cross_benchmark_when_hierarchy_or_source_matches",
+      "role": "transfer_scope"
     }
   ],
   "scope": {
@@ -67,7 +75,10 @@
       "hitab.total_vs_subcategory"
     ],
     "prompt_surface": "clean_rule_bundle",
-    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text."
+    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text.",
+    "heuristic_scope": "source_structure_transfer_candidate",
+    "transfer_scope": "cross_benchmark_when_hierarchy_or_source_matches",
+    "transfer_note": "Hierarchical-header and source-specific table semantics transfer only to examples with matching table structure or source surface."
   },
   "requires": [
     "facet_dp_scaffold",

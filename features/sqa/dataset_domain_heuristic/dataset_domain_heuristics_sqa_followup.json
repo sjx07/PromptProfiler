@@ -1,13 +1,13 @@
 {
-  "canonical_id": "domain_heuristics.sqa",
+  "canonical_id": "dataset_domain_heuristics.sqa_followup",
   "task": "sqa",
   "semantic_labels": [
     {
-      "label": "domain_hint_rule.bundle",
+      "label": "dataset_domain_heuristic.bundle",
       "role": "feature_concept"
     },
     {
-      "label": "domain_heuristics.sqa",
+      "label": "dataset_domain_heuristics.sqa_followup",
       "role": "feature_concept"
     },
     {
@@ -17,6 +17,18 @@
     {
       "label": "source_family.wikipedia_table_dialog",
       "role": "source_family"
+    },
+    {
+      "label": "heuristic_scope.dataset_task_local",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "transfer_scope.not_cross_benchmark_without_dialog_state",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "interaction.followup_dialog",
+      "role": "dataset_mechanism"
     },
     {
       "label": "feature_mode.rule_bundle",
@@ -49,20 +61,15 @@
     {
       "label": "domain_hint_rule.sqa.preserve_episode_identifier_when_asked",
       "role": "included_rule"
-    },
-    {
-      "label": "heuristic_scope.dataset_task_local",
-      "role": "transfer_scope"
-    },
-    {
-      "label": "transfer_scope.not_cross_benchmark_without_dialog_state",
-      "role": "transfer_scope"
     }
   ],
   "scope": {
     "dataset": "sqa",
     "source_family": "wikipedia_table_dialog",
     "feature_mode": "rule_bundle",
+    "heuristic_scope": "dataset_task_local",
+    "transfer_scope": "not_cross_benchmark_without_dialog_state",
+    "transfer_note": "Follow-up resolution depends on SQA dialog state and should not be counted as a transferable source-domain rule.",
     "implementation_surface": "task_or_user_instruction",
     "cost_dependency": "prompt_only",
     "source_artifact": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json",
@@ -79,12 +86,7 @@
     ],
     "exclusion_reason": "Excluded parser/output-contract attribution guardrail from the prompt-facing domain heuristic bundle.",
     "prompt_surface": "clean_rule_bundle",
-    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text.",
-    "heuristic_scope": "dataset_task_local",
-    "transfer_scope": "not_cross_benchmark_without_dialog_state",
-    "transfer_note": "Follow-up resolution depends on SQA dialog state and should not be counted as a transferable source-domain rule.",
-    "preferred_split_feature": "dataset_domain_heuristics.sqa_followup",
-    "compatibility_status": "coarse_backward_compatible_alias"
+    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text."
   },
   "requires": [
     "facet_dp_scaffold",
@@ -92,7 +94,7 @@
     "_section_reasoning"
   ],
   "conflicts_with": [
-    "dataset_domain_heuristics.sqa_followup"
+    "domain_heuristics.sqa"
   ],
   "primitive_edits": [
     {
@@ -101,7 +103,7 @@
         "node_type": "rule",
         "parent_id": "1c2498fdcc32",
         "payload": {
-          "content": "Use these table-dialog follow-up rules when relevant:\n- Resolve follow-up wording such as these, those, their, of these, of those, same, other, or along with against the previous answer set before scanning the whole table.\n- When the question asks for one value for each active item, return one value per active item in active-set order. Preserve duplicate values when they correspond to distinct rows.\n- For same-as, along-with, other-than, besides, or near-only questions, exclude the anchor entity unless the wording explicitly asks to include it.\n- After resolving prior-turn rows, project only the newly requested role column. Do not return whole rows or repeat the role answered in the previous turn.\n- For list/all questions, scan all rows in the active or filtered set before answering. Do not stop after the first matching row.\n- If the requested answer is an episode number, production code, route number, or other identifier, preserve the identifier surface. If the requested answer is a title or name, return the title/name column instead.",
+          "content": "Use these dataset-local follow-up rules when relevant:\n- Resolve follow-up wording such as these, those, their, of these, of those, same, other, or along with against the previous answer set before scanning the whole table.\n- When the question asks for one value for each active item, return one value per active item in active-set order. Preserve duplicate values when they correspond to distinct rows.\n- For same-as, along-with, other-than, besides, or near-only questions, exclude the anchor entity unless the wording explicitly asks to include it.\n- After resolving prior-turn rows, project only the newly requested role column. Do not return whole rows or repeat the role answered in the previous turn.\n- For list/all questions, scan all rows in the active or filtered set before answering. Do not stop after the first matching row.\n- If the requested answer is an episode number, production code, route number, or other identifier, preserve the identifier surface. If the requested answer is a title or name, return the title/name column instead.",
           "ordinal": 60
         }
       }
@@ -118,5 +120,5 @@
       }
     }
   ],
-  "rationale": "Backward-compatible coarse SQA rule bundle. New experiments should prefer dataset_domain_heuristics.sqa_followup because these rules are dialog/task-local, not transferable source-domain heuristics."
+  "rationale": "SQA dataset/task-local follow-up rule bundle. This captures dialog-state and active-set heuristics, not transferable source-domain knowledge."
 }

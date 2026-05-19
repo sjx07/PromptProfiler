@@ -49,6 +49,14 @@
     {
       "label": "domain_hint_rule.tablebench.formula_not_surface_when_compute",
       "role": "included_rule"
+    },
+    {
+      "label": "heuristic_scope.mixed_source_surface_gate",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "transfer_scope.surface_match_only",
+      "role": "transfer_scope"
     }
   ],
   "scope": {
@@ -67,7 +75,10 @@
       "tablebench.formula_not_surface_when_compute"
     ],
     "prompt_surface": "clean_rule_bundle",
-    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text."
+    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text.",
+    "heuristic_scope": "mixed_source_surface_gate",
+    "transfer_scope": "surface_match_only",
+    "transfer_note": "Rules are intended to gate when WikiTable-like or hierarchy-like source rules should transfer into mixed TableBench examples."
   },
   "requires": [
     "facet_dp_scaffold",
