@@ -5,7 +5,7 @@
   "common_config": {
     "experiment_type": "explicit_coalitions",
     "split": "test",
-    "max_queries": 1024,
+    "max_queries": 0,
     "sample_seed": 42,
     "seed": 42,
     "max_tokens": 4096,
@@ -16,16 +16,16 @@
     "ports": [8000, 8001, 8002, 8003],
     "num_workers": 128,
     "request_timeout": 240,
-    "db_path": "/data/users/jsu323/facet/wikitable_transfer_cube.db",
-    "vllm_db": "/data/users/jsu323/facet/wikitable_transfer_vllm.db",
+    "db_path": "/data/users/jsu323/facet/wikitable_family_v1_cube.db",
+    "vllm_db": "/data/users/jsu323/facet/wikitable_family_v1_vllm.db",
     "include_base": false,
     "summary_baseline_label": "base"
   },
   "targets": {
     "wtq": {
       "task": "wtq",
-      "phase": "wtq_wikitable_family_v1_qwen25_14b_1024",
-      "config_path": "Obsidian/facet_exp/wtq/configs/systematic/qwen2_5_14b/family_coalitions/wikitable_family_v1.n1024.json",
+      "phase": "wtq_wikitable_family_v1_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wtq/configs/systematic/qwen2_5_14b/family_coalitions/wikitable_family_v1.full.json",
       "base_features": [
         "_section_role",
         "_section_task",
@@ -43,8 +43,8 @@
     },
     "sqa": {
       "task": "sqa",
-      "phase": "sqa_wikitable_family_v1_qwen25_14b_1024",
-      "config_path": "Obsidian/facet_exp/sqa/configs/systematic/qwen2_5_14b/family_coalitions/wikitable_family_v1.n1024.json",
+      "phase": "sqa_wikitable_family_v1_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/sqa/configs/systematic/qwen2_5_14b/family_coalitions/wikitable_family_v1.full.json",
       "sqa_data_dir": "/data/users/jsu323/sqa/SQA Release 1.0",
       "base_features": [
         "_section_role",
