@@ -228,8 +228,7 @@
       "ctx.relevant_table",
       "ctx.full",
       "scaffold.plan",
-      "scaffold.evidence",
-      "domain.wikitable"
+      "scaffold.evidence"
     ],
     "ladders": [
       {
@@ -244,11 +243,6 @@
     ],
     "pairwise": [
       {
-        "name": "context_domain",
-        "left": ["ctx.type_stats", "ctx.relevant_table", "ctx.full"],
-        "right": ["domain.wikitable"]
-      },
-      {
         "name": "context_serialization",
         "left": ["ctx.type_stats", "ctx.relevant_table"],
         "right": ["ser.records", "ser.html"]
@@ -259,30 +253,47 @@
         "right": ["scaffold.plan", "scaffold.evidence"]
       }
     ],
+    "cartesian": [
+      {
+        "name": "scaffold_reason",
+        "groups": [
+          ["scaffold.plan", "scaffold.evidence"],
+          ["reason.extract", "reason.evidence_verify"]
+        ]
+      },
+      {
+        "name": "context_scaffold_reason",
+        "groups": [
+          ["ctx.type_stats", "ctx.relevant_table", "ctx.full"],
+          ["scaffold.plan", "scaffold.evidence"],
+          ["reason.extract", "reason.evidence_verify"]
+        ]
+      },
+      {
+        "name": "serialization_scaffold_reason",
+        "groups": [
+          ["ser.records", "ser.html"],
+          ["scaffold.plan", "scaffold.evidence"],
+          ["reason.extract", "reason.evidence_verify"]
+        ]
+      }
+    ],
     "selected": [
       {
-        "blocks": ["scaffold.plan", "reason.extract"],
-        "source": "scaffold_reason"
+        "blocks": ["ser.records", "ctx.type_stats", "scaffold.plan", "reason.extract"],
+        "source": "serialization_context_scaffold_reason"
       },
       {
-        "blocks": ["scaffold.evidence", "reason.evidence_verify"],
-        "source": "scaffold_reason"
+        "blocks": ["ser.records", "ctx.relevant_table", "scaffold.evidence", "reason.evidence_verify"],
+        "source": "serialization_context_scaffold_reason"
       },
       {
-        "blocks": ["ctx.type_stats", "scaffold.plan", "reason.extract"],
-        "source": "context_scaffold_reason"
+        "blocks": ["ser.html", "ctx.type_stats", "scaffold.plan", "reason.extract"],
+        "source": "serialization_context_scaffold_reason"
       },
       {
-        "blocks": ["ctx.relevant_table", "scaffold.evidence", "reason.evidence_verify"],
-        "source": "context_scaffold_reason"
-      },
-      {
-        "blocks": ["ctx.type_stats", "scaffold.plan", "reason.extract", "domain.wikitable"],
-        "source": "context_scaffold_reason_domain"
-      },
-      {
-        "blocks": ["ctx.relevant_table", "scaffold.evidence", "reason.evidence_verify", "domain.wikitable"],
-        "source": "context_scaffold_reason_domain"
+        "blocks": ["ser.html", "ctx.relevant_table", "scaffold.evidence", "reason.evidence_verify"],
+        "source": "serialization_context_scaffold_reason"
       }
     ]
   }

@@ -14,6 +14,7 @@ import json
 import re
 import sys
 from collections import OrderedDict
+from itertools import product
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +109,17 @@ def expand_generation(manifest: dict[str, Any]) -> list[dict[str, Any]]:
         for left in spec.get("left", []):
             for right in spec.get("right", []):
                 add_generated(rows, seen, [left, right], name)
+
+    for spec in generation.get("cartesian", []):
+        name = spec.get("name", "cartesian")
+        groups = spec.get("groups", [])
+        if not groups:
+            raise ManifestError(f"cartesian generation {name!r} must define non-empty groups")
+        for group in groups:
+            if not isinstance(group, list) or not group:
+                raise ManifestError(f"cartesian generation {name!r} has an empty or non-list group")
+        for combo in product(*groups):
+            add_generated(rows, seen, list(combo), name)
 
     for spec in generation.get("selected", []):
         add_generated(rows, seen, list(spec.get("blocks", [])), spec.get("source", "selected"))
