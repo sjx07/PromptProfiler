@@ -1,0 +1,289 @@
+{
+  "study_id": "wikitable_family_v1",
+  "description": "Family-level WTQ/SQA coalition screen over shared WikiTable-style tasks. Labels are block-level names; expanded feature atoms remain in config metadata.",
+  "preview_path": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/family_level_coalition/wikitable_family_v1_preview.html",
+  "common_config": {
+    "experiment_type": "explicit_coalitions",
+    "split": "test",
+    "max_queries": 1024,
+    "sample_seed": 42,
+    "seed": 42,
+    "max_tokens": 4096,
+    "temperature": 0,
+    "top_p": 1.0,
+    "sampling_top_k": -1,
+    "model": "Qwen/Qwen2.5-14B-Instruct",
+    "ports": [8000, 8001, 8002, 8003],
+    "num_workers": 128,
+    "request_timeout": 240,
+    "db_path": "/data/users/jsu323/facet/wikitable_transfer_cube.db",
+    "vllm_db": "/data/users/jsu323/facet/wikitable_transfer_vllm.db",
+    "include_base": false,
+    "summary_baseline_label": "base"
+  },
+  "targets": {
+    "wtq": {
+      "task": "wtq",
+      "phase": "wtq_wikitable_family_v1_qwen25_14b_1024",
+      "config_path": "Obsidian/facet_exp/wtq/configs/systematic/qwen2_5_14b/family_coalitions/wikitable_family_v1.n1024.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "_section_rules",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "contract.json_list"
+      ]
+    },
+    "sqa": {
+      "task": "sqa",
+      "phase": "sqa_wikitable_family_v1_qwen25_14b_1024",
+      "config_path": "Obsidian/facet_exp/sqa/configs/systematic/qwen2_5_14b/family_coalitions/wikitable_family_v1.n1024.json",
+      "sqa_data_dir": "/data/users/jsu323/sqa/SQA Release 1.0",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "_section_rules",
+        "facet_dp_scaffold",
+        "sqa_dialog_binding_base"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "contract.json_list"
+      ]
+    }
+  },
+  "families": {
+    "format": {
+      "mode": "exclusive",
+      "description": "Prompt layout/delimiter surface."
+    },
+    "ser": {
+      "mode": "exclusive",
+      "description": "Table serialization. Exactly one active table view."
+    },
+    "contract": {
+      "mode": "exclusive",
+      "description": "Answer surface contract. One scoring interface at a time."
+    },
+    "ctx": {
+      "mode": "additive",
+      "description": "Input-context builders and deterministic table summaries."
+    },
+    "scaffold": {
+      "mode": "exclusive",
+      "description": "Visible reasoning carrier or answer-schema scaffold."
+    },
+    "reason": {
+      "mode": "additive",
+      "description": "Reasoning rule blocks. These require a scaffold block."
+    },
+    "domain": {
+      "mode": "additive",
+      "description": "Dataset/source-specific heuristic bundles."
+    }
+  },
+  "blocks": {
+    "format.plain": {
+      "family": "format",
+      "role": "fixed_base",
+      "atoms": ["prompt_format_plain"]
+    },
+    "format.markdown": {
+      "family": "format",
+      "role": "screen",
+      "atoms": ["prompt_format_markdown"]
+    },
+    "format.json": {
+      "family": "format",
+      "role": "screen",
+      "atoms": ["prompt_format_json"]
+    },
+    "format.yaml": {
+      "family": "format",
+      "role": "screen",
+      "atoms": ["prompt_format_yaml"]
+    },
+    "ser.columns": {
+      "family": "ser",
+      "role": "fixed_base",
+      "atoms": ["table_serialization_json_columns_data"]
+    },
+    "ser.records": {
+      "family": "ser",
+      "role": "screen",
+      "atoms": ["table_serialization_json_records"]
+    },
+    "ser.html": {
+      "family": "ser",
+      "role": "screen",
+      "atoms": ["table_serialization_html"]
+    },
+    "contract.json_list": {
+      "family": "contract",
+      "role": "fixed_measurement",
+      "atoms": ["output_contract_json_answer_list"]
+    },
+    "ctx.type": {
+      "family": "ctx",
+      "role": "screen",
+      "atoms": ["input_context_type_annotation"]
+    },
+    "ctx.stats": {
+      "family": "ctx",
+      "role": "screen",
+      "atoms": ["input_context_column_statistics"]
+    },
+    "ctx.type_stats": {
+      "family": "ctx",
+      "role": "screen",
+      "atoms": [
+        "input_context_type_annotation",
+        "input_context_column_statistics"
+      ]
+    },
+    "ctx.cols12": {
+      "family": "ctx",
+      "role": "screen",
+      "atoms": ["input_context_column_selection_relevance_12"]
+    },
+    "ctx.rows50": {
+      "family": "ctx",
+      "role": "screen",
+      "atoms": ["input_context_row_selection_relevance_50"]
+    },
+    "ctx.relevant_table": {
+      "family": "ctx",
+      "role": "screen",
+      "atoms": [
+        "input_context_column_selection_relevance_12",
+        "input_context_row_selection_relevance_50"
+      ]
+    },
+    "ctx.full": {
+      "family": "ctx",
+      "role": "screen",
+      "atoms": [
+        "input_context_type_annotation",
+        "input_context_column_statistics",
+        "input_context_column_selection_relevance_12",
+        "input_context_row_selection_relevance_50"
+      ]
+    },
+    "scaffold.plan": {
+      "family": "scaffold",
+      "role": "reasoning_carrier",
+      "excludes_families": ["contract"],
+      "atoms": ["reasoning_scaffold_visible_plan"]
+    },
+    "scaffold.evidence": {
+      "family": "scaffold",
+      "role": "reasoning_carrier",
+      "excludes_families": ["contract"],
+      "atoms": ["reasoning_scaffold_visible_evidence"]
+    },
+    "reason.extract": {
+      "family": "reason",
+      "role": "screen",
+      "requires_families": ["scaffold"],
+      "atoms": ["reasoning_extract_then_compute"]
+    },
+    "reason.evidence_verify": {
+      "family": "reason",
+      "role": "screen",
+      "requires_families": ["scaffold"],
+      "atoms": [
+        "reasoning_intermediate_evidence_table",
+        "reasoning_verify_before_output"
+      ]
+    },
+    "domain.wikitable": {
+      "family": "domain",
+      "role": "source_heuristic",
+      "atoms": ["domain_wikitable_source_semantics_pack"]
+    }
+  },
+  "generation": {
+    "main_blocks": [
+      "format.markdown",
+      "format.json",
+      "format.yaml",
+      "ser.records",
+      "ser.html",
+      "ctx.type",
+      "ctx.stats",
+      "ctx.type_stats",
+      "ctx.cols12",
+      "ctx.rows50",
+      "ctx.relevant_table",
+      "ctx.full",
+      "scaffold.plan",
+      "scaffold.evidence",
+      "domain.wikitable"
+    ],
+    "ladders": [
+      {
+        "name": "context_ladder",
+        "steps": [
+          ["ctx.type_stats"],
+          ["ctx.type_stats", "ctx.cols12"],
+          ["ctx.type_stats", "ctx.relevant_table"],
+          ["ctx.full"]
+        ]
+      }
+    ],
+    "pairwise": [
+      {
+        "name": "context_domain",
+        "left": ["ctx.type_stats", "ctx.relevant_table", "ctx.full"],
+        "right": ["domain.wikitable"]
+      },
+      {
+        "name": "context_serialization",
+        "left": ["ctx.type_stats", "ctx.relevant_table"],
+        "right": ["ser.records", "ser.html"]
+      },
+      {
+        "name": "context_scaffold",
+        "left": ["ctx.type_stats", "ctx.relevant_table"],
+        "right": ["scaffold.plan", "scaffold.evidence"]
+      }
+    ],
+    "selected": [
+      {
+        "blocks": ["scaffold.plan", "reason.extract"],
+        "source": "scaffold_reason"
+      },
+      {
+        "blocks": ["scaffold.evidence", "reason.evidence_verify"],
+        "source": "scaffold_reason"
+      },
+      {
+        "blocks": ["ctx.type_stats", "scaffold.plan", "reason.extract"],
+        "source": "context_scaffold_reason"
+      },
+      {
+        "blocks": ["ctx.relevant_table", "scaffold.evidence", "reason.evidence_verify"],
+        "source": "context_scaffold_reason"
+      },
+      {
+        "blocks": ["ctx.type_stats", "scaffold.plan", "reason.extract", "domain.wikitable"],
+        "source": "context_scaffold_reason_domain"
+      },
+      {
+        "blocks": ["ctx.relevant_table", "scaffold.evidence", "reason.evidence_verify", "domain.wikitable"],
+        "source": "context_scaffold_reason_domain"
+      }
+    ]
+  }
+}
