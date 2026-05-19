@@ -1,0 +1,101 @@
+{
+  "canonical_id": "domain_heuristics.tabfact",
+  "task": "tabfact",
+  "semantic_labels": [
+    {
+      "label": "domain_hint_rule.bundle",
+      "role": "feature_concept"
+    },
+    {
+      "label": "domain_heuristics.tabfact",
+      "role": "feature_concept"
+    },
+    {
+      "label": "benchmark.tab_fact",
+      "role": "dataset"
+    },
+    {
+      "label": "source_family.wikipedia_table_fact_verification",
+      "role": "source_family"
+    },
+    {
+      "label": "feature_mode.rule_bundle",
+      "role": "experiment_design"
+    },
+    {
+      "label": "implementation_surface.task_or_user_instruction",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "domain_hint_rule.tabfact.decompose_statement_roles",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.tabfact.right_entity_wrong_metric_false",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.tabfact.atomic_value_in_statement",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.tabfact.quantifier_global_scan",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.tabfact.ordinal_statement_direction",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.tabfact.adjacent_role_groups",
+      "role": "included_rule"
+    }
+  ],
+  "scope": {
+    "dataset": "tab_fact",
+    "source_family": "wikipedia_table_fact_verification",
+    "feature_mode": "rule_bundle",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "source_artifact": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json",
+    "source_rule_ids": [
+      "tabfact.decompose_statement_roles",
+      "tabfact.right_entity_wrong_metric_false",
+      "tabfact.atomic_value_in_statement",
+      "tabfact.quantifier_global_scan",
+      "tabfact.ordinal_statement_direction",
+      "tabfact.adjacent_role_groups"
+    ]
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- tabfact.decompose_statement_roles (role-grounded verdict): Trigger: Statement mentions multiple entities/roles/metrics. Hint: Decompose the statement into atomic table-role claims. For each noun phrase, locate the exact row and role column before deciding support/refutation. Risk: Can become generic CoT unless tied to table roles.\n- tabfact.right_entity_wrong_metric_false (metric mismatch): Trigger: Tokens appear in row but statement names a different metric or role. Hint: A statement is false if it uses the right entity but the wrong metric, wrong role, wrong row, wrong unit, or wrong quantifier. Token overlap alone is not support. Risk: Needs exact role mapping.\n- tabfact.atomic_value_in_statement (atomic evidence values): Trigger: Statement mentions score, season, production code, route code, glyph, or date. Hint: Treat score strings, season strings, production codes, route/glyph identifiers, and full dates as atomic evidence values unless the statement explicitly performs arithmetic over them. Risk: Arithmetic/count statements need parsing.\n- tabfact.quantifier_global_scan (quantifier/exclusivity): Trigger: Statement has only, exactly, at least, more than, fewer than, both, neither, total. Hint: For quantifier and exclusivity claims, scan all relevant rows before verdict. Check the exact quantifier rather than confirming one supporting row. Risk: Can add prompt length; should trigger only on quantifier terms.\n- tabfact.ordinal_statement_direction (ordinal semantics): Trigger: Statement compares rank/place/seed/pick/chart position. Hint: For rank/place/seed/pick/chart position, smaller numeric values usually mean earlier or better. Verify the statement using ordinal semantics, not magnitude semantics. Risk: Table notes can override direction.\n- tabfact.adjacent_role_groups (adjacent metric groups): Trigger: Table has repeated candidate/team/person groups with nearby metrics. Hint: When the statement names a metric, bind it to the adjacent role group before verdict. Do not borrow a neighboring metric from another candidate/team/person. Risk: Requires serialization preserving groups.",
+          "ordinal": 60
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Apply the tabfact domain hints as conditional rules: first match the trigger, then use the hint to choose rows, columns, entities, relations, or operations. If a hint conflicts with explicit question wording or source evidence, follow the explicit evidence. Do not use these hints to change the required output format.",
+          "ordinal": 70
+        }
+      }
+    }
+  ],
+  "rationale": "TabFact-specific statement-verification domain hint rule bundle distilled from benchmark/source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
+}

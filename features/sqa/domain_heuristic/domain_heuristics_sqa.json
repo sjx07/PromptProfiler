@@ -1,0 +1,105 @@
+{
+  "canonical_id": "domain_heuristics.sqa",
+  "task": "sqa",
+  "semantic_labels": [
+    {
+      "label": "domain_hint_rule.bundle",
+      "role": "feature_concept"
+    },
+    {
+      "label": "domain_heuristics.sqa",
+      "role": "feature_concept"
+    },
+    {
+      "label": "benchmark.sqa",
+      "role": "dataset"
+    },
+    {
+      "label": "source_family.wikipedia_table_dialog",
+      "role": "source_family"
+    },
+    {
+      "label": "feature_mode.rule_bundle",
+      "role": "experiment_design"
+    },
+    {
+      "label": "implementation_surface.task_or_user_instruction",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "domain_hint_rule.sqa.resolve_active_set_first",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.sqa.one_answer_per_active_item",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.sqa.exclude_anchor_for_same_as",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.sqa.role_project_after_history",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.sqa.complete_list_not_prefix",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.sqa.preserve_episode_identifier_when_asked",
+      "role": "included_rule"
+    }
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "source_family": "wikipedia_table_dialog",
+    "feature_mode": "rule_bundle",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "source_artifact": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json",
+    "source_rule_ids": [
+      "sqa.resolve_active_set_first",
+      "sqa.one_answer_per_active_item",
+      "sqa.exclude_anchor_for_same_as",
+      "sqa.role_project_after_history",
+      "sqa.complete_list_not_prefix",
+      "sqa.preserve_episode_identifier_when_asked"
+    ],
+    "excluded_rule_ids": [
+      "sqa.numeric_comma_not_domain"
+    ],
+    "exclusion_reason": "Excluded parser/output-contract attribution guardrail from the prompt-facing domain heuristic bundle."
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- sqa.resolve_active_set_first (dialog active set): Trigger: Question has these, those, their, of these, of those, remaining, same, other, along with. Hint: Resolve the current question against the previous turn answer set before scanning the whole table. Treat the prior answer list as the active entity or row set unless the question clearly broadens scope. Risk: Over-binds when the follow-up asks a new broad question.\n- sqa.one_answer_per_active_item (aligned list output): Trigger: Question asks each/their/what dates/which ones over a multi-item active set. Hint: Return one value per active item in active-set order. Preserve duplicate values when they correspond to distinct active rows. Risk: Can over-return if active set is noisy.\n- sqa.exclude_anchor_for_same_as (anchor exclusion): Trigger: Question asks same as, along with, other than, besides, near only, or related comparison to a named anchor. Hint: For same-as or along-with questions, usually exclude the anchor entity itself from the returned set unless the question explicitly asks to include it. Risk: Some wording includes the anchor; use only for explicit comparison/exclusion cues.\n- sqa.role_project_after_history (role projection after history): Trigger: Follow-up asks for a different property of prior entities. Hint: After resolving the prior active rows, project the requested role column only. Do not return whole rows or the role used in the previous question. Risk: Needs prior-row binding; prompt-only may be weak if history is not explicit.\n- sqa.complete_list_not_prefix (list completeness): Trigger: Question asks which/what/list/all over multiple matching rows. Hint: Scan all rows in the active set or filtered set before answering. Do not stop after the first matching row or return a prefix of the correct list. Risk: May include false positives if filter is broad.\n- sqa.preserve_episode_identifier_when_asked (identifier surface): Trigger: Current question asks for episode number/code/identifier rather than title. Hint: If the requested answer is an identifier, preserve source prefixes such as Ep., No., or production-code markers. If the question asks for episode title, answer the title column instead. Risk: Conflicts with title questions; check requested role.",
+          "ordinal": 60
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Apply the sqa domain hints as conditional rules: first match the trigger, then use the hint to choose rows, columns, entities, relations, or operations. If a hint conflicts with explicit question wording or source evidence, follow the explicit evidence. Do not use these hints to change the required output format.",
+          "ordinal": 70
+        }
+      }
+    }
+  ],
+  "rationale": "SQA-specific dialog and WikiTable domain hint rule bundle distilled from benchmark/source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
+}

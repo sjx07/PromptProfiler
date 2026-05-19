@@ -1,0 +1,127 @@
+{
+  "canonical_id": "domain_heuristics.hover_context",
+  "task": "hover_context",
+  "semantic_labels": [
+    {
+      "label": "domain_hint_rule.bundle",
+      "role": "feature_concept"
+    },
+    {
+      "label": "domain_heuristics.hover_context",
+      "role": "feature_concept"
+    },
+    {
+      "label": "benchmark.hover_context",
+      "role": "dataset"
+    },
+    {
+      "label": "source_family.wikipedia_passage_retrieval",
+      "role": "source_family"
+    },
+    {
+      "label": "feature_mode.rule_bundle",
+      "role": "experiment_design"
+    },
+    {
+      "label": "implementation_surface.task_or_user_instruction",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "domain_hint_rule.hover.title_terms_are_evidence",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.hover.target_unresolved_claim_part",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.hover.keep_relation_anchor",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.hover.corrected_title_from_summary",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.hover.corpus_time_floor",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.hover.title_prefixed_summary",
+      "role": "included_rule"
+    }
+  ],
+  "scope": {
+    "dataset": "hover_context",
+    "source_family": "wikipedia_passage_retrieval",
+    "feature_mode": "rule_bundle",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "source_artifact": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json",
+    "source_rule_ids": [
+      "hover.title_terms_are_evidence",
+      "hover.target_unresolved_claim_part",
+      "hover.keep_relation_anchor",
+      "hover.corrected_title_from_summary",
+      "hover.corpus_time_floor",
+      "hover.title_prefixed_summary"
+    ]
+  },
+  "requires": [
+    "facet_retrieval_scaffold",
+    "_section_retrieval_strategy",
+    "_section_evidence_summary"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- hover.title_terms_are_evidence (title/alias retrieval): Trigger: Claim or summary has proper nouns, aliases, parentheticals, work titles, dates. Hint: Treat Wikipedia article titles as evidence. Preserve canonical title words, aliases, disambiguators, proper nouns, and years in summaries and retrieval queries. Risk: Title matching can swamp the missing relation.\n- hover.target_unresolved_claim_part (multi-hop residual): Trigger: Hop-1 or hop-2 already covers part of the claim. Hint: Split the claim into resolved and unresolved parts. The next query should target the missing supporting title, not restate the whole claim or only repeat already grounded entities. Risk: Bad earlier summary causes drift.\n- hover.keep_relation_anchor (relation anchors): Trigger: Claim edge includes directed, founded, located in, brother, spouse, released, won, member of, occupation. Hint: Keep one relation anchor that connects the unresolved hop. Combine it with the discriminative entity/title/date rather than a long natural-language claim. Risk: Too many relation words make broad BM25 queries.\n- hover.corrected_title_from_summary (summary corrections): Trigger: Intermediate summary corrects or clarifies a title/name/date from the claim. Hint: If a summary corrects a title, spelling, alias, or date, use the corrected surface in the next query while preserving enough claim context to verify/refute. Risk: May follow an incorrect summary correction.\n- hover.corpus_time_floor (corpus time): Trigger: Claim mentions current, recent, or post-2017 facts under fixed Wikipedia abstracts. Hint: Remember the retrieval corpus may be time-bounded. Keep years as standalone query tokens and avoid treating missing post-corpus evidence as definitive. Risk: Only valid for fixed 2017-style corpora.\n- hover.title_prefixed_summary (evidence provenance): Trigger: Summarization module over titled passages. Hint: Prefix key evidence with the passage title or entity label. Mark no-overlap passages as irrelevant instead of blending them into the summary. Risk: Extra title text can pollute later query if not concise.\nUse these hints to choose compact, title-like query terms for missing supporting evidence. Apply these as conditional rules only: if a hint conflicts with explicit claim/source evidence, follow the explicit evidence, and do not change the required output format.",
+          "ordinal": 110
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop3",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- hover.title_terms_are_evidence (title/alias retrieval): Trigger: Claim or summary has proper nouns, aliases, parentheticals, work titles, dates. Hint: Treat Wikipedia article titles as evidence. Preserve canonical title words, aliases, disambiguators, proper nouns, and years in summaries and retrieval queries. Risk: Title matching can swamp the missing relation.\n- hover.target_unresolved_claim_part (multi-hop residual): Trigger: Hop-1 or hop-2 already covers part of the claim. Hint: Split the claim into resolved and unresolved parts. The next query should target the missing supporting title, not restate the whole claim or only repeat already grounded entities. Risk: Bad earlier summary causes drift.\n- hover.keep_relation_anchor (relation anchors): Trigger: Claim edge includes directed, founded, located in, brother, spouse, released, won, member of, occupation. Hint: Keep one relation anchor that connects the unresolved hop. Combine it with the discriminative entity/title/date rather than a long natural-language claim. Risk: Too many relation words make broad BM25 queries.\n- hover.corrected_title_from_summary (summary corrections): Trigger: Intermediate summary corrects or clarifies a title/name/date from the claim. Hint: If a summary corrects a title, spelling, alias, or date, use the corrected surface in the next query while preserving enough claim context to verify/refute. Risk: May follow an incorrect summary correction.\n- hover.corpus_time_floor (corpus time): Trigger: Claim mentions current, recent, or post-2017 facts under fixed Wikipedia abstracts. Hint: Remember the retrieval corpus may be time-bounded. Keep years as standalone query tokens and avoid treating missing post-corpus evidence as definitive. Risk: Only valid for fixed 2017-style corpora.\n- hover.title_prefixed_summary (evidence provenance): Trigger: Summarization module over titled passages. Hint: Prefix key evidence with the passage title or entity label. Mark no-overlap passages as irrelevant instead of blending them into the summary. Risk: Extra title text can pollute later query if not concise.\nUse these hints to choose compact, title-like query terms for missing supporting evidence. Apply these as conditional rules only: if a hint conflicts with explicit claim/source evidence, follow the explicit evidence, and do not change the required output format.",
+          "ordinal": 110
+        }
+      }
+    },
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- hover.title_terms_are_evidence (title/alias retrieval): Trigger: Claim or summary has proper nouns, aliases, parentheticals, work titles, dates. Hint: Treat Wikipedia article titles as evidence. Preserve canonical title words, aliases, disambiguators, proper nouns, and years in summaries and retrieval queries. Risk: Title matching can swamp the missing relation.\n- hover.target_unresolved_claim_part (multi-hop residual): Trigger: Hop-1 or hop-2 already covers part of the claim. Hint: Split the claim into resolved and unresolved parts. The next query should target the missing supporting title, not restate the whole claim or only repeat already grounded entities. Risk: Bad earlier summary causes drift.\n- hover.keep_relation_anchor (relation anchors): Trigger: Claim edge includes directed, founded, located in, brother, spouse, released, won, member of, occupation. Hint: Keep one relation anchor that connects the unresolved hop. Combine it with the discriminative entity/title/date rather than a long natural-language claim. Risk: Too many relation words make broad BM25 queries.\n- hover.corrected_title_from_summary (summary corrections): Trigger: Intermediate summary corrects or clarifies a title/name/date from the claim. Hint: If a summary corrects a title, spelling, alias, or date, use the corrected surface in the next query while preserving enough claim context to verify/refute. Risk: May follow an incorrect summary correction.\n- hover.corpus_time_floor (corpus time): Trigger: Claim mentions current, recent, or post-2017 facts under fixed Wikipedia abstracts. Hint: Remember the retrieval corpus may be time-bounded. Keep years as standalone query tokens and avoid treating missing post-corpus evidence as definitive. Risk: Only valid for fixed 2017-style corpora.\n- hover.title_prefixed_summary (evidence provenance): Trigger: Summarization module over titled passages. Hint: Prefix key evidence with the passage title or entity label. Mark no-overlap passages as irrelevant instead of blending them into the summary. Risk: Extra title text can pollute later query if not concise.\nUse these hints to preserve title matches, aliases, disambiguators, dates, and relation anchors in summaries. Apply these as conditional rules only: if a hint conflicts with explicit claim/source evidence, follow the explicit evidence, and do not change the required output format.",
+          "ordinal": 110
+        }
+      }
+    },
+    {
+      "target_module": "summarize2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- hover.title_terms_are_evidence (title/alias retrieval): Trigger: Claim or summary has proper nouns, aliases, parentheticals, work titles, dates. Hint: Treat Wikipedia article titles as evidence. Preserve canonical title words, aliases, disambiguators, proper nouns, and years in summaries and retrieval queries. Risk: Title matching can swamp the missing relation.\n- hover.target_unresolved_claim_part (multi-hop residual): Trigger: Hop-1 or hop-2 already covers part of the claim. Hint: Split the claim into resolved and unresolved parts. The next query should target the missing supporting title, not restate the whole claim or only repeat already grounded entities. Risk: Bad earlier summary causes drift.\n- hover.keep_relation_anchor (relation anchors): Trigger: Claim edge includes directed, founded, located in, brother, spouse, released, won, member of, occupation. Hint: Keep one relation anchor that connects the unresolved hop. Combine it with the discriminative entity/title/date rather than a long natural-language claim. Risk: Too many relation words make broad BM25 queries.\n- hover.corrected_title_from_summary (summary corrections): Trigger: Intermediate summary corrects or clarifies a title/name/date from the claim. Hint: If a summary corrects a title, spelling, alias, or date, use the corrected surface in the next query while preserving enough claim context to verify/refute. Risk: May follow an incorrect summary correction.\n- hover.corpus_time_floor (corpus time): Trigger: Claim mentions current, recent, or post-2017 facts under fixed Wikipedia abstracts. Hint: Remember the retrieval corpus may be time-bounded. Keep years as standalone query tokens and avoid treating missing post-corpus evidence as definitive. Risk: Only valid for fixed 2017-style corpora.\n- hover.title_prefixed_summary (evidence provenance): Trigger: Summarization module over titled passages. Hint: Prefix key evidence with the passage title or entity label. Mark no-overlap passages as irrelevant instead of blending them into the summary. Risk: Extra title text can pollute later query if not concise.\nUse these hints to preserve title matches, aliases, disambiguators, dates, and relation anchors in summaries. Apply these as conditional rules only: if a hint conflicts with explicit claim/source evidence, follow the explicit evidence, and do not change the required output format.",
+          "ordinal": 110
+        }
+      }
+    }
+  ],
+  "rationale": "HoVer-specific Wikipedia retrieval/evidence domain hint rule bundle distilled from benchmark/source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
+}

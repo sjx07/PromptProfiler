@@ -1,0 +1,111 @@
+{
+  "canonical_id": "domain_heuristics.wtq",
+  "task": "wtq",
+  "semantic_labels": [
+    {
+      "label": "domain_hint_rule.bundle",
+      "role": "feature_concept"
+    },
+    {
+      "label": "domain_heuristics.wtq",
+      "role": "feature_concept"
+    },
+    {
+      "label": "benchmark.wtq",
+      "role": "dataset"
+    },
+    {
+      "label": "source_family.wikipedia_table_flat",
+      "role": "source_family"
+    },
+    {
+      "label": "feature_mode.rule_bundle",
+      "role": "experiment_design"
+    },
+    {
+      "label": "implementation_surface.task_or_user_instruction",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "domain_hint_rule.wtq.country_code_alias",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wtq.chart_country_header",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wtq.score_is_result",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wtq.rank_vs_value",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wtq.identifier_vs_named_entity",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wtq.row_order_navigation",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wtq.adjacent_metric_group",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wtq.filter_then_project",
+      "role": "included_rule"
+    }
+  ],
+  "scope": {
+    "dataset": "wtq",
+    "source_family": "wikipedia_table_flat",
+    "feature_mode": "rule_bundle",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "source_artifact": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json",
+    "source_rule_ids": [
+      "wtq.country_code_alias",
+      "wtq.chart_country_header",
+      "wtq.score_is_result",
+      "wtq.rank_vs_value",
+      "wtq.identifier_vs_named_entity",
+      "wtq.row_order_navigation",
+      "wtq.adjacent_metric_group",
+      "wtq.filter_then_project"
+    ]
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- wtq.country_code_alias (alias / abbreviation): Trigger: Country, Nationality, Represent, Team, City, Location columns; compact all-caps 2-3 letter values. Hint: If a compact all-caps value appears under a country/nationality/represent/team column, treat it as a country or team abbreviation before answering. For example, CHN means China and GER often means Germany or a German chart column, depending on header context. Risk: Do not expand the abbreviation when the question explicitly asks for the code or when the gold surface is a code.\n- wtq.chart_country_header (music chart semantics): Trigger: Music table with chart/country columns such as GER, US, UK, AUS, peak, position. Hint: For music chart tables, a country-code header such as GER names a chart column. Use the exact chart column requested by the question; do not treat the header code as the answer entity. Risk: Can over-trigger on geography tables; require music/chart cues.\n- wtq.score_is_result (sports score surface): Trigger: Sports/game/match/race table and score-like value with hyphen or draw marker. Hint: For lookup questions, treat score strings such as 18-12 or 58-13 as complete result cells. Do not split them unless the question asks for margin, difference, or one side of the score. Risk: Wrong for margin/difference questions.\n- wtq.rank_vs_value (ordinal versus magnitude): Trigger: Headers include Rank, Place, Position, Seed, Pick, Chart position, Points, Votes, Sales, Attendance, Medals. Hint: Before comparing, decide whether the target column is ordinal or magnitude. Rank/place/seed/pick/chart position usually use lower-is-better; points/votes/sales/attendance/medals use larger-is-more. Risk: Some tables define rank direction differently; defer to explicit table notes.\n- wtq.identifier_vs_named_entity (identifier or entity): Trigger: Headers include No., #, Route, Unicode, C string, Episode no., Production code, Rank. Hint: If the question asks who/which/name/title, return the named entity column, not the identifier/code/rank/glyph. Return the identifier only when the question explicitly asks for number, code, rank, or symbol. Risk: Can hurt explicit code/number questions.\n- wtq.row_order_navigation (row order operation): Trigger: Question contains first, last, previous, next, before, after, directly after, top listed, bottom listed. Hint: Interpret row-order words by displayed table order unless the question explicitly asks to sort by a column value. Find the anchor row first, move to the requested row, then project the requested column. Risk: Top/highest may mean max value, not first row.\n- wtq.adjacent_metric_group (repeated role groups): Trigger: Adjacent repeated groups such as team/score, candidate/votes/%, city/population, country/medals. Hint: Bind metric columns to their nearest entity or parent header before selecting or computing. A score/votes/% column usually belongs to the adjacent team/candidate group, not the whole row. Risk: Requires table serialization to preserve adjacency.\n- wtq.filter_then_project (operation scope): Trigger: Question has before/after/during/from/outside/with/without/same as filters. Hint: Apply every filter condition before comparing, counting, or projecting. After finding the target row/value, answer only the requested column. Risk: Generic but high-value; separate from source-only rules in analysis.",
+          "ordinal": 60
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Apply the wtq domain hints as conditional rules: first match the trigger, then use the hint to choose rows, columns, entities, relations, or operations. If a hint conflicts with explicit question wording or source evidence, follow the explicit evidence. Do not use these hints to change the required output format.",
+          "ordinal": 70
+        }
+      }
+    }
+  ],
+  "rationale": "WTQ-specific domain hint rule bundle distilled from benchmark/source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
+}

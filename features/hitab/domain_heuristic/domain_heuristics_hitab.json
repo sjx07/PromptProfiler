@@ -1,0 +1,101 @@
+{
+  "canonical_id": "domain_heuristics.hitab",
+  "task": "hitab",
+  "semantic_labels": [
+    {
+      "label": "domain_hint_rule.bundle",
+      "role": "feature_concept"
+    },
+    {
+      "label": "domain_heuristics.hitab",
+      "role": "feature_concept"
+    },
+    {
+      "label": "benchmark.hitab",
+      "role": "dataset"
+    },
+    {
+      "label": "source_family.hierarchical_table+nsf_hierarchical_table+statcan_hierarchical_table+totto_hierarchical_table",
+      "role": "source_family"
+    },
+    {
+      "label": "feature_mode.rule_bundle",
+      "role": "experiment_design"
+    },
+    {
+      "label": "implementation_surface.task_or_user_instruction",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "domain_hint_rule.hitab.header_path_inheritance",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.hitab.statcan_indicator_unit",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.hitab.totto_sports_career_roles",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.hitab.nsf_fy_rd_scale",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.hitab.compare_within_parent_group",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.hitab.total_vs_subcategory",
+      "role": "included_rule"
+    }
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "source_family": "hierarchical_table+nsf_hierarchical_table+statcan_hierarchical_table+totto_hierarchical_table",
+    "feature_mode": "rule_bundle",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "source_artifact": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json",
+    "source_rule_ids": [
+      "hitab.header_path_inheritance",
+      "hitab.statcan_indicator_unit",
+      "hitab.totto_sports_career_roles",
+      "hitab.nsf_fy_rd_scale",
+      "hitab.compare_within_parent_group",
+      "hitab.total_vs_subcategory"
+    ]
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- hitab.header_path_inheritance (hierarchical headers): Trigger: Table has merged cells, parent headers, subheaders, top header rows, group labels. Hint: Every cell inherits row-header path, column-header path, parent group labels, and nested subheaders. Resolve the full path before selecting or comparing a cell. Risk: Prompt-only rule is weak if hierarchy is not rendered.\n- hitab.statcan_indicator_unit (StatCan unit/indicator): Trigger: table_source=statcan; title/header mentions rate, percentage, percentage points, per 100,000, population, cases, charges. Hint: For StatCan tables, identify indicator type and unit scale from title plus header path. Keep rate, count, share, percentage-point delta, cases, charges, and population distinct. Risk: Source-specific; dangerous as global wiki rule.\n- hitab.totto_sports_career_roles (Totto sports/person tables): Trigger: table_source=totto; headers mention club, league, season, apps, goals, innings, runs, joined, transferred. Hint: For Totto sports/person tables, bind season/team/innings first, then project club, league, apps, goals, runs, or transfer date as requested. Risk: Only apply to sports/person career tables.\n- hitab.nsf_fy_rd_scale (NSF fiscal/R&D tables): Trigger: table_source=nsf; title/header mentions FY, R&D, expenditure, state, function, thousand dollars, million. Hint: For NSF R&D tables, bind fiscal year, state, function, and unit scale before reading the cell. Preserve whether the value is in thousands or millions. Risk: Small support; route instead of global use.\n- hitab.compare_within_parent_group (group comparison): Trigger: Question asks highest/lowest/more/less within a grouped hierarchical table. Hint: Compare only within the relevant parent group unless the question explicitly asks for a global comparison across groups. Risk: Wrong if question requests global maximum.\n- hitab.total_vs_subcategory (total/subtotal role): Trigger: Headers/rows include total, local/state/federal, male/female, subtotal, all. Hint: Distinguish total cells from subcategory cells. If the question asks total, return the total; if it asks a subcategory, do not include neighboring subtotals. Risk: Total rows may be implicit in hierarchy.",
+          "ordinal": 60
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Apply the hitab domain hints as conditional rules: first match the trigger, then use the hint to choose rows, columns, entities, relations, or operations. If a hint conflicts with explicit question wording or source evidence, follow the explicit evidence. Do not use these hints to change the required output format.",
+          "ordinal": 70
+        }
+      }
+    }
+  ],
+  "rationale": "HiTab-specific hierarchical-table domain hint rule bundle distilled from benchmark/source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
+}
