@@ -1,6 +1,6 @@
 {
   "study_id": "wikitable_surface_cartesian_v1",
-  "description": "Clean Cartesian coverage for table-task surface features. Keeps only prompt format, table serialization, and deterministic input-context builders; drops markdown/yaml/code-block, reasoning scaffolds, private reasoning rules, and domain heuristics.",
+  "description": "Clean Cartesian coverage for table-task surface features. Keeps only prompt format, table serialization, and high-signal deterministic input-context builders; drops markdown/yaml/code-block, singleton type/row/column selection context, reasoning scaffolds, private reasoning rules, and domain heuristics.",
   "preview_path": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/surface_cartesian/wikitable_surface_cartesian_v1_preview.html",
   "common_config": {
     "experiment_type": "explicit_coalitions",
@@ -13,7 +13,12 @@
     "top_p": 1.0,
     "sampling_top_k": -1,
     "model": "Qwen/Qwen2.5-14B-Instruct",
-    "ports": [8000, 8001, 8002, 8003],
+    "ports": [
+      8000,
+      8001,
+      8002,
+      8003
+    ],
     "num_workers": 128,
     "request_timeout": 240,
     "db_path": "/data/users/jsu323/facet/wikitable_clean_surface_v1.db",
@@ -140,49 +145,58 @@
     },
     "ctx": {
       "mode": "exclusive",
-      "description": "Deterministic input-context builder. V1 treats composite builders as mutually exclusive matrix levels."
+      "description": "Deterministic input-context builder. V1 keeps stats, type_stats, relevant_table, and full; singleton type/cols12/rows50 were low-signal in WTQ."
     }
   },
   "blocks": {
     "fmt.plain": {
       "family": "fmt",
       "role": "fixed_base",
-      "atoms": ["prompt_format_plain"]
+      "atoms": [
+        "prompt_format_plain"
+      ]
     },
     "fmt.json": {
       "family": "fmt",
       "role": "screen",
-      "atoms": ["prompt_format_json"]
+      "atoms": [
+        "prompt_format_json"
+      ]
     },
     "ser.json_columns": {
       "family": "ser",
       "role": "fixed_base",
-      "atoms": ["table_serialization_json_columns_data"]
+      "atoms": [
+        "table_serialization_json_columns_data"
+      ]
     },
     "ser.records": {
       "family": "ser",
       "role": "screen",
-      "atoms": ["table_serialization_json_records"]
+      "atoms": [
+        "table_serialization_json_records"
+      ]
     },
     "ser.html": {
       "family": "ser",
       "role": "screen",
-      "atoms": ["table_serialization_html"]
+      "atoms": [
+        "table_serialization_html"
+      ]
     },
     "contract.json_list": {
       "family": "contract",
       "role": "fixed_measurement",
-      "atoms": ["output_contract_json_answer_list"]
-    },
-    "ctx.type": {
-      "family": "ctx",
-      "role": "screen",
-      "atoms": ["input_context_type_annotation"]
+      "atoms": [
+        "output_contract_json_answer_list"
+      ]
     },
     "ctx.stats": {
       "family": "ctx",
       "role": "screen",
-      "atoms": ["input_context_column_statistics"]
+      "atoms": [
+        "input_context_column_statistics"
+      ]
     },
     "ctx.type_stats": {
       "family": "ctx",
@@ -191,16 +205,6 @@
         "input_context_type_annotation",
         "input_context_column_statistics"
       ]
-    },
-    "ctx.cols12": {
-      "family": "ctx",
-      "role": "screen",
-      "atoms": ["input_context_column_selection_relevance_12"]
-    },
-    "ctx.rows50": {
-      "family": "ctx",
-      "role": "screen",
-      "atoms": ["input_context_row_selection_relevance_50"]
     },
     "ctx.relevant_table": {
       "family": "ctx",
@@ -230,22 +234,31 @@
     "pairwise": [
       {
         "name": "format_serialization_no_context",
-        "left": ["fmt.json"],
-        "right": ["ser.records", "ser.html"]
+        "left": [
+          "fmt.json"
+        ],
+        "right": [
+          "ser.records",
+          "ser.html"
+        ]
       }
     ],
     "cartesian": [
       {
         "name": "surface_matrix",
         "groups": [
-          ["fmt.plain", "fmt.json"],
-          ["ser.json_columns", "ser.records", "ser.html"],
           [
-            "ctx.type",
+            "fmt.plain",
+            "fmt.json"
+          ],
+          [
+            "ser.json_columns",
+            "ser.records",
+            "ser.html"
+          ],
+          [
             "ctx.stats",
             "ctx.type_stats",
-            "ctx.cols12",
-            "ctx.rows50",
             "ctx.relevant_table",
             "ctx.full"
           ]
