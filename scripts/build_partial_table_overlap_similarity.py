@@ -42,6 +42,7 @@ DEFAULT_OUT_DIR = ROOT / (
 )
 SPACE_RE = re.compile(r"\s+")
 TOKEN_RE = re.compile(r"[a-z0-9]+")
+ALPHA_RE = re.compile(r"[a-z]")
 STOPWORDS = {"a", "an", "and", "are", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with"}
 
 
@@ -273,12 +274,10 @@ def useful_value_key(value: str) -> bool:
 def useful_overlap_value(value: str) -> bool:
     if not useful_value_key(value):
         return False
-    # Small standalone numbers create many false partial-overlap matches across
-    # ranks, scores, medals, and counts. Keep years; require other numeric
-    # values to carry more surface information.
-    if value.isdigit():
-        return 1800 <= int(value) <= 2099
-    return True
+    # Primary partial-overlap scoring is entity/text-surface based. Numeric and
+    # year-only values create false similarity across date, rank, score, count,
+    # and medal tables, so keep them out of value, row, and column scores.
+    return bool(ALPHA_RE.search(value))
 
 
 def build_candidate_pairs(
