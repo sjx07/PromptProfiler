@@ -322,14 +322,16 @@ def write_preview(
     table_rows = []
     for row in rows:
         errors = "<br>".join(esc(err) for err in row["errors"]) if row["errors"] else ""
+        selected_html = badges(row["selected_blocks"]) if row["selected_blocks"] else '<span class="muted">anchor</span>'
+        error_html = f'<div class="error">{errors}</div>' if errors else ""
         table_rows.append(
             "<tr>"
             f"<td>{esc(row['target'])}</td>"
             f"<td><code>{esc(row['label'])}</code><div class=\"subtle\">{esc(row['source'])}</div></td>"
-            f"<td>{badges(row['selected_blocks']) if row['selected_blocks'] else '<span class=\"muted\">anchor</span>'}</td>"
+            f"<td>{selected_html}</td>"
             f"<td>{badges(row['effective_blocks'])}</td>"
             f"<td>{badges(row['atoms'], 'atom')}</td>"
-            f"<td><span class=\"status {esc(row['status'])}\">{esc(row['status'])}</span>{('<div class=\"error\">' + errors + '</div>') if errors else ''}</td>"
+            f"<td><span class=\"status {esc(row['status'])}\">{esc(row['status'])}</span>{error_html}</td>"
             f"<td><code>{esc(row['config_path'])}</code></td>"
             "</tr>"
         )
