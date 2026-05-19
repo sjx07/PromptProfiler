@@ -65,7 +65,9 @@
       "tablebench.rank_vs_value_after_operation",
       "tablebench.partial_overlap_transfer_only",
       "tablebench.formula_not_surface_when_compute"
-    ]
+    ],
+    "prompt_surface": "clean_rule_bundle",
+    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text."
   },
   "requires": [
     "facet_dp_scaffold",
@@ -80,7 +82,7 @@
         "node_type": "rule",
         "parent_id": "1c2498fdcc32",
         "payload": {
-          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- tablebench.operation_gate_first (operation gate): Trigger: Any TableBench question; especially mixed source tables. Hint: First classify the operation as lookup, filtered enumeration, count, superlative, comparison, arithmetic, or verdict. Apply source/domain hints only after this operation is fixed. Risk: Without this gate, wiki-style hints can override arithmetic.\n- tablebench.wikilike_atomic_lookup (wiki-like atomic lookup): Trigger: Headers include score, date, time, %, rank, code, id, position; operation is lookup/verdict/enumeration. Hint: For wiki-like lookup/verdict questions, preserve dates, scores, times, percentages, units, and codes as atomic cell values. Parse them only for explicit arithmetic, min/max, margin, difference, or count. Risk: Do not apply globally; TableBench is mixed-source.\n- tablebench.metric_unit_named_by_question (metric and unit): Trigger: Question names average, percentage, rate, total, count, standard deviation, correlation, or units. Hint: Use the metric and unit named by the question. Do not substitute nearby columns with similar numbers or different units. Risk: May duplicate generic operation reasoning; keep as metric-role rule.\n- tablebench.rank_vs_value_after_operation (rank/value split): Trigger: Question uses rank/top/highest/lowest/position. Hint: Decide whether the question asks for the ranked entity, the rank number, or the value used for ranking. Return only the requested projection. Risk: Top can mean first row or max value; use wording and operation.\n- tablebench.partial_overlap_transfer_only (transfer gate): Trigger: Table has high partial overlap with WTQ/SQA/TabFact after numeric-noise filtering. Hint: Only borrow WikiTable domain hints when there is source evidence: shared headers, shared entity values, or high partial table overlap. Do not treat all TableBench rows as wiki-like. Risk: Overlap can still be topical, not structural.\n- tablebench.formula_not_surface_when_compute (computation over surface): Trigger: Arithmetic/comparison/count question over formatted values. Hint: When the operation is arithmetic, convert formatted values into the needed numeric representation, but keep original cell meaning for projection. For lookup/verdict, do not normalize away the surface. Risk: Blends parser and operation; classify as operation-domain hybrid.",
+          "content": "Use these source-domain rules when relevant:\n- Identify the operation before answering: lookup, count, comparison, rank, arithmetic, aggregation, evidence check, or open analysis.\n- For wiki-like table lookups, preserve atomic cell values such as scores, dates, names, titles, identifiers, and units unless the question asks to transform them.\n- Bind the requested metric and unit before computing or comparing. Do not substitute a neighboring metric, identifier, rank, or descriptive label for the requested value.\n- After identifying the operation, decide whether each target column is ordinal or magnitude. Rank-like fields and value-like fields use different comparison directions.\n- Transfer source-domain rules only when the table surface matches: repeated role groups, sports scores, chart positions, identifiers, hierarchical headers, or official-statistics units.\n- For computation questions, compute from the relevant cells rather than copying a visually nearby surface value.",
           "ordinal": 60
         }
       }
@@ -91,11 +93,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Apply the tablebench domain hints as conditional rules: first match the trigger, then use the hint to choose rows, columns, entities, relations, or operations. If a hint conflicts with explicit question wording or source evidence, follow the explicit evidence. Do not use these hints to change the required output format.",
+          "content": "Apply these rules only when they match the question and source evidence. If a rule conflicts with explicit wording or evidence, follow the explicit wording and evidence. Do not change the required output format.",
           "ordinal": 70
         }
       }
     }
   ],
-  "rationale": "TableBench-specific operation and table-source domain hint rule bundle distilled from benchmark/source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
+  "rationale": "Prompt-facing domain rule bundle distilled from source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
 }

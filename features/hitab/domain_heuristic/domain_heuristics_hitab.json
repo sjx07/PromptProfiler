@@ -65,7 +65,9 @@
       "hitab.nsf_fy_rd_scale",
       "hitab.compare_within_parent_group",
       "hitab.total_vs_subcategory"
-    ]
+    ],
+    "prompt_surface": "clean_rule_bundle",
+    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text."
   },
   "requires": [
     "facet_dp_scaffold",
@@ -80,7 +82,7 @@
         "node_type": "rule",
         "parent_id": "1c2498fdcc32",
         "payload": {
-          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- hitab.header_path_inheritance (hierarchical headers): Trigger: Table has merged cells, parent headers, subheaders, top header rows, group labels. Hint: Every cell inherits row-header path, column-header path, parent group labels, and nested subheaders. Resolve the full path before selecting or comparing a cell. Risk: Prompt-only rule is weak if hierarchy is not rendered.\n- hitab.statcan_indicator_unit (StatCan unit/indicator): Trigger: table_source=statcan; title/header mentions rate, percentage, percentage points, per 100,000, population, cases, charges. Hint: For StatCan tables, identify indicator type and unit scale from title plus header path. Keep rate, count, share, percentage-point delta, cases, charges, and population distinct. Risk: Source-specific; dangerous as global wiki rule.\n- hitab.totto_sports_career_roles (Totto sports/person tables): Trigger: table_source=totto; headers mention club, league, season, apps, goals, innings, runs, joined, transferred. Hint: For Totto sports/person tables, bind season/team/innings first, then project club, league, apps, goals, runs, or transfer date as requested. Risk: Only apply to sports/person career tables.\n- hitab.nsf_fy_rd_scale (NSF fiscal/R&D tables): Trigger: table_source=nsf; title/header mentions FY, R&D, expenditure, state, function, thousand dollars, million. Hint: For NSF R&D tables, bind fiscal year, state, function, and unit scale before reading the cell. Preserve whether the value is in thousands or millions. Risk: Small support; route instead of global use.\n- hitab.compare_within_parent_group (group comparison): Trigger: Question asks highest/lowest/more/less within a grouped hierarchical table. Hint: Compare only within the relevant parent group unless the question explicitly asks for a global comparison across groups. Risk: Wrong if question requests global maximum.\n- hitab.total_vs_subcategory (total/subtotal role): Trigger: Headers/rows include total, local/state/federal, male/female, subtotal, all. Hint: Distinguish total cells from subcategory cells. If the question asks total, return the total; if it asks a subcategory, do not include neighboring subtotals. Risk: Total rows may be implicit in hierarchy.",
+          "content": "Use these source-domain rules when relevant:\n- Resolve the full row-header path, column-header path, parent group labels, and nested subheaders before selecting or comparing a cell.\n- For official statistics tables, identify the indicator type and unit scale from the title plus header path. Keep rate, count, share, percentage-point delta, cases, charges, and population distinct.\n- For sports or person-career tables, bind season, team, event, inning, or career segment first, then project the requested club, league, appearances, goals, runs, or transfer date.\n- For fiscal or research-expenditure tables, bind year, region, function/category, and unit scale before reading the cell. Preserve whether values are in raw units, thousands, or millions.\n- For grouped hierarchical tables, compare only within the relevant parent group unless the question asks for a global comparison across groups.\n- Distinguish total cells from subcategory cells. If the question asks for a total, return the total; if it asks for a subcategory, do not include neighboring totals or subtotals.",
           "ordinal": 60
         }
       }
@@ -91,11 +93,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Apply the hitab domain hints as conditional rules: first match the trigger, then use the hint to choose rows, columns, entities, relations, or operations. If a hint conflicts with explicit question wording or source evidence, follow the explicit evidence. Do not use these hints to change the required output format.",
+          "content": "Apply these rules only when they match the question and source evidence. If a rule conflicts with explicit wording or evidence, follow the explicit wording and evidence. Do not change the required output format.",
           "ordinal": 70
         }
       }
     }
   ],
-  "rationale": "HiTab-specific hierarchical-table domain hint rule bundle distilled from benchmark/source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
+  "rationale": "Prompt-facing domain rule bundle distilled from source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
 }

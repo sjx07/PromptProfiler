@@ -75,7 +75,9 @@
       "wtq.row_order_navigation",
       "wtq.adjacent_metric_group",
       "wtq.filter_then_project"
-    ]
+    ],
+    "prompt_surface": "clean_rule_bundle",
+    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text."
   },
   "requires": [
     "facet_dp_scaffold",
@@ -90,7 +92,7 @@
         "node_type": "rule",
         "parent_id": "1c2498fdcc32",
         "payload": {
-          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- wtq.country_code_alias (alias / abbreviation): Trigger: Country, Nationality, Represent, Team, City, Location columns; compact all-caps 2-3 letter values. Hint: If a compact all-caps value appears under a country/nationality/represent/team column, treat it as a country or team abbreviation before answering. For example, CHN means China and GER often means Germany or a German chart column, depending on header context. Risk: Do not expand the abbreviation when the question explicitly asks for the code or when the gold surface is a code.\n- wtq.chart_country_header (music chart semantics): Trigger: Music table with chart/country columns such as GER, US, UK, AUS, peak, position. Hint: For music chart tables, a country-code header such as GER names a chart column. Use the exact chart column requested by the question; do not treat the header code as the answer entity. Risk: Can over-trigger on geography tables; require music/chart cues.\n- wtq.score_is_result (sports score surface): Trigger: Sports/game/match/race table and score-like value with hyphen or draw marker. Hint: For lookup questions, treat score strings such as 18-12 or 58-13 as complete result cells. Do not split them unless the question asks for margin, difference, or one side of the score. Risk: Wrong for margin/difference questions.\n- wtq.rank_vs_value (ordinal versus magnitude): Trigger: Headers include Rank, Place, Position, Seed, Pick, Chart position, Points, Votes, Sales, Attendance, Medals. Hint: Before comparing, decide whether the target column is ordinal or magnitude. Rank/place/seed/pick/chart position usually use lower-is-better; points/votes/sales/attendance/medals use larger-is-more. Risk: Some tables define rank direction differently; defer to explicit table notes.\n- wtq.identifier_vs_named_entity (identifier or entity): Trigger: Headers include No., #, Route, Unicode, C string, Episode no., Production code, Rank. Hint: If the question asks who/which/name/title, return the named entity column, not the identifier/code/rank/glyph. Return the identifier only when the question explicitly asks for number, code, rank, or symbol. Risk: Can hurt explicit code/number questions.\n- wtq.row_order_navigation (row order operation): Trigger: Question contains first, last, previous, next, before, after, directly after, top listed, bottom listed. Hint: Interpret row-order words by displayed table order unless the question explicitly asks to sort by a column value. Find the anchor row first, move to the requested row, then project the requested column. Risk: Top/highest may mean max value, not first row.\n- wtq.adjacent_metric_group (repeated role groups): Trigger: Adjacent repeated groups such as team/score, candidate/votes/%, city/population, country/medals. Hint: Bind metric columns to their nearest entity or parent header before selecting or computing. A score/votes/% column usually belongs to the adjacent team/candidate group, not the whole row. Risk: Requires table serialization to preserve adjacency.\n- wtq.filter_then_project (operation scope): Trigger: Question has before/after/during/from/outside/with/without/same as filters. Hint: Apply every filter condition before comparing, counting, or projecting. After finding the target row/value, answer only the requested column. Risk: Generic but high-value; separate from source-only rules in analysis.",
+          "content": "Use these source-domain rules when relevant:\n- Treat compact all-caps values in country, nationality, represent, team, city, or location columns as possible country/team abbreviations. Keep the code itself when the question asks for a code.\n- In music chart tables, country-code headers such as GER, UK, or US name chart columns. Select the requested chart column rather than returning the header code as an entity.\n- Treat score strings such as 18-12, 58-13, or 14-14 as complete result cells for lookup questions. Split them only when the question asks for margin, difference, winner side, or loser side.\n- Decide whether the target column is ordinal or magnitude before comparing. Rank, place, seed, pick, and chart position usually use lower-is-better; points, votes, sales, attendance, and medals usually use larger-is-more.\n- If the question asks who, which, name, or title, return the named entity column rather than an identifier, code, rank, glyph, or neighboring metric. Return the identifier only when that field is explicitly requested.\n- Interpret first, last, previous, next, before, after, and directly after by displayed row order unless the question explicitly asks to sort by a column value.\n- Bind repeated metric columns to the nearest entity or parent header before selecting or computing. Scores, votes, percentages, and populations usually belong to the adjacent team, candidate, country, or city group.\n- Apply all filter conditions before comparing, counting, or projecting. After locating the target row or value, answer only the requested column.",
           "ordinal": 60
         }
       }
@@ -101,11 +103,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Apply the wtq domain hints as conditional rules: first match the trigger, then use the hint to choose rows, columns, entities, relations, or operations. If a hint conflicts with explicit question wording or source evidence, follow the explicit evidence. Do not use these hints to change the required output format.",
+          "content": "Apply these rules only when they match the question and source evidence. If a rule conflicts with explicit wording or evidence, follow the explicit wording and evidence. Do not change the required output format.",
           "ordinal": 70
         }
       }
     }
   ],
-  "rationale": "WTQ-specific domain hint rule bundle distilled from benchmark/source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
+  "rationale": "Prompt-facing domain rule bundle distilled from source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
 }

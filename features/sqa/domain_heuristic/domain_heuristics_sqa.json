@@ -69,7 +69,9 @@
     "excluded_rule_ids": [
       "sqa.numeric_comma_not_domain"
     ],
-    "exclusion_reason": "Excluded parser/output-contract attribution guardrail from the prompt-facing domain heuristic bundle."
+    "exclusion_reason": "Excluded parser/output-contract attribution guardrail from the prompt-facing domain heuristic bundle.",
+    "prompt_surface": "clean_rule_bundle",
+    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text."
   },
   "requires": [
     "facet_dp_scaffold",
@@ -84,7 +86,7 @@
         "node_type": "rule",
         "parent_id": "1c2498fdcc32",
         "payload": {
-          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- sqa.resolve_active_set_first (dialog active set): Trigger: Question has these, those, their, of these, of those, remaining, same, other, along with. Hint: Resolve the current question against the previous turn answer set before scanning the whole table. Treat the prior answer list as the active entity or row set unless the question clearly broadens scope. Risk: Over-binds when the follow-up asks a new broad question.\n- sqa.one_answer_per_active_item (aligned list output): Trigger: Question asks each/their/what dates/which ones over a multi-item active set. Hint: Return one value per active item in active-set order. Preserve duplicate values when they correspond to distinct active rows. Risk: Can over-return if active set is noisy.\n- sqa.exclude_anchor_for_same_as (anchor exclusion): Trigger: Question asks same as, along with, other than, besides, near only, or related comparison to a named anchor. Hint: For same-as or along-with questions, usually exclude the anchor entity itself from the returned set unless the question explicitly asks to include it. Risk: Some wording includes the anchor; use only for explicit comparison/exclusion cues.\n- sqa.role_project_after_history (role projection after history): Trigger: Follow-up asks for a different property of prior entities. Hint: After resolving the prior active rows, project the requested role column only. Do not return whole rows or the role used in the previous question. Risk: Needs prior-row binding; prompt-only may be weak if history is not explicit.\n- sqa.complete_list_not_prefix (list completeness): Trigger: Question asks which/what/list/all over multiple matching rows. Hint: Scan all rows in the active set or filtered set before answering. Do not stop after the first matching row or return a prefix of the correct list. Risk: May include false positives if filter is broad.\n- sqa.preserve_episode_identifier_when_asked (identifier surface): Trigger: Current question asks for episode number/code/identifier rather than title. Hint: If the requested answer is an identifier, preserve source prefixes such as Ep., No., or production-code markers. If the question asks for episode title, answer the title column instead. Risk: Conflicts with title questions; check requested role.",
+          "content": "Use these source-domain rules when relevant:\n- Resolve follow-up wording such as these, those, their, of these, of those, same, other, or along with against the previous answer set before scanning the whole table.\n- When the question asks for one value for each active item, return one value per active item in active-set order. Preserve duplicate values when they correspond to distinct rows.\n- For same-as, along-with, other-than, besides, or near-only questions, exclude the anchor entity unless the wording explicitly asks to include it.\n- After resolving prior-turn rows, project only the newly requested role column. Do not return whole rows or repeat the role answered in the previous turn.\n- For list/all questions, scan all rows in the active or filtered set before answering. Do not stop after the first matching row.\n- If the requested answer is an episode number, production code, route number, or other identifier, preserve the identifier surface. If the requested answer is a title or name, return the title/name column instead.",
           "ordinal": 60
         }
       }
@@ -95,11 +97,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Apply the sqa domain hints as conditional rules: first match the trigger, then use the hint to choose rows, columns, entities, relations, or operations. If a hint conflicts with explicit question wording or source evidence, follow the explicit evidence. Do not use these hints to change the required output format.",
+          "content": "Apply these rules only when they match the question and source evidence. If a rule conflicts with explicit wording or evidence, follow the explicit wording and evidence. Do not change the required output format.",
           "ordinal": 70
         }
       }
     }
   ],
-  "rationale": "SQA-specific dialog and WikiTable domain hint rule bundle distilled from benchmark/source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
+  "rationale": "Prompt-facing domain rule bundle distilled from source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
 }

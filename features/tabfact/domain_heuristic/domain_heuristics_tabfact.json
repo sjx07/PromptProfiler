@@ -65,7 +65,9 @@
       "tabfact.quantifier_global_scan",
       "tabfact.ordinal_statement_direction",
       "tabfact.adjacent_role_groups"
-    ]
+    ],
+    "prompt_surface": "clean_rule_bundle",
+    "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text."
   },
   "requires": [
     "facet_dp_scaffold",
@@ -80,7 +82,7 @@
         "node_type": "rule",
         "parent_id": "1c2498fdcc32",
         "payload": {
-          "content": "Use these benchmark-specific domain hints only when the trigger matches:\n- tabfact.decompose_statement_roles (role-grounded verdict): Trigger: Statement mentions multiple entities/roles/metrics. Hint: Decompose the statement into atomic table-role claims. For each noun phrase, locate the exact row and role column before deciding support/refutation. Risk: Can become generic CoT unless tied to table roles.\n- tabfact.right_entity_wrong_metric_false (metric mismatch): Trigger: Tokens appear in row but statement names a different metric or role. Hint: A statement is false if it uses the right entity but the wrong metric, wrong role, wrong row, wrong unit, or wrong quantifier. Token overlap alone is not support. Risk: Needs exact role mapping.\n- tabfact.atomic_value_in_statement (atomic evidence values): Trigger: Statement mentions score, season, production code, route code, glyph, or date. Hint: Treat score strings, season strings, production codes, route/glyph identifiers, and full dates as atomic evidence values unless the statement explicitly performs arithmetic over them. Risk: Arithmetic/count statements need parsing.\n- tabfact.quantifier_global_scan (quantifier/exclusivity): Trigger: Statement has only, exactly, at least, more than, fewer than, both, neither, total. Hint: For quantifier and exclusivity claims, scan all relevant rows before verdict. Check the exact quantifier rather than confirming one supporting row. Risk: Can add prompt length; should trigger only on quantifier terms.\n- tabfact.ordinal_statement_direction (ordinal semantics): Trigger: Statement compares rank/place/seed/pick/chart position. Hint: For rank/place/seed/pick/chart position, smaller numeric values usually mean earlier or better. Verify the statement using ordinal semantics, not magnitude semantics. Risk: Table notes can override direction.\n- tabfact.adjacent_role_groups (adjacent metric groups): Trigger: Table has repeated candidate/team/person groups with nearby metrics. Hint: When the statement names a metric, bind it to the adjacent role group before verdict. Do not borrow a neighboring metric from another candidate/team/person. Risk: Requires serialization preserving groups.",
+          "content": "Use these source-domain rules when relevant:\n- Decompose the statement into table roles before judging it. Match each noun phrase, number, date, rank, and metric to the corresponding cell or column.\n- Treat statements as false when the entity is correct but the metric, unit, rank direction, date, or adjacent role is wrong.\n- Compare atomic values exactly enough for the claim: entity, requested column, numeric value, date, unit, and qualifier must align with the table evidence.\n- For only, all, none, every, at least, at most, more than, fewer than, and same-as claims, scan the full relevant row set before deciding.\n- Decide ordinal direction before evaluating ranked claims. Rank, place, seed, and chart position usually use lower-is-better; points, votes, sales, attendance, and medals usually use larger-is-more.\n- Bind adjacent repeated role groups before checking a claim. Scores, votes, percentages, and medals usually belong to the nearest team, candidate, country, or entity group.",
           "ordinal": 60
         }
       }
@@ -91,11 +93,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Apply the tabfact domain hints as conditional rules: first match the trigger, then use the hint to choose rows, columns, entities, relations, or operations. If a hint conflicts with explicit question wording or source evidence, follow the explicit evidence. Do not use these hints to change the required output format.",
+          "content": "Apply these rules only when they match the question and source evidence. If a rule conflicts with explicit wording or evidence, follow the explicit wording and evidence. Do not change the required output format.",
           "ordinal": 70
         }
       }
     }
   ],
-  "rationale": "TabFact-specific statement-verification domain hint rule bundle distilled from benchmark/source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
+  "rationale": "Prompt-facing domain rule bundle distilled from source failure analysis. This is a conditional rule bundle, not a context attribute or output contract."
 }
