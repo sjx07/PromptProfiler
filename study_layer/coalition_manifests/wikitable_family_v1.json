@@ -16,8 +16,8 @@
     "ports": [8000, 8001, 8002, 8003],
     "num_workers": 128,
     "request_timeout": 240,
-    "db_path": "/data/users/jsu323/facet/wikitable_family_v1_cube.db",
-    "vllm_db": "/data/users/jsu323/facet/wikitable_family_v1_vllm.db",
+    "db_path": "/data/users/jsu323/facet/wikitable_transfer_cube.db",
+    "vllm_db": "/data/users/jsu323/facet/wikitable_transfer_vllm.db",
     "include_base": false,
     "summary_baseline_label": "base"
   },
