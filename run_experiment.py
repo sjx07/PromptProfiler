@@ -272,6 +272,7 @@ def main():
     parser.add_argument("--example_split", default=None)
     parser.add_argument("--phase", default=None)
     parser.add_argument("--vllm_db", default=None)
+    parser.add_argument("--batch_configs", action="store_true", default=None)
     args = parser.parse_args()
 
     cli_overrides = {k: v for k, v in vars(args).items()
@@ -309,6 +310,7 @@ def main():
     max_tokens = int(cfg.get("max_tokens", 2048))
     request_timeout = int(cfg.get("request_timeout", 240))
     retry_errors = bool(cfg.get("retry_errors", False))
+    batch_configs = bool(cfg.get("batch_configs", False))
     llm_sampling_kwargs = _llm_sampling_kwargs(cfg)
     n_samples = cfg.get("n_samples", 200)
     seed = cfg.get("seed", 42)
@@ -463,7 +465,8 @@ def main():
     _run_and_eval_plan(store, plan, task_cls, model, llm_call,
                        num_workers=num_workers, on_conflict=OnConflict.SKIP,
                        example_pool=example_pool, phase=phase,
-                       dataset=dataset_key, retry_errors=retry_errors)
+                       dataset=dataset_key, retry_errors=retry_errors,
+                       batch_configs=batch_configs)
 
     # ── print summary ────────────────────────────────────────────────
     summary_base_cid = base_cid

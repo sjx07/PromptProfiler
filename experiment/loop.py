@@ -34,7 +34,7 @@ from typing import Any, Callable, Dict, List, Optional, Type
 from execution.evaluate import evaluate_config
 from experiment.planner import RunEntry
 from core.func_registry import apply_config
-from execution.runner import run_config
+from execution.runner import run_config, run_config_batch
 from core.store import CubeStore, OnConflict
 
 logger = logging.getLogger(__name__)
@@ -128,6 +128,7 @@ def _run_and_eval_plan(
     phase: str | None = None,
     dataset: str = "",
     retry_errors: bool = False,
+    batch_configs: bool = False,
 ) -> None:
     """Run configs and evaluate them in a pipelined fashion.
 
@@ -155,6 +156,35 @@ def _run_and_eval_plan(
     eval_futures: List[Future] = []
 
     try:
+        if batch_configs:
+            _run_config_queue_batched(
+                store,
+                config_queue,
+                task_cls,
+                model,
+                llm_call,
+                num_workers=num_workers,
+                on_conflict=on_conflict,
+                example_pool=example_pool,
+                phase=phase,
+                retry_errors=retry_errors,
+            )
+
+            for cid, _func_ids, _query_ids in config_queue:
+                eval_task = task_cls()
+                fut = eval_pool.submit(
+                    evaluate_config, store, cid, model, eval_task,
+                    num_workers=eval_workers_per_config,
+                    on_conflict=OnConflict.REPLACE,
+                    dataset=dataset,
+                )
+                eval_futures.append(fut)
+                logger.info("Config %d eval submitted to background", cid)
+
+            for fut in eval_futures:
+                fut.result()
+            return
+
         for i, (cid, func_ids, query_ids) in enumerate(config_queue):
             # ── update labels if llm_call supports it ─────────────
             if hasattr(llm_call, "set_labels"):
@@ -206,3 +236,118 @@ def _run_and_eval_plan(
 
     finally:
         eval_pool.shutdown(wait=True)
+
+
+def _run_config_queue_batched(
+    store: CubeStore,
+    config_queue: List[tuple],
+    task_cls: Type,
+    model: str,
+    llm_call: Callable,
+    *,
+    num_workers: int,
+    on_conflict: OnConflict,
+    example_pool: Optional[list],
+    phase: str | None,
+    retry_errors: bool,
+) -> None:
+    """Prepare all configs, then batch uncached executions across configs."""
+    work_items: List[Dict[str, Any]] = []
+    total_cached = 0
+    total_queries = 0
+
+    for cid, func_ids, query_ids in config_queue:
+        task = _bind_task_for_config(store, task_cls, func_ids, example_pool)
+        query_ids = _dedupe_preserve_order(query_ids)
+        total_queries += len(query_ids)
+
+        all_cached = store.get_cached_query_ids(
+            cid,
+            model,
+            include_errors=not retry_errors,
+        )
+        query_id_set = set(query_ids)
+        cached = all_cached & query_id_set
+        total_cached += len(cached)
+
+        if phase and cached:
+            for qid in cached:
+                existing = store.get_cached_execution(cid, qid, model)
+                if existing:
+                    store.tag_phase(existing["execution_id"], phase)
+
+        uncached_ids = [qid for qid in query_ids if qid not in cached]
+        queries = _load_queries_by_ids(store, uncached_ids)
+        logger.info(
+            "Prepared config id=%d for batched execution: %d cached, %d remaining",
+            cid, len(cached), len(queries),
+        )
+        work_items.extend({
+            "config_id": cid,
+            "query": query,
+            "task": task,
+        } for query in queries)
+
+    logger.info(
+        "Batched plan: %d configs, %d total queries, %d cached, %d remaining",
+        len(config_queue), total_queries, total_cached, len(work_items),
+    )
+    run_config_batch(
+        store,
+        work_items,
+        model,
+        llm_call,
+        num_workers=num_workers,
+        on_conflict=on_conflict,
+        phase=phase,
+        retry_errors=retry_errors,
+    )
+
+
+def _bind_task_for_config(
+    store: CubeStore,
+    task_cls: Type,
+    func_ids: List[str],
+    example_pool: Optional[list],
+) -> Any:
+    task = task_cls()
+    if hasattr(task, "bind_modules"):
+        from core.func_registry import apply_config_modules
+        state_by_module = apply_config_modules(
+            func_ids,
+            store,
+            module_names=task.module_names(),
+        )
+        task.bind_modules(state_by_module, example_pool=example_pool)
+    else:
+        state = apply_config(func_ids, store)
+        task.bind(state, example_pool=example_pool)
+    return task
+
+
+def _dedupe_preserve_order(query_ids: List[str]) -> List[str]:
+    seen: set[str] = set()
+    out: List[str] = []
+    for query_id in query_ids:
+        if query_id not in seen:
+            seen.add(query_id)
+            out.append(query_id)
+    return out
+
+
+def _load_queries_by_ids(store: CubeStore, query_ids: List[str]) -> List[dict]:
+    if not query_ids:
+        return []
+
+    conn = store._get_conn()
+    rows_by_id: Dict[str, dict] = {}
+    chunk_size = 900
+    for i in range(0, len(query_ids), chunk_size):
+        chunk = query_ids[i:i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
+        rows = conn.execute(
+            f"SELECT * FROM query WHERE query_id IN ({placeholders})",
+            chunk,
+        ).fetchall()
+        rows_by_id.update({r["query_id"]: dict(r) for r in rows})
+    return [rows_by_id[qid] for qid in query_ids if qid in rows_by_id]
