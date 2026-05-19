@@ -67,3 +67,31 @@ def test_markdown_output_field_ordinals_control_template_order():
         assert positions == sorted(positions), rendered
     finally:
         os.unlink(db)
+
+
+def test_duplicate_output_field_override_updates_order():
+    db = _temp_store()
+    try:
+        store = CubeStore(db)
+        fields = [
+            _output_field("answer", 10),
+            _output_field("reasoning", 89),
+            _output_field("answer", 90),
+        ]
+        specs = [
+            {
+                "func_id": make_func_id("insert_node", params),
+                "func_type": "insert_node",
+                "params": params,
+                "meta": {},
+            }
+            for params in fields
+        ]
+        store.upsert_funcs(specs, on_conflict=OnConflict.SKIP)
+
+        state = apply_config([s["func_id"] for s in specs], store)
+        store.close()
+
+        assert list(state.output_fields) == ["reasoning", "answer"]
+    finally:
+        os.unlink(db)

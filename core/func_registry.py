@@ -233,6 +233,10 @@ def _apply_insert_node(state: PromptBuildState, params: dict) -> None:
     elif node_type == "input_field":
         state.input_fields[payload["name"]] = payload["description"]
     elif node_type == "output_field":
+        # A later output_field with the same name is an override. Reinsert so
+        # its sorted application position controls prompt/rendering order.
+        if payload["name"] in state.output_fields:
+            del state.output_fields[payload["name"]]
         state.output_fields[payload["name"]] = payload["description"]
     elif node_type == "example":
         state.extras.setdefault("examples", []).append(payload)
