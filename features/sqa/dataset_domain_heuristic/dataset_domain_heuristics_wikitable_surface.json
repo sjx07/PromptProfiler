@@ -1,0 +1,124 @@
+{
+  "canonical_id": "dataset_domain_heuristics.wikitable_surface",
+  "task": "sqa",
+  "semantic_labels": [
+    {
+      "label": "dataset_domain_heuristic.bundle",
+      "role": "feature_concept"
+    },
+    {
+      "label": "dataset_domain_heuristics.wikitable_surface",
+      "role": "feature_concept"
+    },
+    {
+      "label": "benchmark.sqa",
+      "role": "dataset"
+    },
+    {
+      "label": "source_family.wikipedia_table",
+      "role": "source_family"
+    },
+    {
+      "label": "heuristic_scope.source_surface_transfer_candidate",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "transfer_scope.cross_benchmark_when_source_surface_matches",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "feature_mode.rule_bundle",
+      "role": "experiment_design"
+    },
+    {
+      "label": "implementation_surface.task_or_user_instruction",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "domain_hint_rule.wikitable.country_code_alias",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wikitable.chart_country_header",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wikitable.score_is_result",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wikitable.rank_vs_value",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wikitable.identifier_vs_named_entity",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wikitable.row_order_navigation",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wikitable.adjacent_metric_group",
+      "role": "included_rule"
+    },
+    {
+      "label": "domain_hint_rule.wikitable.atomic_surface_value",
+      "role": "included_rule"
+    }
+  ],
+  "scope": {
+    "dataset": "sqa",
+    "source_family": "wikipedia_table",
+    "feature_mode": "rule_bundle",
+    "heuristic_scope": "source_surface_transfer_candidate",
+    "transfer_scope": "cross_benchmark_when_source_surface_matches",
+    "transfer_note": "These rules describe WikiTable source/data surface regularities and can be tested on other benchmarks when similar table surfaces appear. They do not depend on SQA follow-up protocol.",
+    "scope_boundary": "dataset_source_not_task_protocol",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "source_artifact": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json",
+    "source_rule_ids": [
+      "wtq.country_code_alias",
+      "wtq.chart_country_header",
+      "wtq.score_is_result",
+      "wtq.rank_vs_value",
+      "wtq.identifier_vs_named_entity",
+      "wtq.row_order_navigation",
+      "wtq.adjacent_metric_group"
+    ],
+    "prompt_surface": "clean_rule_bundle",
+    "prompt_surface_note": "Prompt text renders source/data rules only; task-protocol follow-up rules live in task_heuristics.sqa_followup_dialog."
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Use these WikiTable source rules when relevant:\n- Treat compact all-caps values in country, nationality, represent, team, city, or location columns as possible country/team abbreviations. Keep the code itself when the question asks for a code.\n- In music chart tables, country-code headers such as GER, UK, or US name chart columns. Select the requested chart column rather than returning the header code as an entity.\n- Treat score strings such as 18-12, 58-13, or 14-14 as complete result cells for lookup questions. Split them only when the question asks for margin, difference, winner side, or loser side.\n- Decide whether the target column is ordinal or magnitude before comparing. Rank, place, seed, pick, and chart position usually use lower-is-better; points, votes, sales, attendance, and medals usually use larger-is-more.\n- If the question asks who, which, name, or title, return the named entity column rather than an identifier, code, rank, glyph, or neighboring metric. Return the identifier only when that field is explicitly requested.\n- Interpret first, last, previous, next, before, after, and directly after by displayed row order unless the question explicitly asks to sort by a column value.\n- Bind repeated metric columns to the nearest entity or parent header before selecting or computing. Scores, votes, percentages, and populations usually belong to the adjacent team, candidate, country, or city group.\n- Preserve atomic formatted values such as dates, scores, route codes, glyph identifiers, production codes, and episode numbers unless the question asks to transform or compute over them.",
+          "ordinal": 62
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Apply these source rules only when the table surface matches. If a rule conflicts with explicit question wording or table evidence, follow the explicit wording and evidence. Do not change the required output format.",
+          "ordinal": 72
+        }
+      }
+    }
+  ],
+  "rationale": "SQA dataset-domain/source-surface rule bundle. This captures WikiTable data regularities, separated from SQA follow-up task protocol."
+}

@@ -51,7 +51,7 @@
       "role": "included_rule"
     },
     {
-      "label": "heuristic_scope.dataset_task_local",
+      "label": "heuristic_scope.task_protocol_local",
       "role": "transfer_scope"
     },
     {
@@ -80,11 +80,12 @@
     "exclusion_reason": "Excluded parser/output-contract attribution guardrail from the prompt-facing domain heuristic bundle.",
     "prompt_surface": "clean_rule_bundle",
     "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text.",
-    "heuristic_scope": "dataset_task_local",
+    "heuristic_scope": "task_protocol_local",
     "transfer_scope": "not_cross_benchmark_without_dialog_state",
-    "transfer_note": "Follow-up resolution depends on SQA dialog state and should not be counted as a transferable source-domain rule.",
-    "preferred_split_feature": "dataset_domain_heuristics.sqa_followup",
-    "compatibility_status": "coarse_backward_compatible_alias"
+    "transfer_note": "Follow-up resolution depends on SQA dialog state and task protocol; it is not a dataset-domain/source heuristic.",
+    "preferred_split_feature": "task_heuristics.sqa_followup_dialog",
+    "compatibility_status": "coarse_backward_compatible_alias",
+    "scope_boundary": "task_protocol_not_dataset_domain"
   },
   "requires": [
     "facet_dp_scaffold",
@@ -92,7 +93,7 @@
     "_section_reasoning"
   ],
   "conflicts_with": [
-    "dataset_domain_heuristics.sqa_followup"
+    "task_heuristics.sqa_followup_dialog"
   ],
   "primitive_edits": [
     {
@@ -118,5 +119,5 @@
       }
     }
   ],
-  "rationale": "Backward-compatible coarse SQA rule bundle. New experiments should prefer dataset_domain_heuristics.sqa_followup because these rules are dialog/task-local, not transferable source-domain heuristics."
+  "rationale": "Backward-compatible coarse SQA rule bundle. New experiments should prefer task_heuristics.sqa_followup_dialog for follow-up behavior and dataset_domain_heuristics.wikitable_surface for source/data heuristics."
 }
