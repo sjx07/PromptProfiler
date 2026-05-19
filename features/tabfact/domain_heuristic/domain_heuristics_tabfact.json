@@ -78,14 +78,18 @@
     "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text.",
     "heuristic_scope": "task_conditioned_source_surface",
     "transfer_scope": "partial_transfer_with_verdict_task_conditioning",
-    "transfer_note": "Rules mix WikiTable source semantics with statement-verdict behavior; transfer should condition on both source surface and verdict-style task form."
+    "transfer_note": "Rules mix WikiTable source semantics with statement-verdict behavior; transfer should condition on both source surface and verdict-style task form.",
+    "preferred_dataset_domain_feature": "dataset_domain_heuristics.wikitable_surface",
+    "compatibility_status": "coarse_backward_compatible_alias"
   },
   "requires": [
     "facet_dp_scaffold",
     "_section_table_handling",
     "_section_reasoning"
   ],
-  "conflicts_with": [],
+  "conflicts_with": [
+    "dataset_domain_heuristics.wikitable_surface"
+  ],
   "primitive_edits": [
     {
       "func_type": "insert_node",

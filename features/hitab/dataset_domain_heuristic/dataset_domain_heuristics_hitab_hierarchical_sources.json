@@ -1,21 +1,21 @@
 {
-  "canonical_id": "dataset_domain_heuristics.wikitable_surface",
-  "task": "sqa",
+  "canonical_id": "dataset_domain_heuristics.hitab_hierarchical_sources",
+  "task": "hitab",
   "semantic_labels": [
     {
       "label": "dataset_domain_heuristic.bundle",
       "role": "feature_concept"
     },
     {
-      "label": "dataset_domain_heuristics.wikitable_surface",
+      "label": "dataset_domain_heuristics.hitab_hierarchical_sources",
       "role": "feature_concept"
     },
     {
-      "label": "benchmark.sqa",
+      "label": "benchmark.hitab",
       "role": "dataset"
     },
     {
-      "label": "source_family.wikipedia_table",
+      "label": "source_family.hierarchical_table",
       "role": "source_family"
     },
     {
@@ -35,45 +35,37 @@
       "role": "implementation_surface"
     },
     {
-      "label": "domain_hint_rule.wikitable.country_code_alias",
+      "label": "domain_hint_rule.hitab.header_path_inheritance",
       "role": "included_rule"
     },
     {
-      "label": "domain_hint_rule.wikitable.chart_country_header",
+      "label": "domain_hint_rule.hitab.total_subcategory_surface",
       "role": "included_rule"
     },
     {
-      "label": "domain_hint_rule.wikitable.score_is_result",
+      "label": "domain_hint_rule.hitab.statcan_indicator_unit",
       "role": "included_rule"
     },
     {
-      "label": "domain_hint_rule.wikitable.rank_vs_value",
+      "label": "domain_hint_rule.hitab.nsf_fy_rd_scale",
       "role": "included_rule"
     },
     {
-      "label": "domain_hint_rule.wikitable.identifier_vs_named_entity",
+      "label": "domain_hint_rule.hitab.totto_sports_career_roles",
       "role": "included_rule"
     },
     {
-      "label": "domain_hint_rule.wikitable.row_order_navigation",
-      "role": "included_rule"
-    },
-    {
-      "label": "domain_hint_rule.wikitable.adjacent_metric_group",
-      "role": "included_rule"
-    },
-    {
-      "label": "domain_hint_rule.wikitable.atomic_surface_value",
+      "label": "domain_hint_rule.hitab.parent_group_comparison",
       "role": "included_rule"
     }
   ],
   "scope": {
-    "dataset": "sqa",
-    "source_family": "wikipedia_table",
+    "dataset": "hitab",
+    "source_family": "hierarchical_table",
     "feature_mode": "rule_bundle",
     "heuristic_scope": "source_surface_transfer_candidate",
     "transfer_scope": "cross_benchmark_when_source_surface_matches",
-    "transfer_note": "WikiTable source/data rules can transfer across WTQ, SQA, TabFact, and wiki-like tables when table headers/cells expose matching surfaces. They do not encode SQA follow-up or TabFact verdict protocol.",
+    "transfer_note": "HiTab dataset-domain rules transfer to hierarchical/report tables where header paths, parent groups, source-specific units, or total/subcategory roles are visible.",
     "scope_boundary": "dataset_source_not_task_protocol",
     "implementation_surface": "task_or_user_instruction",
     "cost_dependency": "prompt_only",
@@ -87,28 +79,26 @@
       "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json"
     ],
     "source_rule_ids": [
-      "wtq.country_code_alias",
-      "wtq.chart_country_header",
-      "wtq.score_is_result",
-      "wtq.rank_vs_value",
-      "wtq.identifier_vs_named_entity",
-      "wtq.row_order_navigation",
-      "wtq.adjacent_metric_group"
+      "hitab.header_path_inheritance",
+      "hitab.statcan_indicator_unit",
+      "hitab.totto_sports_career_roles",
+      "hitab.nsf_fy_rd_scale",
+      "hitab.compare_within_parent_group",
+      "hitab.total_vs_subcategory"
     ],
     "prompt_surface": "clean_rule_bundle",
     "prompt_surface_note": "Prompt text renders source/data rules only; task-protocol and output-contract rules live in separate feature families.",
     "grounding": {
       "paper_dataset_characteristics": [
-        "WTQ uses semi-structured Wikipedia tables; local overview records it as the flat WikiTable anchor benchmark.",
-        "SQA is derived from WTQ questions/tables but adds sequential interaction outside the dataset-domain feature.",
-        "TabFact uses Wikipedia tables for table-grounded fact verification; dataset-domain rules should remain table-source rules, not verdict protocol.",
-        "Source split and semantic matrix artifacts identify recurring WikiTable surfaces: country/code aliases, identifiers, atomic scores/dates/seasons, adjacent role groups, row order, and ordinal-vs-magnitude columns."
+        "Local overview records HiTab as hierarchical table QA over StatCan, NSF, and Wikipedia/ToTTo-style sources with linked cells and formulas.",
+        "Source semantic matrix records hierarchy.header_path_inheritance plus StatCan, ToTTo, and NSF source-specific annotations.",
+        "Finer-domain artifacts classify hierarchical header inheritance as a source-structure feature, not a generic table-QA instruction."
       ],
       "failure_patterns": [
-        "Country or chart abbreviations are returned as raw codes or expanded in the wrong role.",
-        "Score/date/season/code cells are split or partially copied when they should remain atomic.",
-        "Models choose identifiers, ranks, or neighboring metrics instead of the requested entity/value role.",
-        "Repeated metric columns get attached to the wrong adjacent team/candidate/entity group."
+        "Header-path information is lost when flattened table text hides parent groups and subheaders.",
+        "Totals and subtotals are mixed with subcategory cells.",
+        "Unit scale and indicator type are confused in official-statistics tables.",
+        "Comparisons incorrectly cross parent groups instead of staying within a requested group."
       ],
       "grounding_artifacts": [
         "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/overview/response.md",
@@ -125,7 +115,9 @@
     "_section_table_handling",
     "_section_reasoning"
   ],
-  "conflicts_with": [],
+  "conflicts_with": [
+    "domain_heuristics.hitab"
+  ],
   "primitive_edits": [
     {
       "func_type": "insert_node",
@@ -133,7 +125,7 @@
         "node_type": "rule",
         "parent_id": "1c2498fdcc32",
         "payload": {
-          "content": "Use these WikiTable source rules when relevant:\n- Treat compact all-caps values in country, nationality, represent, team, city, or location columns as possible country/team abbreviations. Keep the code itself when the question asks for a code.\n- In music chart tables, country-code headers such as GER, UK, or US name chart columns. Select the requested chart column rather than returning the header code as an entity.\n- Treat score strings such as 18-12, 58-13, or 14-14 as complete result cells for lookup or evidence checks. Split them only when the question or statement asks for margin, difference, winner side, or loser side.\n- Decide whether the target column is ordinal or magnitude before comparing. Rank, place, seed, pick, and chart position usually use lower-is-better; points, votes, sales, attendance, and medals usually use larger-is-more.\n- If the requested value is a name, title, place, or entity, return the named entity column rather than an identifier, code, rank, glyph, or neighboring metric. Return the identifier only when that field is explicitly requested.\n- Interpret first, last, previous, next, before, after, and directly after by displayed row order unless the prompt explicitly asks to sort by a column value.\n- Bind repeated metric columns to the nearest entity or parent header before selecting or computing. Scores, votes, percentages, and populations usually belong to the adjacent team, candidate, country, or city group.\n- Preserve atomic formatted values such as dates, seasons, scores, route codes, glyph identifiers, production codes, and episode numbers unless the prompt asks to transform or compute over them.",
+          "content": "Use these hierarchical-table source rules when relevant:\n- Resolve the full row-header path, column-header path, parent group labels, and nested subheaders before selecting or comparing a cell.\n- Treat total, subtotal, parent group, and subcategory cells as different roles. Return the total only when a total is requested; do not mix neighboring subcategory values into it.\n- For official statistics tables, identify indicator type and unit scale from the title plus header path. Keep rate, count, share, percentage-point delta, cases, charges, population, and employment distinct.\n- For fiscal or research-expenditure tables, bind year, region, function/category, and unit scale before reading the cell. Preserve whether values are raw units, thousands, or millions.\n- For sports or person-career hierarchical tables, bind season, team, event, inning, or career segment first, then project the requested club, league, appearances, goals, runs, or transfer date.\n- For grouped hierarchical tables, compare only within the relevant parent group unless the prompt asks for a global comparison across groups.",
           "ordinal": 62
         }
       }
@@ -144,7 +136,7 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Apply these source rules only when the table surface matches. If a rule conflicts with explicit prompt wording or table evidence, follow the explicit wording and evidence. Do not change the required output format.",
+          "content": "Apply these hierarchical/source rules only when the table surface matches. If a rule conflicts with explicit prompt wording or table evidence, follow the explicit wording and evidence. Do not change the required output format.",
           "ordinal": 72
         }
       }

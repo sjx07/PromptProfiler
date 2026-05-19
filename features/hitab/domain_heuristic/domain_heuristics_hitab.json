@@ -78,14 +78,18 @@
     "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text.",
     "heuristic_scope": "source_structure_transfer_candidate",
     "transfer_scope": "cross_benchmark_when_hierarchy_or_source_matches",
-    "transfer_note": "Hierarchical-header and source-specific table semantics transfer only to examples with matching table structure or source surface."
+    "transfer_note": "Hierarchical-header and source-specific table semantics transfer only to examples with matching table structure or source surface.",
+    "preferred_dataset_domain_feature": "dataset_domain_heuristics.hitab_hierarchical_sources",
+    "compatibility_status": "coarse_backward_compatible_alias"
   },
   "requires": [
     "facet_dp_scaffold",
     "_section_table_handling",
     "_section_reasoning"
   ],
-  "conflicts_with": [],
+  "conflicts_with": [
+    "dataset_domain_heuristics.hitab_hierarchical_sources"
+  ],
   "primitive_edits": [
     {
       "func_type": "insert_node",

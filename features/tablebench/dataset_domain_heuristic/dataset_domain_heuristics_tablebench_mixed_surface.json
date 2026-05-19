@@ -1,21 +1,21 @@
 {
-  "canonical_id": "dataset_domain_heuristics.wikitable_surface",
-  "task": "sqa",
+  "canonical_id": "dataset_domain_heuristics.tablebench_mixed_surface",
+  "task": "tablebench",
   "semantic_labels": [
     {
       "label": "dataset_domain_heuristic.bundle",
       "role": "feature_concept"
     },
     {
-      "label": "dataset_domain_heuristics.wikitable_surface",
+      "label": "dataset_domain_heuristics.tablebench_mixed_surface",
       "role": "feature_concept"
     },
     {
-      "label": "benchmark.sqa",
+      "label": "benchmark.tablebench",
       "role": "dataset"
     },
     {
-      "label": "source_family.wikipedia_table",
+      "label": "source_family.mixed_table_qa",
       "role": "source_family"
     },
     {
@@ -35,45 +35,33 @@
       "role": "implementation_surface"
     },
     {
-      "label": "domain_hint_rule.wikitable.country_code_alias",
+      "label": "domain_hint_rule.tablebench.mixed_source_gate",
       "role": "included_rule"
     },
     {
-      "label": "domain_hint_rule.wikitable.chart_country_header",
+      "label": "domain_hint_rule.tablebench.wikilike_atomic_values",
       "role": "included_rule"
     },
     {
-      "label": "domain_hint_rule.wikitable.score_is_result",
+      "label": "domain_hint_rule.tablebench.metric_unit_surface",
       "role": "included_rule"
     },
     {
-      "label": "domain_hint_rule.wikitable.rank_vs_value",
+      "label": "domain_hint_rule.tablebench.rank_value_surface",
       "role": "included_rule"
     },
     {
-      "label": "domain_hint_rule.wikitable.identifier_vs_named_entity",
-      "role": "included_rule"
-    },
-    {
-      "label": "domain_hint_rule.wikitable.row_order_navigation",
-      "role": "included_rule"
-    },
-    {
-      "label": "domain_hint_rule.wikitable.adjacent_metric_group",
-      "role": "included_rule"
-    },
-    {
-      "label": "domain_hint_rule.wikitable.atomic_surface_value",
+      "label": "domain_hint_rule.tablebench.formatted_numeric_surface",
       "role": "included_rule"
     }
   ],
   "scope": {
-    "dataset": "sqa",
-    "source_family": "wikipedia_table",
+    "dataset": "tablebench",
+    "source_family": "mixed_table_qa",
     "feature_mode": "rule_bundle",
     "heuristic_scope": "source_surface_transfer_candidate",
     "transfer_scope": "cross_benchmark_when_source_surface_matches",
-    "transfer_note": "WikiTable source/data rules can transfer across WTQ, SQA, TabFact, and wiki-like tables when table headers/cells expose matching surfaces. They do not encode SQA follow-up or TabFact verdict protocol.",
+    "transfer_note": "TableBench dataset-domain rules are source-surface gates for mixed tables. They transfer only when table headers/cells match WikiTable, hierarchy, report, or formatted numeric surfaces.",
     "scope_boundary": "dataset_source_not_task_protocol",
     "implementation_surface": "task_or_user_instruction",
     "cost_dependency": "prompt_only",
@@ -87,28 +75,25 @@
       "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json"
     ],
     "source_rule_ids": [
-      "wtq.country_code_alias",
-      "wtq.chart_country_header",
-      "wtq.score_is_result",
-      "wtq.rank_vs_value",
-      "wtq.identifier_vs_named_entity",
-      "wtq.row_order_navigation",
-      "wtq.adjacent_metric_group"
+      "tablebench.wikilike_atomic_lookup",
+      "tablebench.metric_unit_named_by_question",
+      "tablebench.rank_vs_value_after_operation",
+      "tablebench.partial_overlap_transfer_only",
+      "tablebench.formula_not_surface_when_compute"
     ],
     "prompt_surface": "clean_rule_bundle",
     "prompt_surface_note": "Prompt text renders source/data rules only; task-protocol and output-contract rules live in separate feature families.",
     "grounding": {
       "paper_dataset_characteristics": [
-        "WTQ uses semi-structured Wikipedia tables; local overview records it as the flat WikiTable anchor benchmark.",
-        "SQA is derived from WTQ questions/tables but adds sequential interaction outside the dataset-domain feature.",
-        "TabFact uses Wikipedia tables for table-grounded fact verification; dataset-domain rules should remain table-source rules, not verdict protocol.",
-        "Source split and semantic matrix artifacts identify recurring WikiTable surfaces: country/code aliases, identifiers, atomic scores/dates/seasons, adjacent role groups, row order, and ordinal-vs-magnitude columns."
+        "Local overview records TableBench as a curated table benchmark/TableInstruct panel with fact checking, numerical reasoning, data analysis, and visualization examples.",
+        "Source semantic matrix marks TableBench as mixed_table_qa_with_wiki_like_tables rather than a pure WikiTable source.",
+        "Failure-pattern notes show global wiki priors can be noisy unless activated by source similarity, headers, and value surfaces."
       ],
       "failure_patterns": [
-        "Country or chart abbreviations are returned as raw codes or expanded in the wrong role.",
-        "Score/date/season/code cells are split or partially copied when they should remain atomic.",
-        "Models choose identifiers, ranks, or neighboring metrics instead of the requested entity/value role.",
-        "Repeated metric columns get attached to the wrong adjacent team/candidate/entity group."
+        "Wiki-like atomic values are over-parsed or under-parsed depending on operation.",
+        "Nearby metrics with similar numbers or different units are substituted for the requested metric.",
+        "Rank-like columns and value-like columns get compared in the wrong direction.",
+        "Broad source priors override the mixed-source nature of the benchmark."
       ],
       "grounding_artifacts": [
         "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/overview/response.md",
@@ -125,7 +110,9 @@
     "_section_table_handling",
     "_section_reasoning"
   ],
-  "conflicts_with": [],
+  "conflicts_with": [
+    "domain_heuristics.tablebench"
+  ],
   "primitive_edits": [
     {
       "func_type": "insert_node",
@@ -133,7 +120,7 @@
         "node_type": "rule",
         "parent_id": "1c2498fdcc32",
         "payload": {
-          "content": "Use these WikiTable source rules when relevant:\n- Treat compact all-caps values in country, nationality, represent, team, city, or location columns as possible country/team abbreviations. Keep the code itself when the question asks for a code.\n- In music chart tables, country-code headers such as GER, UK, or US name chart columns. Select the requested chart column rather than returning the header code as an entity.\n- Treat score strings such as 18-12, 58-13, or 14-14 as complete result cells for lookup or evidence checks. Split them only when the question or statement asks for margin, difference, winner side, or loser side.\n- Decide whether the target column is ordinal or magnitude before comparing. Rank, place, seed, pick, and chart position usually use lower-is-better; points, votes, sales, attendance, and medals usually use larger-is-more.\n- If the requested value is a name, title, place, or entity, return the named entity column rather than an identifier, code, rank, glyph, or neighboring metric. Return the identifier only when that field is explicitly requested.\n- Interpret first, last, previous, next, before, after, and directly after by displayed row order unless the prompt explicitly asks to sort by a column value.\n- Bind repeated metric columns to the nearest entity or parent header before selecting or computing. Scores, votes, percentages, and populations usually belong to the adjacent team, candidate, country, or city group.\n- Preserve atomic formatted values such as dates, seasons, scores, route codes, glyph identifiers, production codes, and episode numbers unless the prompt asks to transform or compute over them.",
+          "content": "Use these mixed-table source rules when relevant:\n- First identify whether the table surface looks like a WikiTable, spreadsheet, statistical table, report table, or synthetic/curated table. Do not assume every table has WikiTable conventions.\n- Preserve dates, scores, times, percentages, units, identifiers, and codes as atomic values for lookup and evidence checks. Parse them only when arithmetic, min/max, margin, difference, or counting is explicit.\n- Bind the requested metric and unit before reading a value. Keep averages, percentages, rates, totals, counts, standard deviations, correlations, and units distinct.\n- Decide whether rank-like columns and value-like columns use different comparison directions before selecting a maximum, minimum, or ranked entity.\n- Use WikiTable-style rules only when the source surface matches: repeated role groups, sports scores, chart positions, country abbreviations, identifiers, hierarchical headers, or official-statistics units.\n- For formatted numeric cells, keep the original cell meaning while computing from the relevant numeric value when computation is requested.",
           "ordinal": 62
         }
       }
@@ -144,7 +131,7 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Apply these source rules only when the table surface matches. If a rule conflicts with explicit prompt wording or table evidence, follow the explicit wording and evidence. Do not change the required output format.",
+          "content": "Apply these mixed-table source rules only when the source surface matches. If a rule conflicts with explicit prompt wording or table evidence, follow the explicit wording and evidence. Do not change the required output format.",
           "ordinal": 72
         }
       }

@@ -1,6 +1,6 @@
 {
   "canonical_id": "dataset_domain_heuristics.wikitable_surface",
-  "task": "sqa",
+  "task": "wtq",
   "semantic_labels": [
     {
       "label": "dataset_domain_heuristic.bundle",
@@ -11,7 +11,7 @@
       "role": "feature_concept"
     },
     {
-      "label": "benchmark.sqa",
+      "label": "benchmark.wtq",
       "role": "dataset"
     },
     {
@@ -68,7 +68,7 @@
     }
   ],
   "scope": {
-    "dataset": "sqa",
+    "dataset": "wtq",
     "source_family": "wikipedia_table",
     "feature_mode": "rule_bundle",
     "heuristic_scope": "source_surface_transfer_candidate",
@@ -125,7 +125,9 @@
     "_section_table_handling",
     "_section_reasoning"
   ],
-  "conflicts_with": [],
+  "conflicts_with": [
+    "domain_heuristics.wtq"
+  ],
   "primitive_edits": [
     {
       "func_type": "insert_node",

@@ -85,7 +85,8 @@
     "transfer_note": "Follow-up resolution depends on SQA dialog state and task protocol; it is not a dataset-domain/source heuristic.",
     "preferred_split_feature": "task_heuristics.sqa_followup_dialog",
     "compatibility_status": "coarse_backward_compatible_alias",
-    "scope_boundary": "task_protocol_not_dataset_domain"
+    "scope_boundary": "task_protocol_not_dataset_domain",
+    "preferred_dataset_domain_feature": "dataset_domain_heuristics.wikitable_surface"
   },
   "requires": [
     "facet_dp_scaffold",

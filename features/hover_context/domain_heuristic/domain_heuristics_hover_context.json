@@ -78,14 +78,18 @@
     "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text.",
     "heuristic_scope": "retrieval_pipeline_source_surface",
     "transfer_scope": "retrieval_pipeline_only",
-    "transfer_note": "Wikipedia title/relation heuristics are transferable to similar retrieval/evidence pipelines, not directly to table QA."
+    "transfer_note": "Wikipedia title/relation heuristics are transferable to similar retrieval/evidence pipelines, not directly to table QA.",
+    "preferred_dataset_domain_feature": "dataset_domain_heuristics.wikipedia_passage_surface",
+    "compatibility_status": "coarse_backward_compatible_alias"
   },
   "requires": [
     "facet_retrieval_scaffold",
     "_section_retrieval_strategy",
     "_section_evidence_summary"
   ],
-  "conflicts_with": [],
+  "conflicts_with": [
+    "dataset_domain_heuristics.wikipedia_passage_surface"
+  ],
   "primitive_edits": [
     {
       "target_module": "create_query_hop2",

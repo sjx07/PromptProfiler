@@ -78,14 +78,18 @@
     "prompt_surface_note": "Provenance metadata is retained in source_artifact and labels, not rendered in prompt text.",
     "heuristic_scope": "mixed_source_surface_gate",
     "transfer_scope": "surface_match_only",
-    "transfer_note": "Rules are intended to gate when WikiTable-like or hierarchy-like source rules should transfer into mixed TableBench examples."
+    "transfer_note": "Rules are intended to gate when WikiTable-like or hierarchy-like source rules should transfer into mixed TableBench examples.",
+    "preferred_dataset_domain_feature": "dataset_domain_heuristics.tablebench_mixed_surface",
+    "compatibility_status": "coarse_backward_compatible_alias"
   },
   "requires": [
     "facet_dp_scaffold",
     "_section_table_handling",
     "_section_reasoning"
   ],
-  "conflicts_with": [],
+  "conflicts_with": [
+    "dataset_domain_heuristics.tablebench_mixed_surface"
+  ],
   "primitive_edits": [
     {
       "func_type": "insert_node",
