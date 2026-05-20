@@ -7,11 +7,8 @@ from typing import Any, Dict, List
 
 from task import BaseTask
 from tasks.answer_normalization import normalize_numeric_grouping
-from tasks.code_result_utils import (
-    dataframe_to_records,
-    execute_python_code,
-    make_typed_dataframe,
-)
+from tasks.program_of_thought import ProgramOfThoughtMixin
+from tasks.table_python_runtime import execute_python_table_code, runtime_from_rows
 
 
 def _execute_code(code: str, table_data: dict) -> Any:
@@ -20,57 +17,14 @@ def _execute_code(code: str, table_data: dict) -> Any:
 
 
 def _execute_code_with_error(code: str, table_data: dict) -> tuple[Any, str | None]:
-    """Execute model-generated Python code with the table exposed in scope.
-
-    Scope provided:
-      * ``df``     — pandas DataFrame with auto-coerced numeric types.
-      * ``data``   — dict ``{"table": <name>, "rows": [<record dict>, ...]}``
-                     that mirrors the JSON shape the model sees in the
-                     user prompt. Lets `pd.DataFrame(data['rows'])` and
-                     `data['rows'][0]['Col']` "just work."
-      * ``table``  — legacy alias: list of record dicts (the old shape,
-                     pre-``data`` rename). Kept for backward compat.
-      * ``header`` — list of column names.
-
-    Returns the result or None on failure.
-    """
-    import datetime as _dt, math as _math, collections as _collections
-    import pandas as pd
-
-    name = table_data.get("name", "")
-    header = table_data.get("header", [])
-    rows = table_data.get("rows", [])
-    df = make_typed_dataframe(header, rows)
-
-    # Legacy list-of-dicts (pre-round-5 shape).
-    table = dataframe_to_records(df)
-    # New: JSON-shape dict that matches what the model sees in the prompt.
-    data = {"table": name, "rows": table}
-
-    safe_globals = {
-        "df": df,
-        "pd": pd,
-        "data": data,
-        "table": table,
-        "header": header,
-        "re": re,
-        "datetime": _dt.datetime,
-        "timedelta": _dt.timedelta,
-        "date": _dt.date,
-        "collections": _collections,
-        "Counter": _collections.Counter,
-        "math": _math,
-        "len": len, "str": str, "int": int, "float": float, "bool": bool,
-        "list": list, "dict": dict, "set": set, "tuple": tuple,
-        "sum": sum, "min": min, "max": max, "abs": abs,
-        "sorted": sorted, "enumerate": enumerate, "zip": zip,
-        "range": range, "map": map, "filter": filter,
-        "any": any, "all": all, "round": round,
-        "isinstance": isinstance, "type": type,
-    }
-    outcome = execute_python_code(code, safe_globals)
+    """Execute model-generated Python code with the shared table runtime."""
+    runtime = runtime_from_rows(
+        table_data.get("header", []),
+        table_data.get("rows", []),
+        table_name=table_data.get("name", ""),
+    )
+    outcome = execute_python_table_code(code, runtime)
     return outcome.value, outcome.error
-
 
 def _execute_sql(sql: str, table_data: dict) -> Any:
     """Execute model-generated SQL against an in-memory SQLite table.
@@ -161,7 +115,7 @@ _OUTPUT_TO_TABLE_FORMAT = {
 }
 
 
-class TableQA(BaseTask):
+class TableQA(ProgramOfThoughtMixin, BaseTask):
     name = "table_qa"
     scorer = "denotation_acc"
     # Parser module for output_field dispatch (code / sql / answer)
@@ -173,6 +127,15 @@ class TableQA(BaseTask):
     default_output_fields: Dict[str, str] = {
         "answer": "The answer extracted from the table",
     }
+
+    def build_python_table_runtime(self, raw: dict, record: dict | None = None):
+        table_data = raw.get("table", raw)
+        return runtime_from_rows(
+            table_data.get("header", []),
+            table_data.get("rows", []),
+            table_name=table_data.get("name", ""),
+            data_extra={"question": raw.get("question", "")},
+        )
 
     def _gold_output(self, meta: dict, raw: dict) -> dict:
         answers = raw.get("answers", meta.get("gold_answers", []))
@@ -224,15 +187,12 @@ class TableQA(BaseTask):
         gold_answers = raw.get("answers", query_meta.get("gold_answers", []))
 
         # If prediction contains code or SQL, execute it
-        code_result = None
-        code_error = None
+        code_metrics: dict[str, Any] = {}
         code_attempted = False
         sql_result = None
-        if prediction.startswith("__CODE__"):
+        if self.is_code_prediction(prediction):
             code_attempted = True
-            code_str = prediction[len("__CODE__"):].strip()
-            code_result, code_error = _execute_code_with_error(code_str, raw.get("table", {}))
-            prediction = str(code_result) if code_result is not None else ""
+            prediction, code_metrics = self.execute_code_prediction(prediction, raw)
         elif prediction.startswith("__SQL__"):
             sql_str = prediction[len("__SQL__"):].strip()
             sql_result = _execute_sql(sql_str, raw.get("table", {}))
@@ -259,11 +219,7 @@ class TableQA(BaseTask):
             "gold_normalized": gold_values,
         }
         if code_attempted:
-            metrics["code_executed"] = code_error is None and code_result is not None
-            if code_result is not None:
-                metrics["code_result"] = str(code_result)
-            if code_error:
-                metrics["code_error"] = code_error
+            metrics.update(code_metrics)
         if sql_result is not None:
             metrics["sql_executed"] = True
             metrics["sql_result"] = str(sql_result)
