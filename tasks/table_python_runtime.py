@@ -37,7 +37,7 @@ class PythonTableRuntime:
             "df": self.df,
             "pd": pd,
             "records": self.records,
-            "table": self.records,
+            "table": TableScope(self.records, self.data),
             "data": self.data,
             "header": self.header,
             "re": re,
@@ -90,6 +90,32 @@ class PythonTableExecution:
         return "" if self.value is None else str(self.value)
 
 
+class TableScope(list):
+    """List-like row scope that also supports table['rows'] style access."""
+
+    def __init__(self, records: list[dict[str, Any]], data: Mapping[str, Any]):
+        super().__init__(records)
+        self._data = dict(data)
+        self._data.setdefault("rows", records)
+
+    def __getitem__(self, key: Any) -> Any:
+        if isinstance(key, str):
+            return self._data[key]
+        return super().__getitem__(key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._data.get(key, default)
+
+    def keys(self):
+        return self._data.keys()
+
+    def items(self):
+        return self._data.items()
+
+    def values(self):
+        return self._data.values()
+
+
 def runtime_from_rows(
     headers: Sequence[str],
     rows: Sequence[Sequence[Any]],
@@ -103,7 +129,7 @@ def runtime_from_rows(
     """Build the default in-memory table runtime from tabular rows."""
     header = [str(h) for h in headers]
     df = make_typed_dataframe(header, rows) if coerce_types else make_string_dataframe(header, rows)
-    records = dataframe_to_records(df)
+    records = dataframe_to_records(make_string_dataframe(header, rows))
     data = {"table": table_name, "rows": records}
     if data_extra:
         data.update(dict(data_extra))

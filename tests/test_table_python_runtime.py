@@ -28,6 +28,21 @@ def test_runtime_executes_printed_list():
     assert outcome.value == "a, b"
 
 
+def test_runtime_keeps_typed_df_and_string_records():
+    runtime = runtime_from_rows(["name", "score"], [["a", "1,000"], ["b", "2,000"]])
+
+    typed = execute_python_table_code("answer = int(df['score'].sum())", runtime)
+    raw = execute_python_table_code(
+        "answer = int(table['rows'][0]['score'].replace(',', '')) + int(data['rows'][1]['score'].replace(',', ''))",
+        runtime,
+    )
+
+    assert typed.error is None
+    assert typed.value == 3000
+    assert raw.error is None
+    assert raw.value == 3000
+
+
 def test_parse_code_output_uses_last_fenced_block():
     text = "scratch\n```python\nx = 1\n```\nfinal\n```python\nanswer = 2\n```"
 
