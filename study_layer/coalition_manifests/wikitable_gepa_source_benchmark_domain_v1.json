@@ -1,0 +1,136 @@
+{
+  "schema_version": "wikitable_gepa_source_benchmark_domain_v1",
+  "purpose": "Target benchmark x source benchmark x guidance/constraint GEPA domain heuristic transfer screen.",
+  "db_path": "/data/users/jsu323/facet/wikitable_clean_surface_v1.db",
+  "vllm_db": "/data/users/jsu323/facet/wikitable_clean_surface_v1_vllm.db",
+  "target_benchmark_axis": [
+    "wtq",
+    "sqa",
+    "tabfact",
+    "tablebench",
+    "hitab",
+    "hover_context"
+  ],
+  "source_benchmark_axis": [
+    "wtq",
+    "sqa",
+    "tablebench",
+    "hitab"
+  ],
+  "style_axis": [
+    "guidance",
+    "constraint"
+  ],
+  "bundle_axis": [
+    {
+      "axis_label": "source.wtq.guidance",
+      "canonical_id": "domain_heuristics.source_benchmark.wtq.guidance",
+      "source_benchmark": "wtq",
+      "rule_style": "guidance",
+      "rule_ids": [
+        "wtq_row_order_anchor_navigation_guidance",
+        "wtq_identifier_name_role_binding_guidance",
+        "wtq_rank_direction_not_arithmetic_guidance",
+        "wtq_score_atomic_vs_margin_guidance"
+      ],
+      "n_rules": 4
+    },
+    {
+      "axis_label": "source.wtq.constraint",
+      "canonical_id": "domain_heuristics.source_benchmark.wtq.constraint",
+      "source_benchmark": "wtq",
+      "rule_style": "constraint",
+      "rule_ids": [
+        "wtq.row_order_anchor_navigation",
+        "wtq.identifier_name_role_binding",
+        "wtq.rank_direction_not_arithmetic",
+        "wtq.score_atomic_vs_margin"
+      ],
+      "n_rules": 4
+    },
+    {
+      "axis_label": "source.sqa.guidance",
+      "canonical_id": "domain_heuristics.source_benchmark.sqa.guidance",
+      "source_benchmark": "sqa",
+      "rule_style": "guidance",
+      "rule_ids": [
+        "sqa_active_set_first_guidance",
+        "sqa_project_requested_role_after_history_guidance",
+        "sqa_one_answer_per_active_item_guidance"
+      ],
+      "n_rules": 3
+    },
+    {
+      "axis_label": "source.sqa.constraint",
+      "canonical_id": "domain_heuristics.source_benchmark.sqa.constraint",
+      "source_benchmark": "sqa",
+      "rule_style": "constraint",
+      "rule_ids": [
+        "sqa.active_set_first",
+        "sqa.project_requested_role_after_history",
+        "sqa_one_answer_per_active_item"
+      ],
+      "n_rules": 3
+    },
+    {
+      "axis_label": "source.tablebench.guidance",
+      "canonical_id": "domain_heuristics.source_benchmark.tablebench.guidance",
+      "source_benchmark": "tablebench",
+      "rule_style": "guidance",
+      "rule_ids": [
+        "tablebench_bind_metric_before_operation_guidance",
+        "tablebench_aggregation_scope_all_rows_guidance",
+        "tablebench_rank_select_entity_not_value_guidance"
+      ],
+      "n_rules": 3
+    },
+    {
+      "axis_label": "source.tablebench.constraint",
+      "canonical_id": "domain_heuristics.source_benchmark.tablebench.constraint",
+      "source_benchmark": "tablebench",
+      "rule_style": "constraint",
+      "rule_ids": [
+        "tablebench_bind_metric_before_operation",
+        "tablebench_aggregation_scope_all_rows",
+        "tablebench_rank_select_entity_not_value"
+      ],
+      "n_rules": 3
+    },
+    {
+      "axis_label": "source.hitab.guidance",
+      "canonical_id": "domain_heuristics.source_benchmark.hitab.guidance",
+      "source_benchmark": "hitab",
+      "rule_style": "guidance",
+      "rule_ids": [
+        "hitab_header_path_cell_binding_guidance",
+        "hitab_pair_comparison_preserve_label_guidance",
+        "hitab_signed_formula_surface_guidance"
+      ],
+      "n_rules": 3
+    },
+    {
+      "axis_label": "source.hitab.constraint",
+      "canonical_id": "domain_heuristics.source_benchmark.hitab.constraint",
+      "source_benchmark": "hitab",
+      "rule_style": "constraint",
+      "rule_ids": [
+        "hitab_header_path_cell_binding",
+        "hitab_pair_comparison_preserve_label",
+        "hitab_signed_formula_surface"
+      ],
+      "n_rules": 3
+    }
+  ],
+  "config_dir": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/gepa_source_benchmark_domain_heuristics",
+  "preview_path": "study_layer/artifacts/wikitable_gepa_source_benchmark_domain_v1_preview.html",
+  "source_artifacts": [
+    "study_layer/artifacts/gepa_rule_generation_v0/example_enriched_guidance_v1.jsonl",
+    "study_layer/artifacts/gepa_constraint_rule_generation_v1/curated_constraints_v1.jsonl"
+  ],
+  "notes": [
+    "Rules are grouped by the benchmark whose failure slice generated them, not by target benchmark.",
+    "Guidance and constraint styles are separate bundles to test whether stricter rule language matters.",
+    "Concrete examples are rendered in prompt text because they are part of the in-context intervention.",
+    "TabFact is target-only in this version because no TabFact source failure batch exists in the current GEPA artifacts."
+  ]
+}

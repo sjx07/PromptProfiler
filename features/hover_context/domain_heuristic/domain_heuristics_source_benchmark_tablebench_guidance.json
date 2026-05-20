@@ -1,0 +1,153 @@
+{
+  "canonical_id": "domain_heuristics.source_benchmark.tablebench.guidance",
+  "task": "hover_context",
+  "semantic_labels": [
+    {
+      "label": "domain_heuristic.source_benchmark_bundle",
+      "role": "feature_concept"
+    },
+    {
+      "label": "domain_heuristics.source_benchmark.tablebench.guidance",
+      "role": "feature_concept"
+    },
+    {
+      "label": "benchmark.hover_context",
+      "role": "target_benchmark"
+    },
+    {
+      "label": "source_benchmark.tablebench",
+      "role": "source_benchmark"
+    },
+    {
+      "label": "prompt_rule_style.guidance",
+      "role": "rule_style"
+    },
+    {
+      "label": "feature_mode.rule_bundle",
+      "role": "experiment_design"
+    },
+    {
+      "label": "implementation_surface.task_or_user_instruction",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "heuristic_scope.failure_slice_transfer_candidate",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "transfer_scope.cross_benchmark_when_surface_matches",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "gepa_rule.tablebench_bind_metric_before_operation_guidance",
+      "role": "included_rule"
+    },
+    {
+      "label": "gepa_rule.tablebench_aggregation_scope_all_rows_guidance",
+      "role": "included_rule"
+    },
+    {
+      "label": "gepa_rule.tablebench_rank_select_entity_not_value_guidance",
+      "role": "included_rule"
+    }
+  ],
+  "scope": {
+    "dataset": "hover_context",
+    "target_benchmark": "hover_context",
+    "source_benchmark": "tablebench",
+    "rule_style": "guidance",
+    "source_batches": [
+      "tablebench_numeric_operation_failures"
+    ],
+    "source_rule_ids": [
+      "tablebench_bind_metric_before_operation_guidance",
+      "tablebench_aggregation_scope_all_rows_guidance",
+      "tablebench_rank_select_entity_not_value_guidance"
+    ],
+    "feature_mode": "rule_bundle",
+    "heuristic_scope": "failure_slice_transfer_candidate",
+    "transfer_scope": "cross_benchmark_when_surface_matches",
+    "scope_boundary": "source_benchmark_not_target_task_protocol",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "prompt_surface": "example_enriched_rule_bundle",
+    "source_artifacts": [
+      "study_layer/artifacts/gepa_rule_generation_v0/example_enriched_guidance_v1.jsonl",
+      "study_layer/artifacts/gepa_constraint_rule_generation_v1/curated_constraints_v1.jsonl"
+    ],
+    "prompt_surface_note": "Concrete examples such as 18-12, 14-14, Quebec/Ontario, and =-B6 are rendered inside the prompt text, not only in metadata, because they are intended as in-context anchors."
+  },
+  "requires": [
+    "facet_retrieval_scaffold",
+    "_section_retrieval_strategy",
+    "_section_evidence_summary"
+  ],
+  "conflicts_with": [
+    "dataset_domain_heuristics.wikitable_surface",
+    "dataset_domain_heuristics.wikitable_sports_competition",
+    "dataset_domain_heuristics.wikitable_election_result",
+    "dataset_domain_heuristics.wikitable_media_episode",
+    "dataset_domain_heuristics.wikitable_music_chart",
+    "dataset_domain_heuristics.wikitable_geo_admin",
+    "dataset_domain_heuristics.wikitable_identifier_rank_code",
+    "domain_heuristics.wtq",
+    "domain_heuristics.sqa",
+    "domain_heuristics.tabfact",
+    "domain_heuristics.tablebench",
+    "domain_heuristics.hitab",
+    "domain_heuristics.hover_context",
+    "domain_wikitable_source_semantics_pack",
+    "domain_table_source_semantics_pack"
+  ],
+  "rationale": "Source-benchmark GEPA rule bundle. The source axis captures where the failure slice was mined; the target task registry owns a task-local copy so runtime feature materialization stays simple.",
+  "primitive_edits": [
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Use this source-benchmark rule bundle only when a claim or retrieved passage describes table-like evidence: a result table, ranking, score table, episode list, statistical table, or comparison table.\nUse these GEPA-derived guidance rules from TABLEBENCH failures only when the current table, question, history, headers, or cell surfaces match. The examples inside each rule are part of the instruction: they anchor what kind of evidence the rule is talking about.\n- [tablebench_bind_metric_before_operation_guidance] Before any numeric operation, bind the exact metric column named by the question, including unit and year qualifiers, such as GDP per capita as of 2012 (PPP), population density (/ km2), floors, or gap from Thailand; avoid compute over a neighboring metric column with similar numbers.\n- [tablebench_aggregation_scope_all_rows_guidance] For average/sum/total questions, such as average population density of all municipalities or average floors from 1895 to 1980, enumerate all rows satisfying the stated filters, then aggregate exactly those rows; avoid aggregate only visible preview rows, headers, totals, or examples.\n- [tablebench_rank_select_entity_not_value_guidance] When the question asks which/who/economy/entity has an extreme metric, such as which economy had the highest GDP per capita as of 2012, sort/filter by the metric column but return the entity column, e.g. Singapore; avoid return the numeric metric value unless the question asks for the value.\nFor ordinary prose passages where these surfaces do not appear, ignore the bundle.",
+          "ordinal": 116
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop3",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Use this source-benchmark rule bundle only when a claim or retrieved passage describes table-like evidence: a result table, ranking, score table, episode list, statistical table, or comparison table.\nUse these GEPA-derived guidance rules from TABLEBENCH failures only when the current table, question, history, headers, or cell surfaces match. The examples inside each rule are part of the instruction: they anchor what kind of evidence the rule is talking about.\n- [tablebench_bind_metric_before_operation_guidance] Before any numeric operation, bind the exact metric column named by the question, including unit and year qualifiers, such as GDP per capita as of 2012 (PPP), population density (/ km2), floors, or gap from Thailand; avoid compute over a neighboring metric column with similar numbers.\n- [tablebench_aggregation_scope_all_rows_guidance] For average/sum/total questions, such as average population density of all municipalities or average floors from 1895 to 1980, enumerate all rows satisfying the stated filters, then aggregate exactly those rows; avoid aggregate only visible preview rows, headers, totals, or examples.\n- [tablebench_rank_select_entity_not_value_guidance] When the question asks which/who/economy/entity has an extreme metric, such as which economy had the highest GDP per capita as of 2012, sort/filter by the metric column but return the entity column, e.g. Singapore; avoid return the numeric metric value unless the question asks for the value.\nFor ordinary prose passages where these surfaces do not appear, ignore the bundle.",
+          "ordinal": 116
+        }
+      }
+    },
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "When summarizing table-like Wikipedia evidence, preserve the roles named in this source-benchmark bundle.\nUse these GEPA-derived guidance rules from TABLEBENCH failures only when the current table, question, history, headers, or cell surfaces match. The examples inside each rule are part of the instruction: they anchor what kind of evidence the rule is talking about.\n- [tablebench_bind_metric_before_operation_guidance] Before any numeric operation, bind the exact metric column named by the question, including unit and year qualifiers, such as GDP per capita as of 2012 (PPP), population density (/ km2), floors, or gap from Thailand; avoid compute over a neighboring metric column with similar numbers.\n- [tablebench_aggregation_scope_all_rows_guidance] For average/sum/total questions, such as average population density of all municipalities or average floors from 1895 to 1980, enumerate all rows satisfying the stated filters, then aggregate exactly those rows; avoid aggregate only visible preview rows, headers, totals, or examples.\n- [tablebench_rank_select_entity_not_value_guidance] When the question asks which/who/economy/entity has an extreme metric, such as which economy had the highest GDP per capita as of 2012, sort/filter by the metric column but return the entity column, e.g. Singapore; avoid return the numeric metric value unless the question asks for the value.\nIf the evidence is ordinary prose and the bundle does not match, ignore it.",
+          "ordinal": 116
+        }
+      }
+    },
+    {
+      "target_module": "summarize2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "When summarizing table-like Wikipedia evidence, preserve the roles named in this source-benchmark bundle.\nUse these GEPA-derived guidance rules from TABLEBENCH failures only when the current table, question, history, headers, or cell surfaces match. The examples inside each rule are part of the instruction: they anchor what kind of evidence the rule is talking about.\n- [tablebench_bind_metric_before_operation_guidance] Before any numeric operation, bind the exact metric column named by the question, including unit and year qualifiers, such as GDP per capita as of 2012 (PPP), population density (/ km2), floors, or gap from Thailand; avoid compute over a neighboring metric column with similar numbers.\n- [tablebench_aggregation_scope_all_rows_guidance] For average/sum/total questions, such as average population density of all municipalities or average floors from 1895 to 1980, enumerate all rows satisfying the stated filters, then aggregate exactly those rows; avoid aggregate only visible preview rows, headers, totals, or examples.\n- [tablebench_rank_select_entity_not_value_guidance] When the question asks which/who/economy/entity has an extreme metric, such as which economy had the highest GDP per capita as of 2012, sort/filter by the metric column but return the entity column, e.g. Singapore; avoid return the numeric metric value unless the question asks for the value.\nIf the evidence is ordinary prose and the bundle does not match, ignore it.",
+          "ordinal": 116
+        }
+      }
+    }
+  ]
+}
