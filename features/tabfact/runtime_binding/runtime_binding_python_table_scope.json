@@ -1,0 +1,52 @@
+{
+  "canonical_id": "runtime_binding_python_table_scope",
+  "task": "tabfact",
+  "semantic_labels": [
+    {
+      "label": "runtime_binding.python_table_scope",
+      "role": "runtime_binding"
+    },
+    {
+      "label": "implementation.exec_scope",
+      "role": "implementation_surface"
+    }
+  ],
+  "scope": {
+    "dataset": "tabfact",
+    "task_view": "table_fact_verification",
+    "axis": "runtime_binding",
+    "value": "python_table_scope",
+    "implementation_surface": "exec_python_scope"
+  },
+  "requires": [
+    "_section_table_handling"
+  ],
+  "conflicts_with": [
+    "runtime_binding_python_csv_scope"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Use the in-memory Python table scope: `df` for pandas operations, `records` or `table` for row dictionaries, `data` for metadata plus rows, and `header` for ordered columns.",
+          "ordinal": 81
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Do not assume a local file is needed for this runtime; prefer the provided in-memory objects unless a CSV runtime is explicitly requested.",
+          "ordinal": 82
+        }
+      }
+    }
+  ],
+  "rationale": "Default shared PoT runtime binding across table tasks."
+}

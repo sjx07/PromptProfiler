@@ -1,0 +1,41 @@
+{
+  "canonical_id": "runtime_binding_python_csv_scope",
+  "task": "tablebench",
+  "semantic_labels": [
+    {
+      "label": "runtime_binding.python_csv_scope",
+      "role": "runtime_binding"
+    },
+    {
+      "label": "implementation.exec_scope_csv_file",
+      "role": "implementation_surface"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "task_view": "tablebench_textual_answering",
+    "axis": "runtime_binding",
+    "value": "python_csv_scope",
+    "implementation_surface": "exec_python_csv_scope"
+  },
+  "requires": [
+    "_section_table_handling"
+  ],
+  "conflicts_with": [
+    "runtime_binding_python_table_scope"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "CSV-compatible runtime: code may read the table from `table.csv` with `pd.read_csv(\"table.csv\")` or equivalent file I/O.",
+          "ordinal": 83
+        }
+      }
+    }
+  ],
+  "rationale": "Optional TableBench compatibility binding for official PoT-style code that reads table.csv."
+}

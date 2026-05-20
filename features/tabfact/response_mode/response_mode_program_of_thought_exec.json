@@ -1,0 +1,88 @@
+{
+  "canonical_id": "response_mode_program_of_thought_exec",
+  "task": "tabfact",
+  "semantic_labels": [
+    {
+      "label": "response_mode.program_of_thought_exec",
+      "role": "response_mode"
+    },
+    {
+      "label": "output_field.code",
+      "role": "interface_contract"
+    },
+    {
+      "label": "implementation.exec_python",
+      "role": "implementation_surface"
+    }
+  ],
+  "scope": {
+    "dataset": "tabfact",
+    "task_view": "table_fact_verification",
+    "axis": "response_mode",
+    "value": "program_of_thought_exec",
+    "implementation_surface": "exec_python"
+  },
+  "requires": [
+    "_section_role",
+    "_section_task",
+    "_section_rules",
+    "_section_table_handling",
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "facet_dp_scaffold",
+    "output_contract_json_answer_list",
+    "output_contract_json_verdict",
+    "output_contract_tablebench_answer_string",
+    "contract_wikitable_answer_surface_pack",
+    "contract_table_answer_surface_pack"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "ec17d000bc20",
+        "payload": {
+          "content": "You are a careful table analyst. Return executable Python code, not prose.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "c8a44f4feada",
+        "payload": {
+          "content": "Write executable Python code that checks whether the statement is supported by the table. The produced result must be True or False.",
+          "ordinal": 20
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "output_field",
+        "parent_id": "__root__",
+        "payload": {
+          "name": "code",
+          "description": "Executable Python code that verifies the statement against the table and produces a boolean verdict. Use `statement` and the provided table runtime; set `answer`, `result`, `__result__`, or print True/False.",
+          "ordinal": 80
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "The Python runtime exposes `df` as a pandas DataFrame, `records`/`table` as row dictionaries, `data` as task metadata plus rows, and `header` as the column list.",
+          "ordinal": 80
+        }
+      }
+    }
+  ],
+  "rationale": "Aligned Program-of-Thought response mode. It swaps the dispatch field to code while leaving scorer semantics benchmark-local."
+}

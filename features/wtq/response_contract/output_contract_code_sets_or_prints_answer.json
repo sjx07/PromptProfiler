@@ -1,0 +1,45 @@
+{
+  "canonical_id": "output_contract_code_sets_or_prints_answer",
+  "task": "wtq",
+  "semantic_labels": [
+    {
+      "label": "output_contract.code_result_contract",
+      "role": "interface_contract"
+    },
+    {
+      "label": "format.executable_answer_contract",
+      "role": "format_contract"
+    }
+  ],
+  "scope": {
+    "dataset": "wtq",
+    "task_view": "wikitable_question_answering",
+    "output_contract": "code_sets_or_prints_answer",
+    "axis": "output_contract",
+    "value": "code_sets_or_prints_answer"
+  },
+  "requires": [
+    "_section_format_fix"
+  ],
+  "conflicts_with": [
+    "output_contract_json_answer_list",
+    "output_contract_json_verdict",
+    "output_contract_tablebench_answer_string",
+    "contract_wikitable_answer_surface_pack",
+    "contract_table_answer_surface_pack"
+  ],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "73598c496947",
+        "payload": {
+          "content": "The code must produce only the final answer value or values by setting `answer`, `result`, `__result__`, or by printing the final value. Preserve complete table-cell values.",
+          "ordinal": 80
+        }
+      }
+    }
+  ],
+  "rationale": "PoT execution output contract. It is separate from response mode so runtime/contract effects can be analyzed as feature-vector components."
+}
