@@ -1,0 +1,105 @@
+{
+  "canonical_id": "dataset_domain_heuristics.wikitable_music_chart",
+  "task": "tabfact",
+  "semantic_labels": [
+    {
+      "label": "dataset_domain_heuristic.subpack",
+      "role": "feature_concept"
+    },
+    {
+      "label": "dataset_domain_heuristics.wikitable_music_chart",
+      "role": "feature_concept"
+    },
+    {
+      "label": "benchmark.tabfact",
+      "role": "dataset"
+    },
+    {
+      "label": "source_family.wikipedia_table",
+      "role": "source_family"
+    },
+    {
+      "label": "heuristic_scope.source_surface_transfer_candidate",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "transfer_scope.cross_benchmark_when_source_surface_matches",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "feature_mode.rule_bundle",
+      "role": "experiment_design"
+    },
+    {
+      "label": "implementation_surface.task_or_user_instruction",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "domain_hint_rule.wikitable.music_chart",
+      "role": "included_rule"
+    }
+  ],
+  "scope": {
+    "dataset": "tabfact",
+    "source_family": "wikipedia_table",
+    "feature_mode": "rule_bundle",
+    "heuristic_scope": "source_surface_transfer_candidate",
+    "transfer_scope": "cross_benchmark_when_source_surface_matches",
+    "scope_boundary": "dataset_source_not_task_protocol",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "domain_block_id": "domain.wikitable.music_chart",
+    "source_artifact": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/finer_domain_heuristics_v1.json",
+    "grounding_artifacts": [
+      "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/finer_domain_heuristics_v1.json",
+      "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json",
+      "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/source_semantic_annotation_matrix_v1.json"
+    ],
+    "source_rule_ids": [
+      "wtq.chart_country_header",
+      "wtq.rank_vs_value",
+      "wtq.country_code_alias"
+    ],
+    "prompt_surface": "clean_rule_subpack",
+    "prompt_surface_note": "Prompt text renders source/data rules only; task protocol, output contract, and benchmark parser fixes live in separate feature families."
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_table_handling",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [
+    "dataset_domain_heuristics.wikitable_surface",
+    "domain_heuristics.wtq",
+    "domain_heuristics.sqa",
+    "domain_heuristics.tabfact",
+    "domain_heuristics.tablebench",
+    "domain_heuristics.hitab",
+    "domain_heuristics.hover_context"
+  ],
+  "rationale": "Fine-grained WikiTable source-domain subpack from the domain heuristic artifact. Generated for each target task so the task-local registry can run the 6x6 transfer screen.",
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Use this WikiTable source-domain block when the source surface matches:\n- For Wikipedia music and chart tables, do not collapse music roles. Song or single, album, artist, producer, featured guest, sales, and chart position are distinct. Use the exact chart column named by the question, such as GER peak chart position. Interpret chart positions as ordinal ranks where smaller numbers are better; blanks and dashes usually mean did not chart. Keep sales quantities with commas as one numeric value.",
+          "ordinal": 64
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "Apply this source-domain block only when the table, header, cell values, or question surface match it. If it conflicts with explicit wording or table evidence, follow the explicit wording and evidence. Do not change the required output format.",
+          "ordinal": 74
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "schema_version": "wikitable_domain_subpack_6x6_v1",
+  "purpose": "6 target benchmarks x 6 fine WikiTable source-domain heuristic subpacks.",
+  "db_path": "/data/users/jsu323/facet/wikitable_domain_subpack_6x6_v1.db",
+  "vllm_db": "/data/users/jsu323/facet/wikitable_domain_subpack_6x6_v1_vllm.db",
+  "benchmark_axis": [
+    "wtq",
+    "sqa",
+    "tabfact",
+    "tablebench",
+    "hitab",
+    "hover_context"
+  ],
+  "domain_axis": [
+    {
+      "axis_label": "domain.wikitable.sports_competition",
+      "canonical_id": "dataset_domain_heuristics.wikitable_sports_competition",
+      "source_rule_ids": [
+        "wtq.score_is_result",
+        "wtq.rank_vs_value",
+        "wtq.adjacent_metric_group"
+      ]
+    },
+    {
+      "axis_label": "domain.wikitable.election_result",
+      "canonical_id": "dataset_domain_heuristics.wikitable_election_result",
+      "source_rule_ids": [
+        "wtq.adjacent_metric_group",
+        "wtq.rank_vs_value"
+      ]
+    },
+    {
+      "axis_label": "domain.wikitable.media_episode",
+      "canonical_id": "dataset_domain_heuristics.wikitable_media_episode",
+      "source_rule_ids": [
+        "wtq.identifier_vs_named_entity",
+        "wtq.row_order_navigation"
+      ]
+    },
+    {
+      "axis_label": "domain.wikitable.music_chart",
+      "canonical_id": "dataset_domain_heuristics.wikitable_music_chart",
+      "source_rule_ids": [
+        "wtq.chart_country_header",
+        "wtq.rank_vs_value",
+        "wtq.country_code_alias"
+      ]
+    },
+    {
+      "axis_label": "domain.wikitable.geo_admin",
+      "canonical_id": "dataset_domain_heuristics.wikitable_geo_admin",
+      "source_rule_ids": [
+        "wtq.country_code_alias"
+      ]
+    },
+    {
+      "axis_label": "domain.wikitable.identifier_rank_code",
+      "canonical_id": "dataset_domain_heuristics.wikitable_identifier_rank_code",
+      "source_rule_ids": [
+        "wtq.identifier_vs_named_entity",
+        "wtq.rank_vs_value"
+      ]
+    }
+  ],
+  "config_dir": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/domain_heuristic_6x6",
+  "grounding_artifacts": [
+    "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/finer_domain_heuristics_v1.json",
+    "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json",
+    "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/source_semantic_annotation_matrix_v1.json"
+  ],
+  "notes": [
+    "SQA follow-up/dialog rules are intentionally excluded; they are task heuristics, not dataset-domain heuristics.",
+    "HoVer is included as a passage-source negative/control target for table-domain subpacks.",
+    "Each config contains base plus six one-subpack coalitions over a fixed per-benchmark surface."
+  ]
+}

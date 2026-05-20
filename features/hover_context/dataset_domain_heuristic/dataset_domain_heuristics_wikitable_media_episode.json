@@ -1,0 +1,130 @@
+{
+  "canonical_id": "dataset_domain_heuristics.wikitable_media_episode",
+  "task": "hover_context",
+  "semantic_labels": [
+    {
+      "label": "dataset_domain_heuristic.subpack",
+      "role": "feature_concept"
+    },
+    {
+      "label": "dataset_domain_heuristics.wikitable_media_episode",
+      "role": "feature_concept"
+    },
+    {
+      "label": "benchmark.hover_context",
+      "role": "dataset"
+    },
+    {
+      "label": "source_family.wikipedia_table",
+      "role": "source_family"
+    },
+    {
+      "label": "heuristic_scope.source_surface_transfer_candidate",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "transfer_scope.cross_benchmark_when_source_surface_matches",
+      "role": "transfer_scope"
+    },
+    {
+      "label": "feature_mode.rule_bundle",
+      "role": "experiment_design"
+    },
+    {
+      "label": "implementation_surface.task_or_user_instruction",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "domain_hint_rule.wikitable.media_episode",
+      "role": "included_rule"
+    }
+  ],
+  "scope": {
+    "dataset": "hover_context",
+    "source_family": "wikipedia_table",
+    "feature_mode": "rule_bundle",
+    "heuristic_scope": "source_surface_transfer_candidate",
+    "transfer_scope": "cross_benchmark_when_source_surface_matches",
+    "scope_boundary": "dataset_source_not_task_protocol",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "domain_block_id": "domain.wikitable.media_episode",
+    "source_artifact": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/finer_domain_heuristics_v1.json",
+    "grounding_artifacts": [
+      "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/finer_domain_heuristics_v1.json",
+      "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/benchmark_domain_hint_rules_v1.json",
+      "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/source_semantic_annotation_matrix_v1.json"
+    ],
+    "source_rule_ids": [
+      "wtq.identifier_vs_named_entity",
+      "wtq.row_order_navigation"
+    ],
+    "prompt_surface": "clean_rule_subpack",
+    "prompt_surface_note": "Prompt text renders source/data rules only; task protocol, output contract, and benchmark parser fixes live in separate feature families."
+  },
+  "requires": [
+    "facet_retrieval_scaffold",
+    "_section_retrieval_strategy",
+    "_section_evidence_summary"
+  ],
+  "conflicts_with": [
+    "dataset_domain_heuristics.wikitable_surface",
+    "domain_heuristics.wtq",
+    "domain_heuristics.sqa",
+    "domain_heuristics.tabfact",
+    "domain_heuristics.tablebench",
+    "domain_heuristics.hitab",
+    "domain_heuristics.hover_context"
+  ],
+  "rationale": "Fine-grained WikiTable source-domain subpack from the domain heuristic artifact. Generated for each target task so the task-local registry can run the 6x6 transfer screen.",
+  "primitive_edits": [
+    {
+      "target_module": "create_query_hop2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Use this WikiTable source-domain block only when a claim or retrieved passage describes a table-like list, ranking, chart, result table, episode list, election table, or administrative table:\n- For Wikipedia television, episode, and media tables, keep episode title, episode number, season number, series number, production code, air date, director, writer, viewers, rating, and share as separate roles. If the question asks which episode, return the episode title unless it asks for a number or code. If the row summarizes a season, use the Episodes cell for episode counts. For director or writer counts, count rows only within the requested season or active set.\nPreserve title-like entities, years, and relation anchors needed for retrieval. Do not force table assumptions onto ordinary prose passages.",
+          "ordinal": 114
+        }
+      }
+    },
+    {
+      "target_module": "create_query_hop3",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d25e9162c43e",
+        "payload": {
+          "content": "Use this WikiTable source-domain block only when a claim or retrieved passage describes a table-like list, ranking, chart, result table, episode list, election table, or administrative table:\n- For Wikipedia television, episode, and media tables, keep episode title, episode number, season number, series number, production code, air date, director, writer, viewers, rating, and share as separate roles. If the question asks which episode, return the episode title unless it asks for a number or code. If the row summarizes a season, use the Episodes cell for episode counts. For director or writer counts, count rows only within the requested season or active set.\nPreserve title-like entities, years, and relation anchors needed for retrieval. Do not force table assumptions onto ordinary prose passages.",
+          "ordinal": 114
+        }
+      }
+    },
+    {
+      "target_module": "summarize1",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "When the retrieved Wikipedia passage describes table-like evidence, preserve the relevant source-domain roles in the evidence summary:\n- For Wikipedia television, episode, and media tables, keep episode title, episode number, season number, series number, production code, air date, director, writer, viewers, rating, and share as separate roles. If the question asks which episode, return the episode title unless it asks for a number or code. If the row summarizes a season, use the Episodes cell for episode counts. For director or writer counts, count rows only within the requested season or active set.\nIf the passage is ordinary prose and the block does not match, ignore the block.",
+          "ordinal": 114
+        }
+      }
+    },
+    {
+      "target_module": "summarize2",
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "90b700e0f2aa",
+        "payload": {
+          "content": "When the retrieved Wikipedia passage describes table-like evidence, preserve the relevant source-domain roles in the evidence summary:\n- For Wikipedia television, episode, and media tables, keep episode title, episode number, season number, series number, production code, air date, director, writer, viewers, rating, and share as separate roles. If the question asks which episode, return the episode title unless it asks for a number or code. If the row summarizes a season, use the Episodes cell for episode counts. For director or writer counts, count rows only within the requested season or active set.\nIf the passage is ordinary prose and the block does not match, ignore the block.",
+          "ordinal": 114
+        }
+      }
+    }
+  ]
+}
