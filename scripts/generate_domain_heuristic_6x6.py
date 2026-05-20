@@ -25,8 +25,8 @@ OUT_DIR = (
 )
 MANIFEST_PATH = ROOT / "study_layer/coalition_manifests/wikitable_domain_subpack_6x6_v1.json"
 
-CUBE_DB = "/data/users/jsu323/facet/wikitable_domain_subpack_6x6_v1.db"
-VLLM_DB = "/data/users/jsu323/facet/wikitable_domain_subpack_6x6_v1_vllm.db"
+CUBE_DB = "/data/users/jsu323/facet/wikitable_clean_surface_v1.db"
+VLLM_DB = "/data/users/jsu323/facet/wikitable_clean_surface_v1_vllm.db"
 
 GROUNDING_ARTIFACTS = [
     "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/benchmark_design/domain_heuristic_wiki/finer_domain_heuristics_v1.json",

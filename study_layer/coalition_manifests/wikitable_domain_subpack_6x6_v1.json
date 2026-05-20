@@ -1,8 +1,8 @@
 {
   "schema_version": "wikitable_domain_subpack_6x6_v1",
   "purpose": "6 target benchmarks x 6 fine WikiTable source-domain heuristic subpacks.",
-  "db_path": "/data/users/jsu323/facet/wikitable_domain_subpack_6x6_v1.db",
-  "vllm_db": "/data/users/jsu323/facet/wikitable_domain_subpack_6x6_v1_vllm.db",
+  "db_path": "/data/users/jsu323/facet/wikitable_clean_surface_v1.db",
+  "vllm_db": "/data/users/jsu323/facet/wikitable_clean_surface_v1_vllm.db",
   "benchmark_axis": [
     "wtq",
     "sqa",
