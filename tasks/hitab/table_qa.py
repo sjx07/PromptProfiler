@@ -8,6 +8,8 @@ from typing import Any, Dict, List
 
 from task import BaseTask
 from tasks.answer_normalization import normalize_numeric_grouping
+from tasks.program_of_thought import ProgramOfThoughtMixin
+from tasks.table_python_runtime import execute_python_table_code, runtime_from_rows
 
 
 _OUTPUT_TO_TABLE_FORMAT = {
@@ -19,7 +21,7 @@ _OUTPUT_TO_TABLE_FORMAT = {
 }
 
 
-class HiTabQA(BaseTask):
+class HiTabQA(ProgramOfThoughtMixin, BaseTask):
     name = "hitab_qa"
     scorer = "denotation_acc"
     _parser_module_path = "tasks.hitab.parsers"
@@ -30,6 +32,9 @@ class HiTabQA(BaseTask):
     default_output_fields: Dict[str, str] = {
         "answer": "The answer extracted from the table",
     }
+
+    def build_python_table_runtime(self, raw: dict, record: dict | None = None):
+        return _build_python_table_runtime(raw)
 
     def _gold_output(self, meta: dict, raw: dict) -> dict:
         answer = raw.get("answer", meta.get("gold_answer", "[]"))
@@ -78,9 +83,11 @@ class HiTabQA(BaseTask):
         raw = query_meta.get("_raw", {})
         gold_answer_str = raw.get("answer", query_meta.get("gold_answer", "[]"))
 
-        if prediction.startswith("__CODE__"):
-            code_result = _execute_code(prediction[len("__CODE__"):].strip(), raw)
-            prediction = "" if code_result is None else str(code_result)
+        code_metrics: dict[str, Any] = {}
+        code_attempted = False
+        if self.is_code_prediction(prediction):
+            code_attempted = True
+            prediction, code_metrics = self.execute_code_prediction(prediction, raw)
 
         gold_values = _parse_answer_string(gold_answer_str)
         pred_values = _normalize_answer_list(prediction)
@@ -89,96 +96,45 @@ class HiTabQA(BaseTask):
         pred_norm = [_normalize_value(v) for v in pred_values]
 
         score_val = 1.0 if set(pred_norm) == set(gold_norm) else 0.0
-        return score_val, {
+        metrics = {
             "status": "ok",
             "prediction": prediction,
             "pred_normalized": pred_norm,
             "gold": gold_values,
             "gold_normalized": gold_norm,
         }
+        if code_attempted:
+            metrics.update(code_metrics)
+        return score_val, metrics
 
 
-def _execute_code(code: str, raw: dict) -> Any:
-    """Execute HiTab Python code with flattened and raw table context."""
-    import contextlib as _contextlib
-    import datetime as _dt
-    import io as _io
-    import math as _math
-    import collections as _collections
-
-    import pandas as pd
-
+def _build_python_table_runtime(raw: dict):
     from tasks.hitab.loaders import table_content_to_records
 
     table_content = raw.get("table_content", {})
     header, rows = table_content_to_records(table_content)
     if not header:
         return None
+    table_name = raw.get("table_id", "") or raw.get("table_source", "")
+    return runtime_from_rows(
+        header,
+        rows,
+        table_name=table_name,
+        data_extra={
+            "table_content": table_content,
+            "question": raw.get("question", ""),
+        },
+        extras={"table_content": table_content},
+    )
 
-    df = pd.DataFrame(rows, columns=header)
-    for col in df.columns:
-        cleaned = df[col].astype(str).str.replace(",", "", regex=False)
-        cleaned = cleaned.str.replace(r"[\$£€]", "", regex=True)
-        cleaned = cleaned.str.replace("%", "", regex=False)
-        cleaned = cleaned.str.strip()
-        try:
-            df[col] = pd.to_numeric(cleaned)
-        except (ValueError, TypeError):
-            pass
 
-    table = df.to_dict("records")
-    data = {"rows": table, "table_content": table_content}
-    safe_globals = {
-        "df": df,
-        "pd": pd,
-        "data": data,
-        "table": table,
-        "table_content": table_content,
-        "header": header,
-        "re": re,
-        "datetime": _dt.datetime,
-        "timedelta": _dt.timedelta,
-        "date": _dt.date,
-        "collections": _collections,
-        "Counter": _collections.Counter,
-        "math": _math,
-        "len": len, "str": str, "int": int, "float": float, "bool": bool,
-        "list": list, "dict": dict, "set": set, "tuple": tuple,
-        "sum": sum, "min": min, "max": max, "abs": abs,
-        "sorted": sorted, "enumerate": enumerate, "zip": zip,
-        "range": range, "map": map, "filter": filter,
-        "any": any, "all": all, "round": round,
-        "isinstance": isinstance, "type": type,
-    }
-
-    def _stringify(result: Any) -> Any:
-        if isinstance(result, (list, set, tuple)):
-            return ", ".join(str(v) for v in result)
-        return result
-
-    try:
-        return _stringify(eval(code, safe_globals))
-    except Exception:
-        pass
-
-    local_vars: dict = {}
-    stdout_buf = _io.StringIO()
-    try:
-        with _contextlib.redirect_stdout(stdout_buf):
-            exec(code, safe_globals, local_vars)
-    except Exception:
+def _execute_code(code: str, raw: dict) -> Any:
+    """Execute HiTab Python code with flattened and raw table context."""
+    runtime = _build_python_table_runtime(raw)
+    if runtime is None:
         return None
-
-    if "answer" in local_vars:
-        return _stringify(local_vars["answer"])
-
-    captured = stdout_buf.getvalue().strip()
-    if captured:
-        last_line = captured.splitlines()[-1].strip()
-        if last_line:
-            return last_line
-
-    return None
+    outcome = execute_python_table_code(code, runtime)
+    return outcome.value
 
 
 def _parse_answer_string(answer: str) -> List[str]:

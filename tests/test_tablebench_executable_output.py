@@ -87,6 +87,30 @@ print(total)
     assert metrics["output_mode"] == "python_exec"
 
 
+def test_tablebench_code_prediction_can_use_shared_table_runtime():
+    task = TableBench()
+    score, metrics = task.score(
+        "__CODE__answer = int(df['score'].sum())",
+        {
+            "_raw": {
+                "answer": "3",
+                "qtype": "NumericalReasoning",
+                "qsubtype": "Arithmetic",
+                "table": {
+                    "header": ["score"],
+                    "rows": [["1"], ["2"]],
+                },
+            },
+        },
+    )
+
+    assert score == 1.0
+    assert metrics["prediction"] == "3"
+    assert metrics["ECR@1"] is True
+    assert metrics["runtime_binding"] == "python_table_scope"
+    assert metrics["method"].startswith("python_exec_")
+
+
 def test_tablebench_code_output_field_executes_fenced_code():
     exec_root = Path.cwd() / ".pytest_cache" / "tablebench_exec"
     exec_root.mkdir(parents=True, exist_ok=True)

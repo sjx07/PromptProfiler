@@ -12,6 +12,7 @@ from tasks.code_result_utils import (
     _USE_DEFAULT_NORMALIZER,
     dataframe_to_records,
     execute_python_code,
+    make_string_dataframe,
     make_typed_dataframe,
     stringify_code_result,
 )
@@ -97,10 +98,11 @@ def runtime_from_rows(
     data_extra: Mapping[str, Any] | None = None,
     extras: Mapping[str, Any] | None = None,
     result_keys: tuple[str, ...] = ("answer", "result", "__result__"),
+    coerce_types: bool = True,
 ) -> PythonTableRuntime:
     """Build the default in-memory table runtime from tabular rows."""
     header = [str(h) for h in headers]
-    df = make_typed_dataframe(header, rows)
+    df = make_typed_dataframe(header, rows) if coerce_types else make_string_dataframe(header, rows)
     records = dataframe_to_records(df)
     data = {"table": table_name, "rows": records}
     if data_extra:

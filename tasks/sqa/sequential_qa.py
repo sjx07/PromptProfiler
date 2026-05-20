@@ -8,11 +8,13 @@ from typing import Any, Dict, List
 
 from task import BaseTask
 from tasks.answer_normalization import normalize_numeric_grouping
-from tasks.code_result_utils import (
-    dataframe_to_records,
-    execute_python_code,
-    make_string_dataframe,
-    make_typed_dataframe,
+from tasks.code_result_utils import _USE_DEFAULT_NORMALIZER
+from tasks.parsing.code_output import CODE_PREFIX
+from tasks.program_of_thought import ProgramOfThoughtMixin
+from tasks.table_python_runtime import (
+    PythonTableExecution,
+    execute_python_table_code,
+    runtime_from_rows,
 )
 
 
@@ -30,70 +32,42 @@ def _execute_code(code: str, raw: dict) -> Any:
     return result
 
 
-def _execute_code_with_error(code: str, raw: dict) -> tuple[Any, str | None]:
-    """Execute SQA Python code with table and conversation context in scope."""
+def _build_python_table_runtime(raw: dict, *, coerce_types: bool = True):
     table_data = raw.get("table", {})
     header = list(table_data.get("headers", []))
     rows = [list(r) for r in table_data.get("rows", [])]
     if not header:
-        return None, None
-
+        return None
     history = raw.get("history", [])
-    typed_df = make_typed_dataframe(header, rows)
-    result, error = _execute_code_with_dataframe(code, raw, typed_df, header, history)
-    if error:
-        string_df = make_string_dataframe(header, rows)
-        fallback_result, fallback_error = _execute_code_with_dataframe(
-            code, raw, string_df, header, history
-        )
-        if fallback_error is None and fallback_result is not None:
-            return fallback_result, None
-    return result, error
+    return runtime_from_rows(
+        header,
+        rows,
+        table_name=raw.get("table_file", ""),
+        data_extra={
+            "history": history,
+            "question": raw.get("question", ""),
+        },
+        extras={"history": history},
+        coerce_types=coerce_types,
+    )
 
 
-def _execute_code_with_dataframe(
-    code: str,
-    raw: dict,
-    df: Any,
-    header: list[str],
-    history: list[dict[str, Any]],
-) -> tuple[Any, str | None]:
-    import datetime as _dt
-    import math as _math
-    import collections as _collections
-    import pandas as pd
-
-    table = dataframe_to_records(df)
-    data = {"table": raw.get("table_file", ""), "rows": table, "history": history}
-
-    safe_globals = {
-        "df": df,
-        "pd": pd,
-        "data": data,
-        "table": table,
-        "history": history,
-        "header": header,
-        "re": re,
-        "datetime": _dt.datetime,
-        "timedelta": _dt.timedelta,
-        "date": _dt.date,
-        "collections": _collections,
-        "Counter": _collections.Counter,
-        "math": _math,
-        "len": len, "str": str, "int": int, "float": float, "bool": bool,
-        "list": list, "dict": dict, "set": set, "tuple": tuple,
-        "sum": sum, "min": min, "max": max, "abs": abs,
-        "sorted": sorted, "enumerate": enumerate, "zip": zip,
-        "range": range, "map": map, "filter": filter,
-        "any": any, "all": all, "round": round,
-        "isinstance": isinstance, "type": type,
-    }
-
-    outcome = execute_python_code(code, safe_globals)
+def _execute_code_with_error(code: str, raw: dict) -> tuple[Any, str | None]:
+    """Execute SQA Python code with table and conversation context in scope."""
+    runtime = _build_python_table_runtime(raw, coerce_types=True)
+    if runtime is None:
+        return None, None
+    outcome = execute_python_table_code(code, runtime)
+    if outcome.error:
+        fallback_runtime = _build_python_table_runtime(raw, coerce_types=False)
+        if fallback_runtime is not None:
+            fallback = execute_python_table_code(code, fallback_runtime)
+            if fallback.error is None and fallback.value is not None:
+                return fallback.value, None
     return outcome.value, outcome.error
 
 
-class SequentialQA(BaseTask):
+class SequentialQA(ProgramOfThoughtMixin, BaseTask):
     name = "sequential_qa"
     scorer = "denotation_acc"
     _parser_module_path = "tasks.sqa.parsers"
@@ -105,6 +79,59 @@ class SequentialQA(BaseTask):
     default_output_fields: Dict[str, str] = {
         "answer": "The answer extracted from the table",
     }
+
+    def build_python_table_runtime(self, raw: dict, record: dict | None = None):
+        return _build_python_table_runtime(raw, coerce_types=True)
+
+    def execute_python_table(
+        self,
+        code: str,
+        raw: dict,
+        *,
+        record: dict | None = None,
+        normalize=_USE_DEFAULT_NORMALIZER,
+    ) -> PythonTableExecution:
+        runtime = _build_python_table_runtime(raw, coerce_types=True)
+        if runtime is None:
+            return PythonTableExecution(error="runtime_unavailable", executed=False)
+        outcome = execute_python_table_code(code, runtime, normalize=normalize)
+        if outcome.error:
+            fallback_runtime = _build_python_table_runtime(raw, coerce_types=False)
+            if fallback_runtime is not None:
+                fallback = execute_python_table_code(
+                    code,
+                    fallback_runtime,
+                    normalize=normalize,
+                )
+                if fallback.error is None and fallback.value is not None:
+                    return fallback
+        return outcome
+
+    def execute_code_prediction(
+        self,
+        prediction: str,
+        raw: dict,
+        *,
+        record: dict | None = None,
+        normalize=_USE_DEFAULT_NORMALIZER,
+    ) -> tuple[str, dict[str, Any]]:
+        code = prediction[len(CODE_PREFIX):].strip()
+        outcome = self.execute_python_table(
+            code,
+            raw,
+            record=record,
+            normalize=normalize,
+        )
+        metrics: dict[str, Any] = {
+            "code_executed": outcome.executed,
+            "runtime_binding": "python_table_scope",
+        }
+        if outcome.value is not None:
+            metrics["code_result"] = str(outcome.value)
+        if outcome.error:
+            metrics["code_error"] = outcome.error
+        prediction_text = "" if outcome.value is None else _format_prediction_value(outcome.value)
+        return prediction_text, metrics
 
     def _gold_output(self, meta: dict, raw: dict) -> dict:
         answer_text = raw.get("answer_text", meta.get("gold_answer", []))
@@ -170,16 +197,11 @@ class SequentialQA(BaseTask):
         if isinstance(gold_answer, str):
             gold_answer = [gold_answer]
 
-        code_result = None
-        code_error = None
+        code_metrics: dict[str, Any] = {}
         code_attempted = False
-        if prediction.startswith("__CODE__"):
+        if self.is_code_prediction(prediction):
             code_attempted = True
-            code_result, code_error = _execute_code_with_error(
-                prediction[len("__CODE__"):].strip(),
-                raw,
-            )
-            prediction = "" if code_result is None else _format_prediction_value(code_result)
+            prediction, code_metrics = self.execute_code_prediction(prediction, raw)
 
         gold_norm = {_normalize(str(v)) for v in gold_answer}
         pred_values = _parse_prediction(prediction)
@@ -206,11 +228,7 @@ class SequentialQA(BaseTask):
             "parse_strategy": parse_strategy,
         }
         if code_attempted:
-            metrics["code_executed"] = code_error is None and code_result is not None
-            if code_result is not None:
-                metrics["code_result"] = str(code_result)
-            if code_error:
-                metrics["code_error"] = code_error
+            metrics.update(code_metrics)
 
         return score_val, metrics
 

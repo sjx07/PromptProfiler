@@ -6,11 +6,17 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from typing import Dict, Iterable
+from typing import Any, Dict, Iterable
 
 from prompt.prompt_state import PromptState
 from prompt.rules import RuleItem, RuleSection, RuleTree
 from task import BaseTask
+from tasks.program_of_thought import ProgramOfThoughtMixin
+from tasks.table_python_runtime import (
+    execute_python_table_code,
+    format_python_table_result,
+    runtime_from_rows,
+)
 from tasks.tablebench.official_parser import (
     parse_general_code_then_exec,
 )
@@ -80,7 +86,7 @@ _COUNTING_REASONING_CONTRACT = (
 )
 
 
-class TableBench(BaseTask):
+class TableBench(ProgramOfThoughtMixin, BaseTask):
     name = "tablebench"
     scorer = "tb_official_acc"
     _parser_module_path = "tasks.wtq.parsers"   # reuse the "answer" parser
@@ -91,6 +97,24 @@ class TableBench(BaseTask):
     default_output_fields: Dict[str, str] = {
         "answer": "The answer extracted from the table",
     }
+
+    def build_python_table_runtime(self, raw: dict, record: dict | None = None):
+        table_data = raw.get("table", {})
+        return runtime_from_rows(
+            table_data.get("header", []),
+            table_data.get("rows", []),
+            table_name=table_data.get("name", ""),
+            data_extra={
+                "question": raw.get("question", ""),
+                "qtype": raw.get("qtype", ""),
+                "qsubtype": raw.get("qsubtype", ""),
+            },
+            extras={
+                "question": raw.get("question", ""),
+                "qtype": raw.get("qtype", ""),
+                "qsubtype": raw.get("qsubtype", ""),
+            },
+        )
 
     def _gold_output(self, meta: dict, raw: dict) -> dict:
         return {"answer": str(raw.get("answer", meta.get("gold_answer", "")))}
@@ -205,14 +229,30 @@ class TableBench(BaseTask):
         raw_prediction = str(prediction or "").strip()
         pred = raw_prediction
         ecr_1 = None
-        executed_python = raw_prediction.startswith("__CODE__")
+        code_error = None
+        runtime_binding = None
+        executed_python = self.is_code_prediction(raw_prediction)
         if executed_python:
             code = raw_prediction[len("__CODE__"):].strip()
-            code_or_response = f"```python\n{code}\n```"
-            pred, ecr_1 = parse_general_code_then_exec(
-                code_or_response,
-                raw.get("table", {}),
-            )
+            if _uses_table_csv_runtime(code):
+                runtime_binding = "python_csv_scope"
+                code_or_response = f"```python\n{code}\n```"
+                pred, ecr_1 = parse_general_code_then_exec(
+                    code_or_response,
+                    raw.get("table", {}),
+                )
+            else:
+                runtime_binding = "python_table_scope"
+                runtime = self.build_python_table_runtime(raw)
+                if runtime is None:
+                    pred = ""
+                    ecr_1 = False
+                    code_error = "runtime_unavailable"
+                else:
+                    outcome = execute_python_table_code(code, runtime)
+                    pred = format_python_table_result(outcome.value)
+                    ecr_1 = outcome.error is None and outcome.value is not None
+                    code_error = outcome.error
 
         pred = str(pred or "").strip()
         normalized_gold = normalize_answer(gold)
@@ -221,7 +261,7 @@ class TableBench(BaseTask):
         if ecr_1 is not None:
             method = f"python_exec_{method}"
 
-        return score_val, {
+        metrics: dict[str, Any] = {
             "status": "ok",
             "prediction": pred,
             "normalized_prediction": normalized_pred,
@@ -234,6 +274,16 @@ class TableBench(BaseTask):
             "output_mode": "python_exec" if executed_python else "direct",
             "ECR@1": ecr_1,
         }
+        if runtime_binding:
+            metrics["runtime_binding"] = runtime_binding
+        if code_error:
+            metrics["code_error"] = code_error
+        return score_val, metrics
+
+
+def _uses_table_csv_runtime(code: str) -> bool:
+    lowered = str(code or "").lower()
+    return "table.csv" in lowered or "read_csv" in lowered
 
 
 def _append_rules_to_format_fix_section(
