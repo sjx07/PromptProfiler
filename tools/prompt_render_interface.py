@@ -648,197 +648,400 @@ INDEX_HTML = r"""
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FACET Prompt Renderer</title>
+  <title>FACET Feature Vector Prompt Visualizer</title>
   <style>
     :root {
       color-scheme: light;
-      --bg: #f7f7f4;
-      --panel: #ffffff;
-      --line: #d7d8d0;
-      --text: #20231f;
-      --muted: #666c63;
-      --accent: #1f6f68;
-      --accent-soft: #dbece8;
+      --bg: #f5f6f7;
+      --surface: #ffffff;
+      --surface-soft: #f9fafb;
+      --line: #d9dde3;
+      --line-strong: #b8c0cc;
+      --text: #20242a;
+      --muted: #68707d;
+      --accent: #12615c;
+      --accent-soft: #e1f0ee;
+      --warn: #8a5a00;
       --bad: #9b2c2c;
+      --good: #146c43;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: var(--sans); color: var(--text); background: var(--bg); }
-    header { padding: 14px 18px; border-bottom: 1px solid var(--line); background: #fff; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
-    h1 { font-size: 18px; margin: 0; font-weight: 650; }
-    button { border: 1px solid #155e57; background: var(--accent); color: #fff; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-weight: 600; }
-    button.secondary { background: #fff; color: var(--text); border-color: var(--line); }
-    main { display: grid; grid-template-columns: 390px 1fr; gap: 12px; padding: 12px; min-height: calc(100vh - 58px); }
-    aside, section.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
-    aside { display: flex; flex-direction: column; max-height: calc(100vh - 82px); }
-    .controls { padding: 12px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
-    input[type="search"], select { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; background: #fff; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.45; }
+    header { background: var(--surface); border-bottom: 1px solid var(--line); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    h1 { margin: 0; font-size: 18px; font-weight: 680; letter-spacing: 0; }
+    h2 { margin: 0; font-size: 14px; font-weight: 680; letter-spacing: 0; }
+    h3 { margin: 0; font-size: 12px; font-weight: 680; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    button, select, input { font: inherit; }
+    button { border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); border-radius: 6px; padding: 7px 10px; cursor: pointer; min-height: 34px; }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: white; font-weight: 650; }
+    button.primary:disabled { opacity: .65; cursor: wait; }
+    input[type="search"], select { width: 100%; min-height: 34px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--text); padding: 6px 8px; }
+    main { display: grid; grid-template-columns: minmax(330px, 390px) minmax(0, 1fr); gap: 12px; padding: 12px; height: calc(100vh - 63px); }
+    aside, .workspace { min-height: 0; }
+    aside { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 10px; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+    .panel-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .panel-body { padding: 10px 12px; }
+    .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .small { font-size: 12px; color: var(--muted); }
+    .mono { font-family: var(--mono); }
     .feature-list { overflow: auto; padding: 8px; }
     .family { margin-bottom: 10px; }
-    .family-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 8px 6px 4px; }
-    label.feature { display: grid; grid-template-columns: 20px 1fr; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer; }
-    label.feature:hover { background: #f0f3ef; }
-    .feature-name { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
-    .task-dots { margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
-    .dot { font-size: 10px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 5px; color: var(--muted); }
-    .selected-bar { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
-    .results { display: grid; grid-template-columns: repeat(5, minmax(260px, 1fr)); gap: 12px; align-items: start; }
-    .task-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-width: 0; overflow: hidden; }
-    .task-head { padding: 10px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
-    .task-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .task-title h2 { margin: 0; font-size: 15px; text-transform: uppercase; letter-spacing: .02em; }
+    .family-title { display: flex; align-items: center; justify-content: space-between; padding: 7px 6px 5px; color: var(--muted); font-size: 12px; font-weight: 680; text-transform: uppercase; letter-spacing: .04em; }
+    label.feature { display: grid; grid-template-columns: 20px 1fr; gap: 7px; padding: 7px 6px; border-radius: 6px; cursor: pointer; }
+    label.feature:hover { background: var(--surface-soft); }
+    label.feature input { margin-top: 2px; }
+    .feature-id { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+    .feature-meta { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip, .task-dot { border-radius: 999px; padding: 2px 6px; font-size: 11px; white-space: nowrap; }
+    .chip { background: var(--accent-soft); color: #134f4b; font-family: var(--mono); }
+    .chip.muted { background: #eef0f3; color: var(--muted); }
+    .chip.warn { background: #fff3cd; color: var(--warn); }
+    .task-dot { border: 1px solid var(--line); color: var(--muted); }
+    .task-dot.on { border-color: #8fb6b2; color: #134f4b; background: #eef8f6; }
+    .workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .vector-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 360px); gap: 12px; }
+    .vector-box { display: flex; flex-wrap: wrap; gap: 6px; min-height: 34px; align-items: center; }
+    .vector-empty { color: var(--muted); font-size: 13px; }
+    .examples { display: grid; gap: 6px; }
+    .examples button { text-align: left; }
+    .results { min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; align-content: start; }
+    .result { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; min-width: 0; }
+    .result-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+    .result-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .task-name { text-transform: uppercase; font-weight: 700; letter-spacing: .03em; }
     .status { color: var(--muted); font-size: 12px; }
     .status.bad { color: var(--bad); }
-    .prompt-block { padding: 10px; display: grid; gap: 10px; }
-    .prompt-label { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
-    textarea { width: 100%; min-height: 180px; resize: vertical; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font-family: var(--mono); font-size: 12px; line-height: 1.45; background: #fcfcfb; color: var(--text); }
-    .user textarea { min-height: 240px; }
-    .chips { display: flex; gap: 4px; flex-wrap: wrap; }
-    .chip { background: var(--accent-soft); color: #164e49; border-radius: 999px; padding: 2px 6px; font-size: 11px; font-family: var(--mono); }
-    .error { color: var(--bad); font-family: var(--mono); white-space: pre-wrap; font-size: 12px; padding: 10px; }
-    @media (max-width: 1400px) { .results { grid-template-columns: repeat(2, minmax(320px, 1fr)); } }
-    @media (max-width: 900px) { main { grid-template-columns: 1fr; } aside { max-height: none; } .results { grid-template-columns: 1fr; } }
+    .status.good { color: var(--good); }
+    .base-row, .active-row, .missing-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .base-row .chip { background: #eef0f3; color: #4f5661; }
+    .missing-row .chip { background: #fbeaea; color: var(--bad); }
+    .prompt-pair { display: grid; gap: 10px; padding: 10px 12px 12px; }
+    .prompt-label { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    textarea { width: 100%; min-height: 220px; resize: vertical; border: 1px solid var(--line); border-radius: 6px; background: #fcfcfd; color: var(--text); padding: 8px; font-family: var(--mono); font-size: 12px; line-height: 1.45; }
+    .user textarea { min-height: 300px; }
+    .error { padding: 12px; white-space: pre-wrap; color: var(--bad); font-family: var(--mono); font-size: 12px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .divider { height: 1px; background: var(--line); margin: 8px 0; }
+    @media (max-width: 1100px) {
+      main { grid-template-columns: 1fr; height: auto; }
+      aside { grid-template-rows: auto auto auto; }
+      .feature-list { max-height: 420px; }
+      .vector-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      header { align-items: flex-start; flex-direction: column; }
+      .results { grid-template-columns: 1fr; }
+      .two-col { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>FACET Prompt Renderer</h1>
-    <div class="selected-bar"><span id="selectedCount">0 selected</span><button id="renderBtn">Render All Five</button></div>
+    <div>
+      <h1>FACET Feature Vector Prompt Visualizer</h1>
+      <div class="small">Start from the fixed base prompt, toggle feature IDs, then inspect the rendered system and user prompts.</div>
+    </div>
+    <div class="toolbar">
+      <button id="clearBtn" type="button">Clear Features</button>
+      <button id="renderBtn" class="primary" type="button">Render Feature Vector</button>
+    </div>
   </header>
+
   <main>
     <aside>
-      <div class="controls">
-        <input id="search" type="search" placeholder="Filter features">
-        <div style="display:flex; gap:8px;"><button class="secondary" id="clearBtn" type="button">Clear</button><button class="secondary" id="selectReasonBtn" type="button">Reasoning Trace</button></div>
-      </div>
-      <div id="featureList" class="feature-list"></div>
+      <section class="panel">
+        <div class="panel-head"><h2>View</h2><span id="selectedCount" class="small">0 selected</span></div>
+        <div class="panel-body">
+          <div class="two-col">
+            <label class="small">Benchmark
+              <select id="taskView">
+                <option value="all">All five</option>
+                <option value="wtq">WTQ</option>
+                <option value="sqa">SQA</option>
+                <option value="tablebench">TableBench</option>
+                <option value="tabfact">TabFact</option>
+                <option value="hitab">HiTab</option>
+              </select>
+            </label>
+            <label class="small">Feature Family
+              <select id="familyFilter"><option value="">All families</option></select>
+            </label>
+          </div>
+          <div style="margin-top:8px">
+            <input id="search" type="search" placeholder="Search feature IDs, labels, surfaces">
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Example Vectors</h2><span class="small">one click</span></div>
+        <div class="panel-body examples">
+          <button type="button" data-vector="table_serialization_html,input_context_column_statistics,reasoning_scaffold_visible_cot,reasoning_extract_then_compute,reasoning_evidence_localization">HTML + stats + extract/filter reasoning</button>
+          <button type="button" data-vector="table_serialization_json_records,input_context_type_annotation,reasoning_scaffold_visible_cot,reasoning_candidate_enumeration">Records + type + enumerate</button>
+          <button type="button" data-vector="input_context_column_selection_relevance_12,input_context_row_selection_relevance_50,reasoning_scaffold_visible_cot,reasoning_evidence_localization">Relevant subtable + evidence localization</button>
+          <button type="button" data-vector="prompt_format_json,table_serialization_json_records,reasoning_scaffold_visible_cot">JSON prompt + records + visible trace</button>
+        </div>
+      </section>
+
+      <section class="panel" style="min-height:0; display:grid; grid-template-rows:auto minmax(0,1fr);">
+        <div class="panel-head"><h2>Feature Toggles</h2><span class="small">conflict aware</span></div>
+        <div id="featureList" class="feature-list"></div>
+      </section>
     </aside>
-    <section class="panel" style="padding:12px; overflow:auto;">
-      <div class="results" id="results"></div>
+
+    <section class="workspace">
+      <div class="vector-grid">
+        <section class="panel">
+          <div class="panel-head"><h2>Current Feature Vector</h2><span class="small">base is applied automatically</span></div>
+          <div class="panel-body">
+            <div id="vectorBox" class="vector-box"><span class="vector-empty">No optional features selected.</span></div>
+            <div class="divider"></div>
+            <div class="small">Copyable feature IDs</div>
+            <textarea id="featureText" readonly style="min-height:64px"></textarea>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Sample Source</h2><span class="small">DB optional</span></div>
+          <div class="panel-body small">
+            <p style="margin:0 0 8px">The server uses task-loader samples by default, with fixture fallback. Pass <span class="mono">--source-db</span> only to inspect examples from a real cube.</p>
+            <p style="margin:0">Each rendered card shows the fixed base features, active toggles available for that benchmark, and unavailable selected IDs.</p>
+          </div>
+        </section>
+      </div>
+      <div id="results" class="results"></div>
     </section>
   </main>
+
 <script>
 const TASKS = ["wtq", "sqa", "tablebench", "tabfact", "hitab"];
+const TASK_LABEL = {wtq: "WTQ", sqa: "SQA", tablebench: "TableBench", tabfact: "TabFact", hitab: "HiTab"};
 let FEATURES = [];
+let FEATURE_BY_ID = new Map();
 let SELECTED = new Set();
 let SAMPLES = {};
+let LAST_RESULTS = null;
 
-function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function esc(s) { return String(s ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
+function visibleTasks() { const v = document.getElementById('taskView').value; return v === 'all' ? TASKS : [v]; }
 function familyOf(f) { return f.family || 'other'; }
+function chip(text, cls='') { return `<span class="chip ${cls}">${esc(text)}</span>`; }
+function taskHasFeature(feature, task) { return Boolean(feature?.tasks?.[task]); }
+function featureHaystack(f) { return [f.canonical_id, f.family, ...(f.semantic_labels || [])].join(' ').toLowerCase(); }
 
 async function init() {
   const inv = await fetch('/api/features').then(r => r.json());
   FEATURES = inv.features;
+  FEATURE_BY_ID = new Map(FEATURES.map(f => [f.canonical_id, f]));
+  populateFamilies();
   for (const task of TASKS) {
     SAMPLES[task] = (await fetch(`/api/samples?task=${task}&limit=80`).then(r => r.json())).samples || [];
   }
   renderFeatureList();
-  renderEmptyCards();
-  updateSelectedCount();
+  renderVector();
+  renderShellCards();
+  await renderAll();
+}
+
+function populateFamilies() {
+  const families = [...new Set(FEATURES.map(familyOf))].sort();
+  const select = document.getElementById('familyFilter');
+  for (const family of families) {
+    const opt = document.createElement('option');
+    opt.value = family;
+    opt.textContent = family;
+    select.appendChild(opt);
+  }
+}
+
+function conflictsFor(featureId) {
+  const f = FEATURE_BY_ID.get(featureId);
+  const out = new Set();
+  if (!f) return out;
+  for (const task of TASKS) {
+    const row = f.tasks?.[task];
+    for (const c of (row?.conflicts_with || [])) out.add(c);
+  }
+  return out;
+}
+
+function conflictsWithSelected(featureId) {
+  const addingConflicts = conflictsFor(featureId);
+  const out = new Set([...addingConflicts].filter(id => SELECTED.has(id)));
+  for (const selected of SELECTED) {
+    if (conflictsFor(selected).has(featureId)) out.add(selected);
+  }
+  return out;
+}
+
+function selectFeature(featureId, checked) {
+  if (!checked) {
+    SELECTED.delete(featureId);
+  } else {
+    for (const conflict of conflictsWithSelected(featureId)) SELECTED.delete(conflict);
+    SELECTED.add(featureId);
+  }
+  renderFeatureList();
+  renderVector();
+}
+
+function setVector(ids) {
+  SELECTED.clear();
+  for (const id of ids) {
+    if (FEATURE_BY_ID.has(id)) selectFeature(id, true);
+  }
+  renderFeatureList();
+  renderVector();
+  renderAll();
 }
 
 function renderFeatureList() {
+  const taskView = document.getElementById('taskView').value;
+  const family = document.getElementById('familyFilter').value;
   const q = document.getElementById('search').value.toLowerCase().trim();
   const grouped = new Map();
   for (const f of FEATURES) {
-    const hay = [f.canonical_id, f.family, ...(f.semantic_labels || [])].join(' ').toLowerCase();
-    if (q && !hay.includes(q)) continue;
+    if (family && familyOf(f) !== family) continue;
+    if (taskView !== 'all' && !taskHasFeature(f, taskView)) continue;
+    if (q && !featureHaystack(f).includes(q)) continue;
     const fam = familyOf(f);
     if (!grouped.has(fam)) grouped.set(fam, []);
     grouped.get(fam).push(f);
   }
   const html = [...grouped.entries()].map(([fam, rows]) => `
     <div class="family">
-      <div class="family-title">${esc(fam)}</div>
-      ${rows.map(f => `
-        <label class="feature">
-          <input type="checkbox" data-feature="${esc(f.canonical_id)}" ${SELECTED.has(f.canonical_id) ? 'checked' : ''}>
-          <span>
-            <span class="feature-name">${esc(f.canonical_id)}</span>
-            <span class="task-dots">${TASKS.map(t => `<span class="dot" style="opacity:${f.tasks[t] ? 1 : .25}">${t}</span>`).join('')}</span>
-          </span>
-        </label>`).join('')}
+      <div class="family-title"><span>${esc(fam)}</span><span>${rows.length}</span></div>
+      ${rows.map(f => featureToggleHtml(f)).join('')}
     </div>`).join('');
-  document.getElementById('featureList').innerHTML = html || '<div class="status">No features match.</div>';
-  document.querySelectorAll('input[data-feature]').forEach(cb => cb.addEventListener('change', e => {
-    const id = e.target.dataset.feature;
-    if (e.target.checked) SELECTED.add(id); else SELECTED.delete(id);
-    updateSelectedCount();
-  }));
-}
-
-function updateSelectedCount() {
+  document.getElementById('featureList').innerHTML = html || '<div class="small" style="padding:8px">No features match.</div>';
+  document.querySelectorAll('input[data-feature]').forEach(cb => {
+    cb.addEventListener('change', e => selectFeature(e.target.dataset.feature, e.target.checked));
+  });
   document.getElementById('selectedCount').textContent = `${SELECTED.size} selected`;
 }
 
-function renderEmptyCards() {
-  document.getElementById('results').innerHTML = TASKS.map(task => cardHtml(task, null)).join('');
+function featureToggleHtml(f) {
+  const taskDots = TASKS.map(t => `<span class="task-dot ${taskHasFeature(f,t) ? 'on' : ''}">${TASK_LABEL[t]}</span>`).join('');
+  const selected = SELECTED.has(f.canonical_id) ? 'checked' : '';
+  const labels = (f.semantic_labels || []).slice(0, 2).map(x => `<span class="chip muted">${esc(x)}</span>`).join('');
+  return `<label class="feature">
+    <input type="checkbox" data-feature="${esc(f.canonical_id)}" ${selected}>
+    <span>
+      <span class="feature-id">${esc(f.canonical_id)}</span>
+      <span class="feature-meta">${taskDots}${labels}</span>
+    </span>
+  </label>`;
+}
+
+function renderVector() {
+  const ids = [...SELECTED].sort();
+  document.getElementById('selectedCount').textContent = `${ids.length} selected`;
+  document.getElementById('featureText').value = ids.join(',');
+  document.getElementById('vectorBox').innerHTML = ids.length ? ids.map(id => chip(id)).join('') : '<span class="vector-empty">No optional features selected.</span>';
+}
+
+function renderShellCards() {
+  document.getElementById('results').innerHTML = visibleTasks().map(task => resultCard(task, null)).join('');
   wireSampleSelectors();
 }
 
 function sampleOptions(task, selectedId) {
   const rows = SAMPLES[task] || [];
-  if (!rows.length) return '<option value="">No samples in source cube</option>';
+  if (!rows.length) return '<option value="">fixture/default sample</option>';
   return rows.map(r => `<option value="${esc(r.query_id)}" ${r.query_id === selectedId ? 'selected' : ''}>${esc(r.summary || r.query_id)}</option>`).join('');
 }
 
-function cardHtml(task, result) {
-  const ok = result && result.ok;
-  const selectedId = result?.query_id || (SAMPLES[task]?.[0]?.query_id || '');
-  const status = result ? (ok ? `${result.active_features.length} active, ${result.missing_features.length} unavailable` : 'error') : 'ready';
-  return `<div class="task-card" id="card-${task}">
-    <div class="task-head">
-      <div class="task-title"><h2>${task}</h2><span class="status ${ok === false ? 'bad' : ''}">${esc(status)}</span></div>
-      <select data-task-sample="${task}">${sampleOptions(task, selectedId)}</select>
-      ${ok ? `<div class="chips">${result.active_features.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>` : ''}
-    </div>
-    ${result && !ok ? `<div class="error">${esc(result.error)}\n\nMissing here: ${(result.missing_features || []).map(esc).join(', ')}</div>` : `
-    <div class="prompt-block">
-      <div><div class="prompt-label"><span>System Prompt</span><span>${esc(result?.query_id || '')}</span></div><textarea readonly>${esc(result?.system_prompt || '')}</textarea></div>
-      <div class="user"><div class="prompt-label"><span>User Prompt</span></div><textarea readonly>${esc(result?.user_content || '')}</textarea></div>
-    </div>`}
-  </div>`;
-}
-
-function wireSampleSelectors() {
-  document.querySelectorAll('select[data-task-sample]').forEach(sel => {
-    sel.addEventListener('change', () => {});
-  });
+function queryIdsFromSelectors() {
+  const query_ids = {};
+  document.querySelectorAll('select[data-task-sample]').forEach(sel => { query_ids[sel.dataset.taskSample] = sel.value; });
+  return query_ids;
 }
 
 async function renderAll() {
-  const query_ids = {};
-  document.querySelectorAll('select[data-task-sample]').forEach(sel => { query_ids[sel.dataset.taskSample] = sel.value; });
-  document.getElementById('renderBtn').disabled = true;
-  document.getElementById('renderBtn').textContent = 'Rendering...';
+  const button = document.getElementById('renderBtn');
+  button.disabled = true;
+  button.textContent = 'Rendering...';
   try {
+    const query_ids = queryIdsFromSelectors();
     const res = await fetch('/api/render', {
       method: 'POST',
       headers: {'content-type': 'application/json'},
       body: JSON.stringify({features: [...SELECTED], query_ids})
     }).then(r => r.json());
     if (!res.ok) throw new Error(res.error || 'render failed');
-    document.getElementById('results').innerHTML = TASKS.map(task => cardHtml(task, res.results[task])).join('');
-    wireSampleSelectors();
+    LAST_RESULTS = res.results;
+    renderResults();
   } catch (err) {
-    alert(err.message || String(err));
+    document.getElementById('results').innerHTML = `<section class="panel"><div class="error">${esc(err.message || String(err))}</div></section>`;
   } finally {
-    document.getElementById('renderBtn').disabled = false;
-    document.getElementById('renderBtn').textContent = 'Render All Five';
+    button.disabled = false;
+    button.textContent = 'Render Feature Vector';
   }
 }
 
+function renderResults() {
+  if (!LAST_RESULTS) return renderShellCards();
+  document.getElementById('results').innerHTML = visibleTasks().map(task => resultCard(task, LAST_RESULTS[task])).join('');
+  wireSampleSelectors();
+}
+
+function resultCard(task, result) {
+  const ok = result && result.ok;
+  const selectedId = result?.query_id || (SAMPLES[task]?.[0]?.query_id || '');
+  const active = result?.active_features || [];
+  const missing = result?.missing_features || [];
+  const base = result?.base_features || [];
+  const status = result ? (ok ? `${active.length} toggled / ${base.length} base` : 'render error') : 'not rendered yet';
+  return `<article class="result" id="result-${task}">
+    <div class="result-head">
+      <div class="result-title"><span class="task-name">${TASK_LABEL[task]}</span><span class="status ${ok ? 'good' : result ? 'bad' : ''}">${esc(status)}</span></div>
+      <select data-task-sample="${task}">${sampleOptions(task, selectedId)}</select>
+      ${base.length ? `<div><h3>Fixed Base</h3><div class="base-row">${base.map(x => chip(x)).join('')}</div></div>` : ''}
+      <div><h3>Active Toggles</h3><div class="active-row">${active.length ? active.map(x => chip(x)).join('') : '<span class="small">none</span>'}</div></div>
+      ${missing.length ? `<div><h3>Unavailable For This Benchmark</h3><div class="missing-row">${missing.map(x => chip(x)).join('')}</div></div>` : ''}
+    </div>
+    ${result && !ok ? `<div class="error">${esc(result.error)}</div>` : promptHtml(result)}
+  </article>`;
+}
+
+function promptHtml(result) {
+  return `<div class="prompt-pair">
+    <div>
+      <div class="prompt-label"><span>System prompt</span><span>${esc(result?.query_id || '')}</span></div>
+      <textarea readonly>${esc(result?.system_prompt || '')}</textarea>
+    </div>
+    <div class="user">
+      <div class="prompt-label"><span>User prompt</span><span>${esc((result?.question || '').slice(0, 80))}</span></div>
+      <textarea readonly>${esc(result?.user_content || '')}</textarea>
+    </div>
+  </div>`;
+}
+
+function wireSampleSelectors() {
+  document.querySelectorAll('select[data-task-sample]').forEach(sel => {
+    sel.addEventListener('change', renderAll);
+  });
+}
+
+document.getElementById('taskView').addEventListener('change', () => { renderFeatureList(); renderResults(); });
+document.getElementById('familyFilter').addEventListener('change', renderFeatureList);
 document.getElementById('search').addEventListener('input', renderFeatureList);
-document.getElementById('clearBtn').addEventListener('click', () => { SELECTED.clear(); renderFeatureList(); updateSelectedCount(); });
-document.getElementById('selectReasonBtn').addEventListener('click', () => { SELECTED.add('reasoning_scaffold_visible_cot'); renderFeatureList(); updateSelectedCount(); });
+document.getElementById('clearBtn').addEventListener('click', () => { SELECTED.clear(); renderFeatureList(); renderVector(); renderAll(); });
 document.getElementById('renderBtn').addEventListener('click', renderAll);
-init().catch(err => alert(err.message || String(err)));
+document.querySelectorAll('button[data-vector]').forEach(btn => {
+  btn.addEventListener('click', () => setVector(btn.dataset.vector.split(',').map(x => x.trim()).filter(Boolean)));
+});
+
+init().catch(err => {
+  document.getElementById('results').innerHTML = `<section class="panel"><div class="error">${esc(err.message || String(err))}</div></section>`;
+});
 </script>
 </body>
 </html>
 """
-
 
 if __name__ == "__main__":
     main()

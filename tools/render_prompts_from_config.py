@@ -479,29 +479,32 @@ def _default_render_base_features(
     selected_features: List[str],
     feature_registry: FeatureRegistry,
 ) -> List[str]:
-    base = list(COMMON_RENDER_BASE)
-    base.extend(TASK_RENDER_BASE_EXTRAS.get(task, []))
+    base_candidates = list(COMMON_RENDER_BASE)
+    base_candidates.extend(TASK_RENDER_BASE_EXTRAS.get(task, []))
     contract = TASK_DEFAULT_CONTRACT.get(task)
-    if contract and not _selected_features_conflict_with_contract(
-        selected_features,
-        contract,
-        feature_registry,
-    ):
-        base.append(contract)
-    return base
+    if contract:
+        base_candidates.append(contract)
+    return [
+        feature
+        for feature in base_candidates
+        if not _feature_conflicts_with_any(feature, selected_features, feature_registry)
+    ]
 
 
-def _selected_features_conflict_with_contract(
+def _feature_conflicts_with_any(
+    feature: str,
     selected_features: List[str],
-    contract: str,
     feature_registry: FeatureRegistry,
 ) -> bool:
-    for feature in selected_features:
-        spec = feature_registry._by_canonical.get(feature)
-        if spec is None:
+    feature_spec = feature_registry._by_canonical.get(feature)
+    feature_conflicts = set((feature_spec or {}).get("conflicts_with", []))
+    for selected in selected_features:
+        selected_spec = feature_registry._by_canonical.get(selected)
+        if selected_spec is None:
             # Let materialize produce the normal unknown-feature error later.
             continue
-        if contract in set(spec.get("conflicts_with", [])):
+        selected_conflicts = set(selected_spec.get("conflicts_with", []))
+        if feature in selected_conflicts or selected in feature_conflicts:
             return True
     return False
 
