@@ -74,7 +74,7 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "In `reasoning`, briefly cite the key table evidence and operation. Keep the final answer separate.",
+          "content": "Put your step-by-step thinking in `reasoning`. Keep the final answer separate.",
           "ordinal": 70
         }
       }
