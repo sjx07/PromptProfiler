@@ -74,7 +74,7 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Use the `reasoning` field to think out loud in a compact, task-bound way before the final answer: name the relevant table evidence, show the minimal operation, comparison, or claim check, and state the check that leads to the answer. Cite concrete rows, columns, cell values, or computations. Do not write generic procedure text.",
+          "content": "In `reasoning`, briefly cite the key table evidence and operation or claim check. Keep the final answer separate.",
           "ordinal": 70
         }
       }

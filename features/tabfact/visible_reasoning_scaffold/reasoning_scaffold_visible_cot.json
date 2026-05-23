@@ -74,7 +74,7 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Use the `reasoning` field to think out loud in a compact, task-bound way before the final verdict: break the statement into the claim part being tested, cite the table evidence, and state whether that evidence supports or refutes the statement. Do not write generic procedure text. Keep the final verdict separate.",
+          "content": "In `reasoning`, briefly cite the claim part and table evidence supporting the verdict. Keep the verdict separate.",
           "ordinal": 70
         }
       }
