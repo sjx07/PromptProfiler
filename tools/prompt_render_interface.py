@@ -5,6 +5,11 @@ This serves a local HTML UI that lets you choose arbitrary feature canonical IDs
 and renders the resulting system/user prompts for WTQ, SQA, TableBench, TabFact,
 and HiTab. It is offline: no LLM calls, no experiment executions.
 
+The renderer does not require an existing experiment cube. By default it uses
+the task loaders to seed sample queries into a temporary local CubeStore, with a
+small built-in fallback fixture if the dataset is unavailable. Pass
+``--source-db`` only when you explicitly want examples from an existing cube.
+
 Example:
     python3 tools/prompt_render_interface.py --port 8765
     python3 tools/prompt_render_interface.py --source-db /data/users/jsu323/facet/wikitable_clean_surface_v1.db --port 8765
@@ -30,7 +35,7 @@ from core.feature_registry import FeatureRegistry
 from core.func_registry import apply_config, apply_config_modules
 from core.store import CubeStore
 from task_registry import get_registry
-from tools.render_prompts_from_config import _default_render_base_features
+from tools.render_prompts_from_config import TASK_DEFAULT_SPLIT, _default_render_base_features
 
 TASKS = ["wtq", "sqa", "tablebench", "tabfact", "hitab"]
 TASK_DATASET = {
@@ -40,8 +45,8 @@ TASK_DATASET = {
     "tabfact": "tab_fact",
     "hitab": "hitab",
 }
-DEFAULT_SOURCE_DB = "/data/users/jsu323/facet/wikitable_clean_surface_v1.db"
 HIDDEN_FEATURES = {"facet_dp_scaffold", "sqa_dialog_binding_base"}
+_SEEDED_SAMPLE_CACHE: Dict[Tuple[str, int], List[Dict[str, Any]]] = {}
 
 
 def main() -> None:
@@ -50,20 +55,26 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument(
         "--source-db",
-        default=DEFAULT_SOURCE_DB,
-        help="Cube DB used only for sample query rows. Defaults to wikitable_clean_surface_v1.db.",
+        default=None,
+        help="Optional existing cube DB used only for sample query rows. Defaults to task-loader samples.",
     )
     args = parser.parse_args()
 
-    server = PromptRenderServer((args.host, args.port), source_db=Path(args.source_db))
+    server = PromptRenderServer(
+        (args.host, args.port),
+        source_db=Path(args.source_db) if args.source_db else None,
+    )
     url = f"http://{args.host}:{args.port}"
     print(f"Prompt render interface: {url}")
-    print(f"Source cube: {args.source_db}")
+    if args.source_db:
+        print(f"Sample source cube: {args.source_db}")
+    else:
+        print("Sample source: task loaders with built-in fixture fallback")
     server.serve_forever()
 
 
 class PromptRenderServer(ThreadingHTTPServer):
-    def __init__(self, server_address: tuple[str, int], *, source_db: Path) -> None:
+    def __init__(self, server_address: tuple[str, int], *, source_db: Path | None) -> None:
         super().__init__(server_address, PromptRenderHandler)
         self.source_db = source_db
         self.registry = get_registry()
@@ -87,7 +98,15 @@ class PromptRenderHandler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             task = params.get("task", [""])[0]
             limit = _int_param(params, "limit", 40)
-            self._send_json({"task": task, "samples": list_sample_queries(self.server.source_db, task, limit=limit)})
+            self._send_json({
+                "task": task,
+                "samples": list_sample_queries(
+                    self.server.source_db,
+                    task,
+                    limit=limit,
+                    registry=self.server.registry,
+                ),
+            })
             return
         self.send_error(404, "not found")
 
@@ -201,7 +220,7 @@ def render_task_prompt(
     *,
     selected_features: List[str],
     query_id: str | None,
-    source_db: Path,
+    source_db: Path | None,
     registry: Dict[str, Any],
 ) -> Dict[str, Any]:
     if task not in TASKS:
@@ -217,7 +236,7 @@ def render_task_prompt(
 
     try:
         feature_registry.validate_feature_set(base + active)
-        query = load_query(source_db, task, query_id=query_id)
+        query = load_query(source_db, task, query_id=query_id, registry=registry)
         system_prompt, user_content = build_prompt_for_features(
             task,
             base_features=base,
@@ -282,27 +301,16 @@ def build_prompt_for_features(
             store.close()
 
 
-def list_sample_queries(source_db: Path, task: str, *, limit: int = 40) -> List[Dict[str, Any]]:
+def list_sample_queries(
+    source_db: Path | None,
+    task: str,
+    *,
+    limit: int = 40,
+    registry: Dict[str, Any],
+) -> List[Dict[str, Any]]:
     if task not in TASK_DATASET:
         return []
-    if not source_db.exists():
-        return []
-    dataset = TASK_DATASET[task]
-    conn = sqlite3.connect(str(source_db))
-    conn.row_factory = sqlite3.Row
-    try:
-        rows = conn.execute(
-            """
-            SELECT query_id, content, meta
-            FROM query
-            WHERE dataset = ?
-            ORDER BY query_id
-            LIMIT ?
-            """,
-            (dataset, int(limit)),
-        ).fetchall()
-    finally:
-        conn.close()
+    rows = _load_sample_queries(source_db, task, limit=int(limit), registry=registry)
     out = []
     for row in rows:
         meta = _json_loads(row["meta"], {})
@@ -315,33 +323,242 @@ def list_sample_queries(source_db: Path, task: str, *, limit: int = 40) -> List[
     return out
 
 
-def load_query(source_db: Path, task: str, *, query_id: str | None = None) -> Dict[str, Any]:
-    if not source_db.exists():
-        raise FileNotFoundError(f"source cube not found: {source_db}")
-    dataset = TASK_DATASET[task]
-    conn = sqlite3.connect(str(source_db))
-    conn.row_factory = sqlite3.Row
-    try:
-        if query_id:
-            row = conn.execute(
-                "SELECT query_id, dataset, content, meta FROM query WHERE dataset = ? AND query_id = ?",
-                (dataset, query_id),
-            ).fetchone()
-        else:
-            row = conn.execute(
-                "SELECT query_id, dataset, content, meta FROM query WHERE dataset = ? ORDER BY query_id LIMIT 1",
-                (dataset,),
-            ).fetchone()
-    finally:
-        conn.close()
-    if row is None:
+def load_query(
+    source_db: Path | None,
+    task: str,
+    *,
+    query_id: str | None = None,
+    registry: Dict[str, Any],
+) -> Dict[str, Any]:
+    rows = _load_sample_queries(
+        source_db,
+        task,
+        limit=80 if query_id else 1,
+        registry=registry,
+        query_id=query_id,
+    )
+    if not rows:
+        dataset = TASK_DATASET[task]
         raise ValueError(f"no query found for dataset={dataset!r} query_id={query_id!r}")
+    row = rows[0]
     return {
         "query_id": row["query_id"],
         "dataset": row["dataset"],
         "content": row["content"],
         "meta": row["meta"],
     }
+
+
+def _load_sample_queries(
+    source_db: Path | None,
+    task: str,
+    *,
+    limit: int,
+    registry: Dict[str, Any],
+    query_id: str | None = None,
+) -> List[Dict[str, Any]]:
+    if source_db is not None and source_db.exists():
+        rows = _load_queries_from_source_db(source_db, task, limit=limit, query_id=query_id)
+        if rows:
+            return rows
+    rows = _load_queries_from_task_loader(task, limit=limit, registry=registry, query_id=query_id)
+    return rows or _fixture_queries(task, limit=limit, query_id=query_id)
+
+
+def _load_queries_from_source_db(
+    source_db: Path,
+    task: str,
+    *,
+    limit: int,
+    query_id: str | None = None,
+) -> List[Dict[str, Any]]:
+    dataset = TASK_DATASET[task]
+    conn = sqlite3.connect(str(source_db))
+    conn.row_factory = sqlite3.Row
+    try:
+        if query_id:
+            rows = conn.execute(
+                "SELECT query_id, dataset, content, meta FROM query WHERE dataset = ? AND query_id = ?",
+                (dataset, query_id),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT query_id, dataset, content, meta
+                FROM query
+                WHERE dataset = ?
+                ORDER BY query_id
+                LIMIT ?
+                """,
+                (dataset, int(limit)),
+            ).fetchall()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows]
+
+
+def _load_queries_from_task_loader(
+    task: str,
+    *,
+    limit: int,
+    registry: Dict[str, Any],
+    query_id: str | None = None,
+) -> List[Dict[str, Any]]:
+    cache_limit = max(int(limit), 80 if query_id else int(limit))
+    cache_key = (task, cache_limit)
+    if cache_key not in _SEEDED_SAMPLE_CACHE:
+        with tempfile.TemporaryDirectory(prefix="prompt_render_samples_") as tmp:
+            store = CubeStore(Path(tmp) / "samples.db")
+            try:
+                entry = registry[task]
+                cfg = {
+                    "max_queries": cache_limit,
+                    "sample_seed": 0,
+                }
+                split = TASK_DEFAULT_SPLIT.get(task, "test")
+                entry.seeder_fn(store, cfg, split)
+                dataset = TASK_DATASET[task]
+                rows = store._get_conn().execute(
+                    """
+                    SELECT query_id, dataset, content, meta
+                    FROM query
+                    WHERE dataset = ?
+                    ORDER BY rowid
+                    LIMIT ?
+                    """,
+                    (dataset, cache_limit),
+                ).fetchall()
+                _SEEDED_SAMPLE_CACHE[cache_key] = [dict(row) for row in rows]
+            except Exception:
+                _SEEDED_SAMPLE_CACHE[cache_key] = []
+            finally:
+                store.close()
+    rows = _SEEDED_SAMPLE_CACHE[cache_key]
+    if query_id:
+        return [row for row in rows if row["query_id"] == query_id]
+    return rows[:limit]
+
+
+def _fixture_queries(task: str, *, limit: int, query_id: str | None = None) -> List[Dict[str, Any]]:
+    rows = _FIXTURE_QUERIES.get(task, [])
+    if query_id:
+        rows = [row for row in rows if row["query_id"] == query_id]
+    return rows[:limit]
+
+
+_FIXTURE_QUERIES: Dict[str, List[Dict[str, Any]]] = {
+    "wtq": [
+        {
+            "query_id": "fixture_wtq_1",
+            "dataset": "wtq",
+            "content": "How many players are from Japan?",
+            "meta": json.dumps({
+                "split": "fixture",
+                "gold_answers": ["2"],
+                "_raw": {
+                    "question": "How many players are from Japan?",
+                    "answers": ["2"],
+                    "table": {
+                        "name": "golf players",
+                        "header": ["player", "country"],
+                        "rows": [
+                            ["Juli Inkster", "United States"],
+                            ["Momoko Ueda", "Japan"],
+                            ["Yuri Fudoh", "Japan"],
+                        ],
+                    },
+                },
+            }),
+        }
+    ],
+    "sqa": [
+        {
+            "query_id": "fixture_sqa_1",
+            "dataset": "sqa",
+            "content": "Which city hosted the 2004 event?",
+            "meta": json.dumps({
+                "split": "fixture",
+                "gold_answer": ["Athens"],
+                "_raw": {
+                    "question": "Which city hosted the 2004 event?",
+                    "answer_text": ["Athens"],
+                    "history": [],
+                    "table_file": "events",
+                    "table": {
+                        "headers": ["year", "host city", "country"],
+                        "rows": [["2000", "Sydney", "Australia"], ["2004", "Athens", "Greece"]],
+                    },
+                },
+            }),
+        }
+    ],
+    "tablebench": [
+        {
+            "query_id": "fixture_tablebench_1",
+            "dataset": "tablebench",
+            "content": "Which team has the highest score?",
+            "meta": json.dumps({
+                "split": "fixture",
+                "gold_answer": "Carlton",
+                "qtype": "DataAnalysis",
+                "qsubtype": "superlative",
+                "_raw": {
+                    "question": "Which team has the highest score?",
+                    "answer": "Carlton",
+                    "qtype": "DataAnalysis",
+                    "qsubtype": "superlative",
+                    "table": {
+                        "header": ["team", "score"],
+                        "rows": [["Melbourne", "89"], ["Carlton", "149"], ["Essendon", "87"]],
+                        "name": "scores",
+                    },
+                },
+            }),
+        }
+    ],
+    "tabfact": [
+        {
+            "query_id": "fixture_tabfact_1",
+            "dataset": "tab_fact",
+            "content": "Carlton has the highest score.",
+            "meta": json.dumps({
+                "split": "fixture",
+                "gold_label": 1,
+                "table_caption": "scores",
+                "_raw": {
+                    "statement": "Carlton has the highest score.",
+                    "label": 1,
+                    "table_text": "team#score\nMelbourne#89\nCarlton#149\nEssendon#87",
+                    "table_caption": "scores",
+                },
+            }),
+        }
+    ],
+    "hitab": [
+        {
+            "query_id": "fixture_hitab_1",
+            "dataset": "hitab",
+            "content": "What is the population of Beta?",
+            "meta": json.dumps({
+                "split": "fixture",
+                "gold_answer": "[\"2000\"]",
+                "_raw": {
+                    "question": "What is the population of Beta?",
+                    "answer": "[\"2000\"]",
+                    "table_id": "fixture_hitab_table",
+                    "table_source": "fixture",
+                    "aggregation": "none",
+                    "table_content": {
+                        "title": "cities",
+                        "top_header_rows_num": 1,
+                        "texts": [["city", "population"], ["Alpha", "1000"], ["Beta", "2000"]],
+                        "merged_regions": [],
+                    },
+                },
+            }),
+        }
+    ],
+}
 
 
 def query_summary(content: str, meta: Dict[str, Any]) -> str:
