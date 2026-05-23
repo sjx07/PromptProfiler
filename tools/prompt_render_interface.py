@@ -788,7 +788,6 @@ INDEX_HTML = r"""
           <div class="preset-list">
             <button type="button" data-vector="table_serialization_html,input_context_column_statistics,reasoning_scaffold_visible_cot,reasoning_extract_then_compute,reasoning_evidence_localization">HTML + stats + extract/filter</button>
             <button type="button" data-vector="table_serialization_json_records,input_context_type_annotation,reasoning_scaffold_visible_cot,reasoning_candidate_enumeration">Records + type + enumerate</button>
-            <button type="button" data-vector="input_context_column_selection_relevance_12,input_context_row_selection_relevance_50,reasoning_scaffold_visible_cot,reasoning_evidence_localization">Relevant subtable + evidence</button>
             <button type="button" data-vector="prompt_format_json,table_serialization_json_records,reasoning_scaffold_visible_cot">JSON prompt + records + trace</button>
           </div>
         </details>
