@@ -236,6 +236,39 @@ def surround_pycode_with_main(pycode):
 def execute(code):
     namespace = {"__name__": "__main__"}
     exec(code, namespace, namespace)
+    return namespace
+
+
+def _format_answer_value(value):
+    try:
+        import pandas as pd
+
+        if isinstance(value, pd.Series):
+            return ", ".join(str(v) for v in value.tolist())
+        if isinstance(value, pd.Index):
+            return ", ".join(str(v) for v in value.tolist())
+        if isinstance(value, pd.DataFrame):
+            if value.empty:
+                return ""
+            if value.shape[1] == 1:
+                return ", ".join(str(v) for v in value.iloc[:, 0].tolist())
+            if value.shape[0] == 1:
+                return ", ".join(str(v) for v in value.iloc[0].tolist())
+    except Exception:
+        pass
+    if isinstance(value, set):
+        return ", ".join(str(v) for v in sorted(value, key=str))
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(v) for v in value)
+    return str(value)
+
+
+def emit_answer_variable(namespace):
+    for key in ("answer", "result", "__result__"):
+        if key in namespace and namespace[key] is not None:
+            print(_format_answer_value(namespace[key]))
+            return True
+    return False
 
 
 def chart_eval_code(chart_type):
@@ -268,7 +301,8 @@ with open("payload.json", encoding="utf-8") as f:
     payload = json.load(f)
 
 if payload["mode"] == "exec":
-    execute(surround_pycode_with_main(payload["python_code"]))
+    namespace = execute(surround_pycode_with_main(payload["python_code"]))
+    emit_answer_variable(namespace)
 elif payload["mode"] == "chart_eval":
     combined = "\n".join([
         "from tasks.tablebench.chart_metric_utils import *",

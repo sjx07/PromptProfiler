@@ -3,7 +3,7 @@ from pathlib import Path
 
 from core.func_registry import PromptBuildState, REGISTRY, _func_sort_key
 from core.feature_registry import FeatureRegistry
-from tasks.tablebench.official_parser import parse_code_output_prediction, parse_final_answer
+from tasks.tablebench.official_parser import parse_code_output_prediction, parse_final_answer, parse_general_code_then_exec
 from tasks.tablebench.official_scorer import score_one
 from tasks.tablebench.table_bench import TableBench
 from tasks.wtq.parsers import PARSER_REGISTRY
@@ -45,6 +45,35 @@ def test_code_parser_removes_json_string_top_level_indent():
     assert "\n df =" not in parsed
     assert "\nfor value in [1, 2]:" in parsed
     assert "\n    print(value)" in parsed
+
+
+def test_tablebench_official_exec_emits_answer_variable():
+    exec_root = Path.cwd() / ".pytest_cache" / "tablebench_exec"
+    exec_root.mkdir(parents=True, exist_ok=True)
+    old_exec_root = os.environ.get("TABLEBENCH_EXEC_DIR")
+    os.environ["TABLEBENCH_EXEC_DIR"] = str(exec_root)
+    try:
+        prediction = """```python
+import csv
+
+with open(\"table.csv\", newline=\"\") as f:
+    rows = list(csv.DictReader(f))
+
+answer = sum(int(r[\"score\"]) for r in rows)
+```
+"""
+        parsed, ecr = parse_general_code_then_exec(
+            prediction,
+            {"header": ["score"], "rows": [["1"], ["2"]]},
+        )
+    finally:
+        if old_exec_root is None:
+            os.environ.pop("TABLEBENCH_EXEC_DIR", None)
+        else:
+            os.environ["TABLEBENCH_EXEC_DIR"] = old_exec_root
+
+    assert ecr is True
+    assert parsed == "3"
 
 
 def test_tablebench_executes_code_prediction_before_official_scoring():

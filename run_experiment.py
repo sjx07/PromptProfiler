@@ -86,7 +86,14 @@ def _load_config(config_path: str, cli_overrides: Dict[str, Any]) -> Dict[str, A
     return cfg
 
 
-_GENERATOR_OPTION_KEYS = ("min_features", "max_features", "min_rules", "max_rules", "coalitions")
+_GENERATOR_OPTION_KEYS = (
+    "min_features",
+    "max_features",
+    "min_rules",
+    "max_rules",
+    "coalitions",
+    "config_kind",
+)
 
 
 def _generator_kwargs(cfg: Dict[str, Any], *, n_samples: int, seed: int) -> Dict[str, Any]:

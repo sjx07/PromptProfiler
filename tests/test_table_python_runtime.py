@@ -43,6 +43,18 @@ def test_runtime_keeps_typed_df_and_string_records():
     assert raw.value == 3000
 
 
+def test_runtime_exposes_table_data_and_columns_aliases():
+    runtime = runtime_from_rows(["name", "score"], [["a", "1"], ["b", "2"]])
+
+    outcome = execute_python_table_code(
+        "answer = table['data'][1][1] + ':' + table['columns'][0]",
+        runtime,
+    )
+
+    assert outcome.error is None
+    assert outcome.value == "2:name"
+
+
 def test_parse_code_output_uses_last_fenced_block():
     text = "scratch\n```python\nx = 1\n```\nfinal\n```python\nanswer = 2\n```"
 

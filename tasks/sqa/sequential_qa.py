@@ -239,7 +239,7 @@ class SequentialQA(ProgramOfThoughtMixin, BaseTask):
 def _extract_answer(text: str) -> str:
     """Extract answer from LLM response.
 
-    Tries JSON, then a labeled `answer:` pattern, then a last-line
+    Tries JSON, then a labeled `answer:`/`answer =` pattern, then a last-line
     heuristic with common prefixes.
     """
     text = text.strip()
@@ -259,7 +259,7 @@ def _extract_answer(text: str) -> str:
         pass
 
     m = re.search(
-        r"(?:answer|result|value)\s*[:\-]\s*(.+?)(?:\n|$)",
+        r"(?:answer|result|value)\s*(?:[:=]|-)\s*(.+?)(?:\n|$)",
         text,
         re.IGNORECASE,
     )

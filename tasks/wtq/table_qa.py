@@ -246,9 +246,9 @@ def _extract_answer(text: str) -> str:
     except (json.JSONDecodeError, TypeError):
         pass
 
-    # Try structured pattern: "answer: ..."
+    # Try structured pattern: "answer: ..." or "answer = ..."
     m = re.search(
-        r"(?:answer|result|value)\s*[:\-]\s*(.+?)(?:\n|$)",
+        r"(?:answer|result|value)\s*(?:[:=]|-)\s*(.+?)(?:\n|$)",
         text,
         re.IGNORECASE,
     )

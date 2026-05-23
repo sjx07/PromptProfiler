@@ -104,7 +104,7 @@ def _extract_answer_fallback(text: str) -> str:
         pass
     # Structured pattern
     m = re.search(
-        r"(?:answer|result|value)\s*[:\-]\s*(.+?)(?:\n|$)",
+        r"(?:answer|result|value)\s*(?:[:=]|-)\s*(.+?)(?:\n|$)",
         text, re.IGNORECASE,
     )
     if m:

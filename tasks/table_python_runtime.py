@@ -97,6 +97,7 @@ class TableScope(list):
         super().__init__(records)
         self._data = dict(data)
         self._data.setdefault("rows", records)
+        self._data.setdefault("records", records)
 
     def __getitem__(self, key: Any) -> Any:
         if isinstance(key, str):
@@ -128,9 +129,17 @@ def runtime_from_rows(
 ) -> PythonTableRuntime:
     """Build the default in-memory table runtime from tabular rows."""
     header = [str(h) for h in headers]
-    df = make_typed_dataframe(header, rows) if coerce_types else make_string_dataframe(header, rows)
-    records = dataframe_to_records(make_string_dataframe(header, rows))
-    data = {"table": table_name, "rows": records}
+    raw_rows = [list(row) for row in rows]
+    df = make_typed_dataframe(header, raw_rows) if coerce_types else make_string_dataframe(header, raw_rows)
+    records = dataframe_to_records(make_string_dataframe(header, raw_rows))
+    data = {
+        "table": table_name,
+        "rows": records,
+        "records": records,
+        "data": raw_rows,
+        "columns": header,
+        "header": header,
+    }
     if data_extra:
         data.update(dict(data_extra))
     return PythonTableRuntime(

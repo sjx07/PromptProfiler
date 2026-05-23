@@ -59,6 +59,15 @@ def test_wtq_parse_code_markdown_block(tmp_mock_task):
     assert "df" in result
 
 
+def test_wtq_parse_answer_accepts_equals_label(tmp_mock_task):
+    from tasks.wtq.parsers import PARSER_REGISTRY
+
+    parser = PARSER_REGISTRY["answer"]
+    result = parser("answer = 42", tmp_mock_task)
+
+    assert result == "42"
+
+
 def test_wtq_score_normalizes_unicode_dash_variants():
     from tasks.wtq.table_qa import TableQA
 
@@ -99,6 +108,15 @@ def test_sqa_parse_answer_returns_plain(tmp_mock_task):
     from tasks.sqa.parsers import PARSER_REGISTRY
     parser = PARSER_REGISTRY["answer"]
     result = parser("Answer: Lee", tmp_mock_task)
+    assert result == "Lee"
+
+
+def test_sqa_parse_answer_accepts_equals_label(tmp_mock_task):
+    from tasks.sqa.parsers import PARSER_REGISTRY
+
+    parser = PARSER_REGISTRY["answer"]
+    result = parser("answer = Lee", tmp_mock_task)
+
     assert result == "Lee"
 
 
