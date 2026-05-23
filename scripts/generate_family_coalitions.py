@@ -94,7 +94,8 @@ def expand_generation(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     seen: set[tuple[str, ...]] = set()
 
-    add_generated(rows, seen, [], "anchor")
+    if generation.get("include_anchor", True):
+        add_generated(rows, seen, [], "anchor")
 
     for block_id in generation.get("main_blocks", []):
         add_generated(rows, seen, [block_id], "main_effect")

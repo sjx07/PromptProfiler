@@ -333,6 +333,7 @@ def explicit_coalitions(
     base_ids: List[str],
     bundles: FeatureBundles,
     coalitions: Dict[str, List[str]],
+    config_kind: str = "explicit_coalition",
     base_canonical_ids: List[str] | None = None,
     base_feature_ids: List[str] | None = None,
     **_,
@@ -364,7 +365,7 @@ def explicit_coalitions(
         all_canonical_ids = list(base_canonical_ids) + list(canonical_ids)
         all_feature_ids = list(base_feature_ids) + [bundles[c][0] for c in canonical_ids]
         meta = {
-            "kind":          "explicit_coalition",
+            "kind":          config_kind,
             "label":         label,
             "canonical_ids": all_canonical_ids,
             "feature_ids":   all_feature_ids,

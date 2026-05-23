@@ -1,0 +1,321 @@
+{
+  "study_id": "wikitable_reasoning_protocol_v2",
+  "description": "Reasoning scaffold/style matrix for table benchmarks. Every reasoning style is carried by one flexible visible reasoning field; v2 adds pairwise style coalitions under that same trace carrier.",
+  "preview_path": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/reasoning_scaffold_and_style/wikitable_reasoning_protocol_v2_preview.html",
+  "protocol": {
+    "factory_reference": "factory/cards/themes/reasoning-trace.md defines the general visible trace: reasoning must bind to concrete query inputs such as table cells, claim parts, schema columns, or prior-turn answers.",
+    "scaffold_axis": "Single general visible carrier: scaffold.trace. It gives the model one reasoning field plus the benchmark's normal final field.",
+    "reason_axis": "Reasoning style/procedure. In this v2 manifest every style run is paired with scaffold.trace so the model emits reasoning before the final field.",
+    "design_reason": "Prior WTQ runs suggest evidence-style visible scaffolds help more than plan-only scaffolds. V2 tests vanilla visible trace, single styles, and pairwise style coalitions while keeping the output carrier fixed."
+  },
+  "common_config": {
+    "experiment_type": "explicit_coalitions",
+    "split": "test",
+    "max_queries": 0,
+    "sample_seed": 42,
+    "seed": 42,
+    "max_tokens": 2048,
+    "temperature": 0,
+    "top_p": 1.0,
+    "sampling_top_k": -1,
+    "model": "Qwen/Qwen2.5-14B-Instruct",
+    "ports": [8000, 8001, 8002, 8003],
+    "num_workers": 128,
+    "request_timeout": 240,
+    "db_path": "/data/users/jsu323/facet/wikitable_clean_surface_v1.db",
+    "vllm_db": "/data/users/jsu323/facet/wikitable_clean_surface_v1_vllm.db",
+    "batch_configs": true,
+    "include_base": false,
+    "summary_baseline_label": "base"
+  },
+  "targets": {
+    "wtq": {
+      "task": "wtq",
+      "phase": "wtq_reasoning_protocol_v2_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wtq/configs/systematic/qwen2_5_14b/reasoning_protocol/wikitable_reasoning_protocol_v2.full.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "_section_rules",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": ["fmt.plain", "ser.json_columns", "contract.answer_list"]
+    },
+    "sqa": {
+      "task": "sqa",
+      "phase": "sqa_reasoning_protocol_v2_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/sqa/configs/systematic/qwen2_5_14b/reasoning_protocol/wikitable_reasoning_protocol_v2.full.json",
+      "sqa_data_dir": "/data/users/jsu323/sqa/SQA Release 1.0",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "_section_rules",
+        "facet_dp_scaffold",
+        "sqa_dialog_binding_base"
+      ],
+      "fixed_blocks": ["fmt.plain", "ser.json_columns", "contract.answer_list"]
+    },
+    "tablebench": {
+      "task": "tablebench",
+      "phase": "tablebench_reasoning_protocol_v2_qwen25_14b_1024",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/reasoning_protocol/tablebench.wikitable_reasoning_protocol_v2.n1024.json",
+      "max_queries": 1024,
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": ["fmt.plain", "ser.json_columns", "contract.tablebench_answer_string"]
+    },
+    "tabfact": {
+      "task": "tabfact",
+      "phase": "tabfact_reasoning_protocol_v2_qwen25_14b_validation",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/reasoning_protocol/tabfact.wikitable_reasoning_protocol_v2.validation.json",
+      "split": "validation",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": ["fmt.plain", "ser.json_columns", "contract.verdict"]
+    },
+    "hitab": {
+      "task": "hitab",
+      "phase": "hitab_reasoning_protocol_v2_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/reasoning_protocol/hitab.wikitable_reasoning_protocol_v2.full.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": ["fmt.plain", "ser.json_columns", "contract.answer_list"]
+    }
+  },
+  "families": {
+    "fmt": {
+      "mode": "exclusive",
+      "description": "Prompt layout surface. Fixed to plain."
+    },
+    "ser": {
+      "mode": "exclusive",
+      "description": "Table serialization. Fixed to JSON columns."
+    },
+    "contract": {
+      "mode": "exclusive",
+      "description": "Parser-facing final answer contract. Fixed for answer-only runs; scaffold.trace replaces it with a reasoning+final-field object."
+    },
+    "scaffold": {
+      "mode": "exclusive",
+      "description": "Visible reasoning carrier/output schema. V1 has exactly one general trace carrier."
+    },
+    "reason": {
+      "mode": "additive",
+      "description": "Reasoning style/procedure. V2 only studies these with scaffold.trace so reasoning precedes final output."
+    }
+  },
+  "blocks": {
+    "fmt.plain": {
+      "family": "fmt",
+      "role": "fixed_base",
+      "atoms": ["prompt_format_plain"]
+    },
+    "ser.json_columns": {
+      "family": "ser",
+      "role": "fixed_base",
+      "atoms": ["table_serialization_json_columns_data"]
+    },
+    "contract.answer_list": {
+      "family": "contract",
+      "role": "fixed_measurement",
+      "atoms": ["output_contract_json_answer_list"]
+    },
+    "contract.tablebench_answer_string": {
+      "family": "contract",
+      "role": "fixed_measurement",
+      "atoms": ["output_contract_tablebench_answer_string"]
+    },
+    "contract.verdict": {
+      "family": "contract",
+      "role": "fixed_measurement",
+      "atoms": ["output_contract_json_verdict"]
+    },
+    "scaffold.trace": {
+      "family": "scaffold",
+      "role": "visible_reasoning_trace_carrier",
+      "excludes_families": ["contract"],
+      "atoms": ["reasoning_scaffold_visible_cot"]
+    },
+    "reason.extract_compute": {
+      "family": "reason",
+      "role": "private_reasoning_style",
+      "atoms": ["reasoning_extract_then_compute"]
+    },
+    "reason.filter_answer": {
+      "family": "reason",
+      "role": "private_reasoning_style",
+      "atoms": ["reasoning_evidence_localization"]
+    },
+    "reason.enumerate": {
+      "family": "reason",
+      "role": "private_reasoning_style",
+      "atoms": ["reasoning_candidate_enumeration"]
+    },
+    "reason.evidence_table": {
+      "family": "reason",
+      "role": "private_reasoning_style",
+      "atoms": ["reasoning_intermediate_evidence_table"]
+    },
+    "reason.symbolic_op": {
+      "family": "reason",
+      "role": "private_reasoning_style",
+      "atoms": ["reasoning_symbolic_operation"]
+    },
+    "reason.verify": {
+      "family": "reason",
+      "role": "private_reasoning_style",
+      "atoms": ["reasoning_verify_before_output"]
+    },
+    "reason.operation_select": {
+      "family": "reason",
+      "role": "private_reasoning_style",
+      "atoms": ["reasoning_plan_then_answer"]
+    },
+    "reason.critique_revise": {
+      "family": "reason",
+      "role": "private_reasoning_style",
+      "atoms": ["reasoning_critique_then_revise"]
+    }
+  },
+  "generation": {
+    "main_blocks": [
+      "scaffold.trace"
+    ],
+    "cartesian": [
+      {
+        "name": "scaffold_trace_x_single_reason_style",
+        "groups": [
+          ["scaffold.trace"],
+          [
+            "reason.extract_compute",
+            "reason.filter_answer",
+            "reason.enumerate",
+            "reason.evidence_table",
+            "reason.symbolic_op",
+            "reason.verify",
+            "reason.operation_select",
+            "reason.critique_revise"
+          ]
+        ]
+      },
+      {
+        "name": "scaffold_trace_x_reason_style_pairs_extract",
+        "groups": [
+          ["scaffold.trace"],
+          ["reason.extract_compute"],
+          [
+            "reason.filter_answer",
+            "reason.enumerate",
+            "reason.evidence_table",
+            "reason.symbolic_op",
+            "reason.verify",
+            "reason.operation_select",
+            "reason.critique_revise"
+          ]
+        ]
+      },
+      {
+        "name": "scaffold_trace_x_reason_style_pairs_filter",
+        "groups": [
+          ["scaffold.trace"],
+          ["reason.filter_answer"],
+          [
+            "reason.enumerate",
+            "reason.evidence_table",
+            "reason.symbolic_op",
+            "reason.verify",
+            "reason.operation_select",
+            "reason.critique_revise"
+          ]
+        ]
+      },
+      {
+        "name": "scaffold_trace_x_reason_style_pairs_enumerate",
+        "groups": [
+          ["scaffold.trace"],
+          ["reason.enumerate"],
+          [
+            "reason.evidence_table",
+            "reason.symbolic_op",
+            "reason.verify",
+            "reason.operation_select",
+            "reason.critique_revise"
+          ]
+        ]
+      },
+      {
+        "name": "scaffold_trace_x_reason_style_pairs_evidence_table",
+        "groups": [
+          ["scaffold.trace"],
+          ["reason.evidence_table"],
+          [
+            "reason.symbolic_op",
+            "reason.verify",
+            "reason.operation_select",
+            "reason.critique_revise"
+          ]
+        ]
+      },
+      {
+        "name": "scaffold_trace_x_reason_style_pairs_symbolic",
+        "groups": [
+          ["scaffold.trace"],
+          ["reason.symbolic_op"],
+          [
+            "reason.verify",
+            "reason.operation_select",
+            "reason.critique_revise"
+          ]
+        ]
+      },
+      {
+        "name": "scaffold_trace_x_reason_style_pairs_verify",
+        "groups": [
+          ["scaffold.trace"],
+          ["reason.verify"],
+          [
+            "reason.operation_select",
+            "reason.critique_revise"
+          ]
+        ]
+      },
+      {
+        "name": "scaffold_trace_x_reason_style_pairs_operation",
+        "groups": [
+          ["scaffold.trace"],
+          ["reason.operation_select"],
+          [
+            "reason.critique_revise"
+          ]
+        ]
+      }
+    ]
+  }
+}

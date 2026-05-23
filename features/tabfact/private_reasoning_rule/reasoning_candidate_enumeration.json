@@ -1,0 +1,31 @@
+{
+  "canonical_id": "reasoning_candidate_enumeration",
+  "task": "tabfact",
+  "semantic_labels": [
+    {"label": "reasoning.candidate_enumeration", "role": "mechanism"},
+    {"label": "style.internal_procedure", "role": "style_rule"},
+    {"label": "format.dp_preserving", "role": "format"}
+  ],
+  "scope": {
+    "dataset": "tabfact",
+    "profile": "dp",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only"
+  },
+  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "For statements involving counts, superlatives, all/only claims, or multiple entities, internally enumerate the candidate rows or values before deciding whether every statement part is supported.",
+          "ordinal": 60
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only TabFact adaptation of candidate enumeration: enumerate rows or values before committing to a support/refute verdict."
+}

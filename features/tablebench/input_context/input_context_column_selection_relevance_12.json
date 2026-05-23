@@ -2,10 +2,22 @@
   "canonical_id": "input_context_column_selection_relevance_12",
   "task": "tablebench",
   "semantic_labels": [
-    {"label": "input_context.column_selection", "role": "mechanism"},
-    {"label": "context_builder.relevance_column_pruning", "role": "implementation"},
-    {"label": "implementation.input_transform", "role": "implementation_surface"},
-    {"label": "cost.lightweight_deterministic", "role": "cost"}
+    {
+      "label": "input_context.column_selection",
+      "role": "mechanism"
+    },
+    {
+      "label": "context_builder.relevance_column_pruning",
+      "role": "implementation"
+    },
+    {
+      "label": "implementation.input_transform",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "cost.lightweight_deterministic",
+      "role": "cost"
+    }
   ],
   "scope": {
     "dataset": "tablebench",
@@ -14,7 +26,7 @@
     "cost_dependency": "deterministic_preprocess"
   },
   "requires": [
-    "facet_dp_scaffold"
+    "_section_table_handling"
   ],
   "conflicts_with": [],
   "primitive_edits": [

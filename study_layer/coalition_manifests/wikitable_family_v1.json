@@ -181,6 +181,12 @@
         "input_context_row_selection_relevance_50"
       ]
     },
+    "scaffold.cot": {
+      "family": "scaffold",
+      "role": "reasoning_carrier",
+      "excludes_families": ["contract"],
+      "atoms": ["reasoning_scaffold_visible_cot"]
+    },
     "scaffold.plan": {
       "family": "scaffold",
       "role": "reasoning_carrier",
@@ -228,6 +234,7 @@
       "ctx.rows50",
       "ctx.relevant_table",
       "ctx.full",
+      "scaffold.cot",
       "scaffold.plan",
       "scaffold.evidence"
     ],
@@ -251,14 +258,14 @@
       {
         "name": "context_scaffold",
         "left": ["ctx.type_stats", "ctx.relevant_table"],
-        "right": ["scaffold.plan", "scaffold.evidence"]
+        "right": ["scaffold.cot", "scaffold.plan", "scaffold.evidence"]
       }
     ],
     "cartesian": [
       {
         "name": "scaffold_reason",
         "groups": [
-          ["scaffold.plan", "scaffold.evidence"],
+          ["scaffold.cot", "scaffold.plan", "scaffold.evidence"],
           ["reason.extract", "reason.evidence_verify"]
         ]
       },
@@ -266,7 +273,7 @@
         "name": "context_scaffold_reason",
         "groups": [
           ["ctx.type_stats", "ctx.relevant_table", "ctx.full"],
-          ["scaffold.plan", "scaffold.evidence"],
+          ["scaffold.cot", "scaffold.plan", "scaffold.evidence"],
           ["reason.extract", "reason.evidence_verify"]
         ]
       },
@@ -274,7 +281,7 @@
         "name": "serialization_scaffold_reason",
         "groups": [
           ["ser.records", "ser.html"],
-          ["scaffold.plan", "scaffold.evidence"],
+          ["scaffold.cot", "scaffold.plan", "scaffold.evidence"],
           ["reason.extract", "reason.evidence_verify"]
         ]
       }

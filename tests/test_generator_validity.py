@@ -302,6 +302,34 @@ def test_coalition_feature_configs_are_supersets_of_base(store_and_bundles):
         assert base_set.issubset(set(func_ids))
 
 
+def test_explicit_coalitions_accepts_config_kind_override(store_and_bundles):
+    """explicit_coalitions can store a study-specific kind while keeping
+    existing explicit_coalitions generation semantics.
+    """
+    import json as _json
+
+    _reg, store, base_ids, bundles, _conflicts = store_and_bundles
+    configs = generate(
+        "explicit_coalitions",
+        store,
+        base_ids=base_ids,
+        bundles=bundles,
+        coalitions={"scaffold.pot__fmt.code_block": ["enable_code"]},
+        config_kind="pot_surface_cartesian_coalition",
+    )
+
+    assert len(configs) == 1
+    config_id, _func_ids, meta = configs[0]
+    assert meta["label"] == "scaffold.pot__fmt.code_block"
+
+    row = store._get_conn().execute(
+        "SELECT meta FROM config WHERE config_id = ?", (config_id,)
+    ).fetchone()
+    stored = _json.loads(row["meta"])
+    assert stored["kind"] == "pot_surface_cartesian_coalition"
+    assert stored["label"] == "scaffold.pot__fmt.code_block"
+
+
 # ── conflict-awareness ────────────────────────────────────────────────
 
 def test_coalition_feature_filters_conflicts(store_and_bundles):

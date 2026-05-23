@@ -18,6 +18,7 @@
   "requires": ["facet_dp_scaffold", "_section_reasoning", "_section_format_fix"],
   "conflicts_with": [
     "output_contract_json_answer_list",
+    "reasoning_scaffold_visible_cot",
     "reasoning_scaffold_visible_plan",
     "reasoning_scaffold_visible_evidence",
     "reasoning_scaffold_visible_operation"

@@ -1,25 +1,26 @@
 {
-  "canonical_id": "reasoning_scaffold_visible_evidence",
-  "task": "wtq",
+  "canonical_id": "reasoning_scaffold_visible_cot",
+  "task": "tablebench",
   "semantic_labels": [
-    {"label": "reasoning.visible_evidence", "role": "mechanism"},
+    {"label": "reasoning.visible_trace", "role": "mechanism"},
+    {"label": "factory.reasoning_trace", "role": "source_theme"},
     {"label": "reasoning.visible_scaffold", "role": "mechanism"},
     {"label": "implementation.output_schema", "role": "implementation_surface"},
-    {"label": "format.evidence_answer_object", "role": "format_contract"}
+    {"label": "format.reasoning_answer_object", "role": "format_contract"}
   ],
   "scope": {
-    "dataset": "wtq",
-    "profile": "visible_reasoning",
+    "dataset": "tablebench",
+    "profile": "visible_reasoning_trace",
     "implementation_surface": "output_schema_and_task_instruction",
     "cost_dependency": "prompt_only",
     "visible_reasoning_field": true,
-    "answer_contract": "json_object_evidence_answer_list"
+    "answer_contract": "json_object_reasoning_answer"
   },
   "requires": ["facet_dp_scaffold", "_section_reasoning", "_section_format_fix"],
   "conflicts_with": [
-    "output_contract_json_answer_list",
-    "reasoning_scaffold_visible_cot",
+    "output_contract_tablebench_answer_string",
     "reasoning_scaffold_visible_plan",
+    "reasoning_scaffold_visible_evidence",
     "reasoning_scaffold_visible_operation",
     "reasoning_scaffold_visible_workpad"
   ],
@@ -30,8 +31,8 @@
         "node_type": "output_field",
         "parent_id": "__root__",
         "payload": {
-          "name": "evidence",
-          "description": "A concise visible evidence summary listing the relevant row/column/cell facts used to answer.",
+          "name": "reasoning",
+          "description": "Concise visible reasoning that cites the concrete table rows, columns, values, claim parts, or computations used for this query.",
           "ordinal": 89
         }
       }
@@ -43,7 +44,7 @@
         "parent_id": "__root__",
         "payload": {
           "name": "answer",
-          "description": "Return the final answer as a JSON array of strings. For one answer, return a one-element array. Preserve each complete table-cell value as one string.",
+          "description": "Return the final answer as a short string. Preserve the full cell value when the answer is copied from the table.",
           "ordinal": 90
         }
       }
@@ -54,8 +55,8 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Use the `evidence` field to show only the table facts needed for the answer. Then write the final answer list in `answer`.",
-          "ordinal": 71
+          "content": "Use the `reasoning` field for a concise task-bound trace before the final answer. Reference the specific table rows, columns, cell values, or computations used for this query; do not write generic procedure text.",
+          "ordinal": 70
         }
       }
     },
@@ -65,11 +66,11 @@
         "node_type": "rule",
         "parent_id": "73598c496947",
         "payload": {
-          "content": "Return only a valid JSON object with exactly `evidence` and `answer`. The `answer` value must be a JSON array of strings.",
+          "content": "Return only a valid JSON object with exactly `reasoning` and `answer`. The `answer` value must be the final short answer string.",
           "ordinal": 92
         }
       }
     }
   ],
-  "rationale": "Visible evidence-answer scaffold for testing whether exposing grounded evidence improves WTQ denotation accuracy."
+  "rationale": "General visible reasoning-trace carrier adapted from factory/cards/themes/reasoning-trace.md for TableBench."
 }
