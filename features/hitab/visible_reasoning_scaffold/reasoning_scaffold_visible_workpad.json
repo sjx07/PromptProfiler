@@ -15,7 +15,7 @@
       "role": "implementation_surface"
     },
     {
-      "label": "format.reasoning_answer_object",
+      "label": "format.reasoning_answer_fields",
       "role": "format_contract"
     }
   ],
@@ -25,7 +25,7 @@
     "implementation_surface": "output_schema_and_task_instruction",
     "cost_dependency": "prompt_only",
     "visible_reasoning_field": true,
-    "answer_contract": "json_object_reasoning_answer"
+    "answer_contract": "field_lines_reasoning_answer"
   },
   "requires": [
     "facet_dp_scaffold",
@@ -104,7 +104,7 @@
         "node_type": "rule",
         "parent_id": "73598c496947",
         "payload": {
-          "content": "Return only a valid JSON object with the requested reasoning field(s) and `answer`. The `answer` value must be a JSON array of strings.",
+          "content": "Return only the fields shown in the output format instructions. Keep intermediate reasoning in the reasoning/workpad field(s), and keep the final result in the final output field.",
           "ordinal": 92
         }
       }

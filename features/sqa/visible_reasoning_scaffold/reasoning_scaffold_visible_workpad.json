@@ -2,10 +2,22 @@
   "canonical_id": "reasoning_scaffold_visible_workpad",
   "task": "sqa",
   "semantic_labels": [
-    {"label": "reasoning.visible_workpad", "role": "mechanism"},
-    {"label": "reasoning.visible_scaffold", "role": "mechanism"},
-    {"label": "implementation.output_schema", "role": "implementation_surface"},
-    {"label": "format.workpad_answer_object", "role": "format_contract"}
+    {
+      "label": "reasoning.visible_workpad",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.visible_scaffold",
+      "role": "mechanism"
+    },
+    {
+      "label": "implementation.output_schema",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "format.workpad_answer_fields",
+      "role": "format_contract"
+    }
   ],
   "scope": {
     "dataset": "sqa",
@@ -13,9 +25,14 @@
     "implementation_surface": "output_schema_and_task_instruction",
     "cost_dependency": "prompt_only",
     "visible_reasoning_field": true,
-    "answer_contract": "json_object_workpad_answer_list"
+    "answer_contract": "field_lines_workpad_answer_list"
   },
-  "requires": ["facet_dp_scaffold", "_section_reasoning", "_section_format_fix", "sqa_dialog_binding_base"],
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning",
+    "_section_format_fix",
+    "sqa_dialog_binding_base"
+  ],
   "conflicts_with": [
     "output_contract_json_answer_list",
     "reasoning_scaffold_visible_cot",
@@ -89,7 +106,7 @@
         "node_type": "rule",
         "parent_id": "73598c496947",
         "payload": {
-          "content": "Return only a valid JSON object with exactly `plan`, `evidence`, `operation`, and `answer`. The `answer` value must be a JSON array of strings.",
+          "content": "Return only the fields shown in the output format instructions. Keep intermediate reasoning in the reasoning/workpad field(s), and keep the final result in the final output field.",
           "ordinal": 92
         }
       }

@@ -2,11 +2,26 @@
   "canonical_id": "reasoning_scaffold_visible_cot",
   "task": "tablebench",
   "semantic_labels": [
-    {"label": "reasoning.visible_trace", "role": "mechanism"},
-    {"label": "factory.reasoning_trace", "role": "source_theme"},
-    {"label": "reasoning.visible_scaffold", "role": "mechanism"},
-    {"label": "implementation.output_schema", "role": "implementation_surface"},
-    {"label": "format.reasoning_answer_object", "role": "format_contract"}
+    {
+      "label": "reasoning.visible_trace",
+      "role": "mechanism"
+    },
+    {
+      "label": "factory.reasoning_trace",
+      "role": "source_theme"
+    },
+    {
+      "label": "reasoning.visible_scaffold",
+      "role": "mechanism"
+    },
+    {
+      "label": "implementation.output_schema",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "format.reasoning_answer_fields",
+      "role": "format_contract"
+    }
   ],
   "scope": {
     "dataset": "tablebench",
@@ -14,9 +29,13 @@
     "implementation_surface": "output_schema_and_task_instruction",
     "cost_dependency": "prompt_only",
     "visible_reasoning_field": true,
-    "answer_contract": "json_object_reasoning_answer"
+    "answer_contract": "field_lines_reasoning_answer"
   },
-  "requires": ["facet_dp_scaffold", "_section_reasoning", "_section_format_fix"],
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning",
+    "_section_format_fix"
+  ],
   "conflicts_with": [
     "output_contract_tablebench_answer_string",
     "reasoning_scaffold_visible_plan",
@@ -66,7 +85,7 @@
         "node_type": "rule",
         "parent_id": "73598c496947",
         "payload": {
-          "content": "Return only a valid JSON object with exactly `reasoning` and `answer`. The `answer` value must be the final short answer string.",
+          "content": "Return only the fields shown in the output format instructions. Keep intermediate reasoning in the reasoning/workpad field(s), and keep the final result in the final output field.",
           "ordinal": 92
         }
       }

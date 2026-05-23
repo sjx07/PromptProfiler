@@ -1,13 +1,34 @@
 #!/usr/bin/env python3
-"""Render dry-run prompts for every config produced by an experiment JSON.
+"""Render dry-run prompts for configs or ad hoc feature coalitions.
 
 This is intentionally offline: it seeds queries/features into a temporary cube,
 materializes the configured feature sets, renders prompts, and writes markdown
 artifacts. It does not call an LLM and does not write to cfg["db_path"].
 
-Example:
+Config example:
     python3 tools/render_prompts_from_config.py \
       Obsidian/facet_exp/tablebench/configs/table_bench_pot_loo.json
+
+Ad hoc coalition examples:
+    python3 tools/render_prompts_from_config.py --task wtq \
+      --features reasoning_scaffold_visible_cot,input_context_column_statistics \
+      --split test --max-queries 2 --group-by ''
+
+    python3 tools/render_prompts_from_config.py --task sqa \
+      --features reasoning_scaffold_visible_cot,input_context_column_statistics \
+      --split test --max-queries 2 --group-by ''
+
+    python3 tools/render_prompts_from_config.py --task tablebench \
+      --features reasoning_scaffold_visible_cot,input_context_column_statistics \
+      --split test --max-queries 2 --group-by qtype,qsubtype
+
+    python3 tools/render_prompts_from_config.py --task tabfact \
+      --features reasoning_scaffold_visible_cot,input_context_column_statistics \
+      --split validation --max-queries 2 --group-by ''
+
+    python3 tools/render_prompts_from_config.py --task hitab \
+      --features reasoning_scaffold_visible_cot,input_context_column_statistics \
+      --split test --max-queries 2 --group-by ''
 """
 from __future__ import annotations
 
@@ -39,14 +60,95 @@ GENERATOR_OPTION_KEYS = (
     "min_rules",
     "max_rules",
     "coalitions",
+    "config_kind",
 )
+
+COMMON_RENDER_BASE = [
+    "_section_role",
+    "_section_task",
+    "_section_rules",
+    "_section_table_handling",
+    "_section_reasoning",
+    "_section_format_fix",
+    "facet_dp_scaffold",
+    "prompt_format_plain",
+    "table_serialization_json_columns_data",
+]
+
+TASK_RENDER_BASE_EXTRAS = {
+    "sqa": ["sqa_dialog_binding_base"],
+}
+
+TASK_DEFAULT_CONTRACT = {
+    "wtq": "output_contract_json_answer_list",
+    "sqa": "output_contract_json_answer_list",
+    "hitab": "output_contract_json_answer_list",
+    "tabfact": "output_contract_json_verdict",
+    "tablebench": "output_contract_tablebench_answer_string",
+}
+
+TASK_DEFAULT_SPLIT = {
+    "wtq": "test",
+    "sqa": "test",
+    "hitab": "test",
+    "tabfact": "validation",
+    "tablebench": "test",
+}
+
+EXAMPLE_TEXT = """examples:
+  render an existing experiment config:
+    python3 tools/render_prompts_from_config.py Obsidian/facet_exp/wtq/configs/systematic/gpt_oss_20b/existing_clean_coalitions/wtq.fmt_ser_ctx_reasoning.full.json --max-configs 3 --max-queries 2
+
+  render an ad hoc WTQ coalition:
+    python3 tools/render_prompts_from_config.py --task wtq --features reasoning_scaffold_visible_cot,input_context_column_statistics --split test --max-queries 2 --group-by ''
+
+  render an ad hoc SQA coalition:
+    python3 tools/render_prompts_from_config.py --task sqa --features reasoning_scaffold_visible_cot,input_context_column_statistics --split test --max-queries 2 --group-by ''
+
+  render an ad hoc TableBench coalition:
+    python3 tools/render_prompts_from_config.py --task tablebench --features reasoning_scaffold_visible_cot,input_context_column_statistics --split test --max-queries 2 --group-by qtype,qsubtype
+
+  render an ad hoc TabFact coalition:
+    python3 tools/render_prompts_from_config.py --task tabfact --features reasoning_scaffold_visible_cot,input_context_column_statistics --split validation --max-queries 2 --group-by ''
+
+  render an ad hoc HiTab coalition:
+    python3 tools/render_prompts_from_config.py --task hitab --features reasoning_scaffold_visible_cot,input_context_column_statistics --split test --max-queries 2 --group-by ''
+"""
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Render prompt dry-run artifacts from an experiment config JSON."
+        description="Render prompt dry-run artifacts from an experiment config JSON or ad hoc feature coalition.",
+        epilog=EXAMPLE_TEXT,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("config", help="Experiment config JSON path")
+    parser.add_argument(
+        "config",
+        nargs="?",
+        help="Experiment config JSON path. Omit when using --task/--features quick coalition mode.",
+    )
+    parser.add_argument(
+        "--task",
+        default=None,
+        help="Task name for quick coalition mode, e.g. wtq, sqa, tablebench, tabfact, hitab.",
+    )
+    parser.add_argument(
+        "--features",
+        action="append",
+        default=[],
+        help="Comma-separated feature canonical IDs for quick coalition mode. Can be repeated.",
+    )
+    parser.add_argument(
+        "--base-features",
+        action="append",
+        default=[],
+        help="Comma-separated base feature canonical IDs for quick coalition mode. Defaults to a task-specific rendering base.",
+    )
+    parser.add_argument(
+        "--coalition-label",
+        default=None,
+        help="Label for the quick coalition config. Defaults to coalition__<features>.",
+    )
     parser.add_argument(
         "--out-dir",
         default=None,
@@ -102,9 +204,13 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    cfg_path = Path(args.config)
-    with cfg_path.open() as f:
-        cfg = json.load(f)
+    if args.config:
+        cfg_path = Path(args.config)
+        with cfg_path.open() as f:
+            cfg = json.load(f)
+    else:
+        cfg_path = Path(f"render_{args.task or 'coalition'}.json")
+        cfg = _quick_coalition_config(args)
     if args.split is not None:
         cfg["split"] = args.split
     if args.max_queries is not None:
@@ -326,6 +432,84 @@ def render_from_config(
         ],
         "artifacts": artifacts,
     }
+
+
+def _quick_coalition_config(args: argparse.Namespace) -> Dict[str, Any]:
+    task = str(args.task or "").strip()
+    if not task:
+        raise ValueError("quick coalition mode requires --task when no config path is provided")
+    features = _parse_feature_args(args.features)
+    base_features = _parse_feature_args(args.base_features)
+    feature_registry = FeatureRegistry.load(task=task)
+    if not base_features:
+        base_features = _default_render_base_features(task, features, feature_registry)
+    feature_registry.validate_feature_set(base_features + features)
+    label = args.coalition_label or _coalition_label(features)
+    split = args.split or TASK_DEFAULT_SPLIT.get(task, "test")
+    max_queries = 2 if args.max_queries is None else args.max_queries
+    cfg: Dict[str, Any] = {
+        "task": task,
+        "split": split,
+        "max_queries": max_queries,
+        "sample_seed": 0 if args.sample_seed is None else args.sample_seed,
+        "experiment_type": "explicit_coalitions" if features else "base_only",
+        "base_features": base_features,
+        "experiment_features": features,
+        "n_samples": 1,
+        "seed": 0,
+        "config_kind": "rendered_coalition",
+    }
+    if features:
+        cfg["coalitions"] = {label: features}
+    return cfg
+
+
+def _parse_feature_args(values: List[str]) -> List[str]:
+    out: List[str] = []
+    for raw in values:
+        for part in str(raw).split(","):
+            item = part.strip()
+            if item and item not in out:
+                out.append(item)
+    return out
+
+
+def _default_render_base_features(
+    task: str,
+    selected_features: List[str],
+    feature_registry: FeatureRegistry,
+) -> List[str]:
+    base = list(COMMON_RENDER_BASE)
+    base.extend(TASK_RENDER_BASE_EXTRAS.get(task, []))
+    contract = TASK_DEFAULT_CONTRACT.get(task)
+    if contract and not _selected_features_conflict_with_contract(
+        selected_features,
+        contract,
+        feature_registry,
+    ):
+        base.append(contract)
+    return base
+
+
+def _selected_features_conflict_with_contract(
+    selected_features: List[str],
+    contract: str,
+    feature_registry: FeatureRegistry,
+) -> bool:
+    for feature in selected_features:
+        spec = feature_registry._by_canonical.get(feature)
+        if spec is None:
+            # Let materialize produce the normal unknown-feature error later.
+            continue
+        if contract in set(spec.get("conflicts_with", [])):
+            return True
+    return False
+
+
+def _coalition_label(features: List[str]) -> str:
+    if not features:
+        return "base"
+    return "coalition__" + "__".join(features)
 
 
 def _build_feature_bundles(
