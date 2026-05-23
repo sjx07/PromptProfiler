@@ -118,9 +118,10 @@ class PromptRenderHandler(BaseHTTPRequestHandler):
         try:
             payload = self._read_json()
             selected = _string_list(payload.get("features"))
+            requested_tasks = _task_list(payload.get("tasks")) or TASKS
             query_ids = payload.get("query_ids") if isinstance(payload.get("query_ids"), dict) else {}
             results = {}
-            for task in TASKS:
+            for task in requested_tasks:
                 results[task] = render_task_prompt(
                     task,
                     selected_features=selected,
@@ -635,6 +636,10 @@ def _string_list(value: Any) -> List[str]:
     return out
 
 
+def _task_list(value: Any) -> List[str]:
+    return [task for task in _string_list(value) if task in TASKS]
+
+
 def _int_param(params: Dict[str, List[str]], key: str, default: int) -> int:
     try:
         return int(params.get(key, [default])[0])
@@ -648,20 +653,21 @@ INDEX_HTML = r"""
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FACET Feature Vector Prompt Visualizer</title>
+  <title>FACET Prompt Renderer</title>
   <style>
     :root {
       color-scheme: light;
-      --bg: #f5f6f7;
+      --bg: #f4f5f6;
       --surface: #ffffff;
-      --surface-soft: #f9fafb;
-      --line: #d9dde3;
-      --line-strong: #b8c0cc;
+      --surface-soft: #f8fafb;
+      --line: #d8dde3;
+      --line-strong: #b6c0ca;
       --text: #20242a;
       --muted: #68707d;
       --accent: #12615c;
-      --accent-soft: #e1f0ee;
-      --warn: #8a5a00;
+      --accent-soft: #e7f2f0;
+      --warn-bg: #fff5d6;
+      --warn-text: #765200;
       --bad: #9b2c2c;
       --good: #146c43;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
@@ -669,150 +675,163 @@ INDEX_HTML = r"""
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.45; }
-    header { background: var(--surface); border-bottom: 1px solid var(--line); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-    h1 { margin: 0; font-size: 18px; font-weight: 680; letter-spacing: 0; }
-    h2 { margin: 0; font-size: 14px; font-weight: 680; letter-spacing: 0; }
-    h3 { margin: 0; font-size: 12px; font-weight: 680; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-    button, select, input { font: inherit; }
-    button { border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); border-radius: 6px; padding: 7px 10px; cursor: pointer; min-height: 34px; }
+    button, select, input, textarea { font: inherit; }
+    button { min-height: 34px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--text); padding: 7px 10px; cursor: pointer; }
     button:hover { border-color: var(--accent); }
-    button.primary { background: var(--accent); border-color: var(--accent); color: white; font-weight: 650; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 650; }
     button.primary:disabled { opacity: .65; cursor: wait; }
-    input[type="search"], select { width: 100%; min-height: 34px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--text); padding: 6px 8px; }
-    main { display: grid; grid-template-columns: minmax(330px, 390px) minmax(0, 1fr); gap: 12px; padding: 12px; height: calc(100vh - 63px); }
-    aside, .workspace { min-height: 0; }
-    aside { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 10px; }
-    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
-    .panel-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .panel-body { padding: 10px 12px; }
-    .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .small { font-size: 12px; color: var(--muted); }
+    input[type="search"], select { width: 100%; min-height: 34px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); padding: 6px 8px; }
+    h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0; }
+    h2 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: 0; }
+    h3 { margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+    .small { color: var(--muted); font-size: 12px; }
     .mono { font-family: var(--mono); }
-    .feature-list { overflow: auto; padding: 8px; }
+    .app { min-height: 100vh; display: grid; grid-template-columns: minmax(320px, 380px) minmax(0, 1fr); }
+    .sidebar { min-height: 100vh; border-right: 1px solid var(--line); background: var(--surface); display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; }
+    .brand { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .brand .small { margin-top: 4px; }
+    .control-block { padding: 12px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+    .field { display: grid; gap: 5px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    details.presets { border-top: 1px solid var(--line); padding-top: 8px; }
+    details.presets summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+    .preset-list { display: grid; gap: 6px; margin-top: 8px; }
+    .preset-list button { text-align: left; min-height: auto; padding: 7px 8px; font-size: 12px; }
+    .feature-panel { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .feature-head { padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .feature-list { min-height: 0; overflow: auto; padding: 8px 10px 12px; }
     .family { margin-bottom: 10px; }
-    .family-title { display: flex; align-items: center; justify-content: space-between; padding: 7px 6px 5px; color: var(--muted); font-size: 12px; font-weight: 680; text-transform: uppercase; letter-spacing: .04em; }
+    .family-title { display: flex; align-items: center; justify-content: space-between; padding: 8px 6px 5px; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
     label.feature { display: grid; grid-template-columns: 20px 1fr; gap: 7px; padding: 7px 6px; border-radius: 6px; cursor: pointer; }
     label.feature:hover { background: var(--surface-soft); }
     label.feature input { margin-top: 2px; }
-    .feature-id { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
-    .feature-meta { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; }
-    .chip, .task-dot { border-radius: 999px; padding: 2px 6px; font-size: 11px; white-space: nowrap; }
-    .chip { background: var(--accent-soft); color: #134f4b; font-family: var(--mono); }
-    .chip.muted { background: #eef0f3; color: var(--muted); }
-    .chip.warn { background: #fff3cd; color: var(--warn); }
-    .task-dot { border: 1px solid var(--line); color: var(--muted); }
-    .task-dot.on { border-color: #8fb6b2; color: #134f4b; background: #eef8f6; }
-    .workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
-    .vector-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 360px); gap: 12px; }
-    .vector-box { display: flex; flex-wrap: wrap; gap: 6px; min-height: 34px; align-items: center; }
-    .vector-empty { color: var(--muted); font-size: 13px; }
-    .examples { display: grid; gap: 6px; }
-    .examples button { text-align: left; }
-    .results { min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; align-content: start; }
-    .result { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; min-width: 0; }
-    .result-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
-    .result-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .task-name { text-transform: uppercase; font-weight: 700; letter-spacing: .03em; }
-    .status { color: var(--muted); font-size: 12px; }
-    .status.bad { color: var(--bad); }
-    .status.good { color: var(--good); }
-    .base-row, .active-row, .missing-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-    .base-row .chip { background: #eef0f3; color: #4f5661; }
-    .missing-row .chip { background: #fbeaea; color: var(--bad); }
-    .prompt-pair { display: grid; gap: 10px; padding: 10px 12px 12px; }
-    .prompt-label { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
-    textarea { width: 100%; min-height: 220px; resize: vertical; border: 1px solid var(--line); border-radius: 6px; background: #fcfcfd; color: var(--text); padding: 8px; font-family: var(--mono); font-size: 12px; line-height: 1.45; }
-    .user textarea { min-height: 300px; }
-    .error { padding: 12px; white-space: pre-wrap; color: var(--bad); font-family: var(--mono); font-size: 12px; }
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .divider { height: 1px; background: var(--line); margin: 8px 0; }
+    .feature-id { display: block; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+    .feature-note { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+    .selected-dock { border-top: 1px solid var(--line); padding: 10px 16px 12px; display: grid; gap: 8px; background: var(--surface-soft); }
+    .selected-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 5px; max-height: 92px; overflow: auto; }
+    .chip { display: inline-flex; align-items: center; max-width: 100%; border-radius: 999px; padding: 2px 7px; background: var(--accent-soft); color: #134f4b; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+    .chip.base { background: #eef0f3; color: #4f5661; }
+    .chip.missing { background: #fbeaea; color: var(--bad); }
+    .chip.warn { background: var(--warn-bg); color: var(--warn-text); }
+    .content { min-width: 0; height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .prompt-toolbar { background: var(--surface); border-bottom: 1px solid var(--line); padding: 12px 16px; display: grid; gap: 10px; }
+    .toolbar-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .toolbar-title { display: grid; gap: 2px; min-width: 0; }
+    .toolbar-title .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sample-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+    .prompt-area { min-height: 0; overflow: auto; padding: 12px 16px 16px; display: grid; gap: 12px; align-content: start; }
+    .status-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+    .status-line.good { border-color: #a7d3bf; }
+    .status-line.bad { border-color: #e8b2b2; color: var(--bad); }
+    .meta-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .meta-card { border: 1px solid var(--line); border-radius: 7px; background: var(--surface); padding: 9px 10px; min-width: 0; }
+    .meta-card h3 { margin-bottom: 6px; }
+    .prompt-card { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); overflow: hidden; }
+    .prompt-card-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .prompt-card-head span:last-child { color: var(--muted); font-size: 12px; }
+    .prompt-grid { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 0; }
+    .prompt-section { min-width: 0; padding: 10px 12px 12px; }
+    .prompt-section + .prompt-section { border-left: 1px solid var(--line); }
+    .prompt-label { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; margin-bottom: 5px; }
+    textarea { width: 100%; min-height: 520px; resize: vertical; border: 1px solid var(--line); border-radius: 6px; background: #fcfcfd; color: var(--text); padding: 9px; font-family: var(--mono); font-size: 12px; line-height: 1.45; }
+    .system-box { min-height: 320px; }
+    .error { white-space: pre-wrap; color: var(--bad); font-family: var(--mono); font-size: 12px; }
     @media (max-width: 1100px) {
-      main { grid-template-columns: 1fr; height: auto; }
-      aside { grid-template-rows: auto auto auto; }
-      .feature-list { max-height: 420px; }
-      .vector-grid { grid-template-columns: 1fr; }
+      .app { grid-template-columns: 1fr; }
+      .sidebar, .content { min-height: auto; height: auto; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+      .feature-list { max-height: 360px; }
+      .prompt-grid, .meta-grid { grid-template-columns: 1fr; }
+      .prompt-section + .prompt-section { border-left: 0; border-top: 1px solid var(--line); }
+      textarea { min-height: 340px; }
     }
-    @media (max-width: 620px) {
-      header { align-items: flex-start; flex-direction: column; }
-      .results { grid-template-columns: 1fr; }
-      .two-col { grid-template-columns: 1fr; }
+    @media (max-width: 640px) {
+      .field-row, .actions, .sample-row { grid-template-columns: 1fr; }
+      .toolbar-top { align-items: flex-start; flex-direction: column; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>FACET Feature Vector Prompt Visualizer</h1>
-      <div class="small">Start from the fixed base prompt, toggle feature IDs, then inspect the rendered system and user prompts.</div>
-    </div>
-    <div class="toolbar">
-      <button id="clearBtn" type="button">Clear Features</button>
-      <button id="renderBtn" class="primary" type="button">Render Feature Vector</button>
-    </div>
-  </header>
-
-  <main>
-    <aside>
-      <section class="panel">
-        <div class="panel-head"><h2>View</h2><span id="selectedCount" class="small">0 selected</span></div>
-        <div class="panel-body">
-          <div class="two-col">
-            <label class="small">Benchmark
-              <select id="taskView">
-                <option value="all">All five</option>
-                <option value="wtq">WTQ</option>
-                <option value="sqa">SQA</option>
-                <option value="tablebench">TableBench</option>
-                <option value="tabfact">TabFact</option>
-                <option value="hitab">HiTab</option>
-              </select>
-            </label>
-            <label class="small">Feature Family
-              <select id="familyFilter"><option value="">All families</option></select>
-            </label>
-          </div>
-          <div style="margin-top:8px">
-            <input id="search" type="search" placeholder="Search feature IDs, labels, surfaces">
-          </div>
-        </div>
+  <main class="app">
+    <aside class="sidebar">
+      <section class="brand">
+        <h1>FACET Prompt Renderer</h1>
+        <div class="small">Select one benchmark and a feature vector. The rendered system and user prompts stay on the right.</div>
       </section>
 
-      <section class="panel">
-        <div class="panel-head"><h2>Example Vectors</h2><span class="small">one click</span></div>
-        <div class="panel-body examples">
-          <button type="button" data-vector="table_serialization_html,input_context_column_statistics,reasoning_scaffold_visible_cot,reasoning_extract_then_compute,reasoning_evidence_localization">HTML + stats + extract/filter reasoning</button>
-          <button type="button" data-vector="table_serialization_json_records,input_context_type_annotation,reasoning_scaffold_visible_cot,reasoning_candidate_enumeration">Records + type + enumerate</button>
-          <button type="button" data-vector="input_context_column_selection_relevance_12,input_context_row_selection_relevance_50,reasoning_scaffold_visible_cot,reasoning_evidence_localization">Relevant subtable + evidence localization</button>
-          <button type="button" data-vector="prompt_format_json,table_serialization_json_records,reasoning_scaffold_visible_cot">JSON prompt + records + visible trace</button>
+      <section class="control-block">
+        <label class="field small">Benchmark
+          <select id="taskView">
+            <option value="wtq">WTQ</option>
+            <option value="sqa">SQA</option>
+            <option value="tablebench">TableBench</option>
+            <option value="tabfact">TabFact</option>
+            <option value="hitab">HiTab</option>
+          </select>
+        </label>
+        <div class="field-row">
+          <label class="field small">Feature Family
+            <select id="familyFilter"><option value="">All families</option></select>
+          </label>
+          <label class="field small">Search
+            <input id="search" type="search" placeholder="feature id or label">
+          </label>
         </div>
+        <div class="actions">
+          <button id="clearBtn" type="button">Clear</button>
+          <button id="renderBtn" class="primary" type="button">Render</button>
+        </div>
+        <details class="presets">
+          <summary>Preset vectors</summary>
+          <div class="preset-list">
+            <button type="button" data-vector="table_serialization_html,input_context_column_statistics,reasoning_scaffold_visible_cot,reasoning_extract_then_compute,reasoning_evidence_localization">HTML + stats + extract/filter</button>
+            <button type="button" data-vector="table_serialization_json_records,input_context_type_annotation,reasoning_scaffold_visible_cot,reasoning_candidate_enumeration">Records + type + enumerate</button>
+            <button type="button" data-vector="input_context_column_selection_relevance_12,input_context_row_selection_relevance_50,reasoning_scaffold_visible_cot,reasoning_evidence_localization">Relevant subtable + evidence</button>
+            <button type="button" data-vector="prompt_format_json,table_serialization_json_records,reasoning_scaffold_visible_cot">JSON prompt + records + trace</button>
+          </div>
+        </details>
       </section>
 
-      <section class="panel" style="min-height:0; display:grid; grid-template-rows:auto minmax(0,1fr);">
-        <div class="panel-head"><h2>Feature Toggles</h2><span class="small">conflict aware</span></div>
+      <section class="feature-panel">
+        <div class="feature-head">
+          <h2>Features</h2>
+          <span id="featureCount" class="small">loading</span>
+        </div>
         <div id="featureList" class="feature-list"></div>
+      </section>
+
+      <section class="selected-dock">
+        <div class="selected-head">
+          <h2>Selected Vector</h2>
+          <span id="selectedCount" class="small">0 selected</span>
+        </div>
+        <div id="vectorBox" class="chip-row"><span class="small">No optional features selected.</span></div>
+        <textarea id="featureText" readonly style="min-height:64px; max-height:110px"></textarea>
       </section>
     </aside>
 
-    <section class="workspace">
-      <div class="vector-grid">
-        <section class="panel">
-          <div class="panel-head"><h2>Current Feature Vector</h2><span class="small">base is applied automatically</span></div>
-          <div class="panel-body">
-            <div id="vectorBox" class="vector-box"><span class="vector-empty">No optional features selected.</span></div>
-            <div class="divider"></div>
-            <div class="small">Copyable feature IDs</div>
-            <textarea id="featureText" readonly style="min-height:64px"></textarea>
+    <section class="content">
+      <section class="prompt-toolbar">
+        <div class="toolbar-top">
+          <div class="toolbar-title">
+            <h2 id="promptTitle">WTQ Prompt</h2>
+            <div id="promptSubtitle" class="small">Fixed base features are applied automatically.</div>
           </div>
-        </section>
-        <section class="panel">
-          <div class="panel-head"><h2>Sample Source</h2><span class="small">DB optional</span></div>
-          <div class="panel-body small">
-            <p style="margin:0 0 8px">The server uses task-loader samples by default, with fixture fallback. Pass <span class="mono">--source-db</span> only to inspect examples from a real cube.</p>
-            <p style="margin:0">Each rendered card shows the fixed base features, active toggles available for that benchmark, and unavailable selected IDs.</p>
-          </div>
-        </section>
-      </div>
-      <div id="results" class="results"></div>
+          <div class="small mono" id="renderState">idle</div>
+        </div>
+        <div class="sample-row">
+          <label class="field small">Sample query
+            <select id="sampleSelect"></select>
+          </label>
+          <button id="refreshBtn" type="button">Refresh Sample</button>
+        </div>
+      </section>
+
+      <section id="promptArea" class="prompt-area">
+        <div class="status-line">Loading feature inventory...</div>
+      </section>
     </section>
   </main>
 
@@ -823,27 +842,31 @@ let FEATURES = [];
 let FEATURE_BY_ID = new Map();
 let SELECTED = new Set();
 let SAMPLES = {};
-let LAST_RESULTS = null;
+let LAST_RESULTS = {};
 
 function esc(s) { return String(s ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
-function visibleTasks() { const v = document.getElementById('taskView').value; return v === 'all' ? TASKS : [v]; }
+function currentTask() { return document.getElementById('taskView').value; }
 function familyOf(f) { return f.family || 'other'; }
 function chip(text, cls='') { return `<span class="chip ${cls}">${esc(text)}</span>`; }
 function taskHasFeature(feature, task) { return Boolean(feature?.tasks?.[task]); }
 function featureHaystack(f) { return [f.canonical_id, f.family, ...(f.semantic_labels || [])].join(' ').toLowerCase(); }
+function taskFeatureRows(task) { return FEATURES.filter(f => taskHasFeature(f, task)); }
 
 async function init() {
   const inv = await fetch('/api/features').then(r => r.json());
   FEATURES = inv.features;
   FEATURE_BY_ID = new Map(FEATURES.map(f => [f.canonical_id, f]));
   populateFamilies();
-  for (const task of TASKS) {
-    SAMPLES[task] = (await fetch(`/api/samples?task=${task}&limit=80`).then(r => r.json())).samples || [];
-  }
+  await loadSamples(currentTask());
   renderFeatureList();
   renderVector();
-  renderShellCards();
-  await renderAll();
+  renderSampleSelect();
+  await renderSelectedTask();
+}
+
+async function loadSamples(task) {
+  if (SAMPLES[task]) return;
+  SAMPLES[task] = (await fetch(`/api/samples?task=${task}&limit=80`).then(r => r.json())).samples || [];
 }
 
 function populateFamilies() {
@@ -877,7 +900,7 @@ function conflictsWithSelected(featureId) {
   return out;
 }
 
-function selectFeature(featureId, checked) {
+function selectFeature(featureId, checked, rerender=true) {
   if (!checked) {
     SELECTED.delete(featureId);
   } else {
@@ -886,31 +909,33 @@ function selectFeature(featureId, checked) {
   }
   renderFeatureList();
   renderVector();
+  if (rerender) renderSelectedTask();
 }
 
 function setVector(ids) {
   SELECTED.clear();
   for (const id of ids) {
-    if (FEATURE_BY_ID.has(id)) selectFeature(id, true);
+    if (FEATURE_BY_ID.has(id)) selectFeature(id, true, false);
   }
   renderFeatureList();
   renderVector();
-  renderAll();
+  renderSelectedTask();
 }
 
 function renderFeatureList() {
-  const taskView = document.getElementById('taskView').value;
+  const task = currentTask();
   const family = document.getElementById('familyFilter').value;
   const q = document.getElementById('search').value.toLowerCase().trim();
   const grouped = new Map();
-  for (const f of FEATURES) {
+  for (const f of taskFeatureRows(task)) {
     if (family && familyOf(f) !== family) continue;
-    if (taskView !== 'all' && !taskHasFeature(f, taskView)) continue;
     if (q && !featureHaystack(f).includes(q)) continue;
     const fam = familyOf(f);
     if (!grouped.has(fam)) grouped.set(fam, []);
     grouped.get(fam).push(f);
   }
+  const count = [...grouped.values()].reduce((n, rows) => n + rows.length, 0);
+  document.getElementById('featureCount').textContent = `${count} shown`;
   const html = [...grouped.entries()].map(([fam, rows]) => `
     <div class="family">
       <div class="family-title"><span>${esc(fam)}</span><span>${rows.length}</span></div>
@@ -924,14 +949,14 @@ function renderFeatureList() {
 }
 
 function featureToggleHtml(f) {
-  const taskDots = TASKS.map(t => `<span class="task-dot ${taskHasFeature(f,t) ? 'on' : ''}">${TASK_LABEL[t]}</span>`).join('');
   const selected = SELECTED.has(f.canonical_id) ? 'checked' : '';
-  const labels = (f.semantic_labels || []).slice(0, 2).map(x => `<span class="chip muted">${esc(x)}</span>`).join('');
+  const labels = (f.semantic_labels || []).slice(0, 2).join(' / ');
+  const note = labels || familyOf(f);
   return `<label class="feature">
     <input type="checkbox" data-feature="${esc(f.canonical_id)}" ${selected}>
     <span>
       <span class="feature-id">${esc(f.canonical_id)}</span>
-      <span class="feature-meta">${taskDots}${labels}</span>
+      <span class="feature-note">${esc(note)}</span>
     </span>
   </label>`;
 }
@@ -940,103 +965,106 @@ function renderVector() {
   const ids = [...SELECTED].sort();
   document.getElementById('selectedCount').textContent = `${ids.length} selected`;
   document.getElementById('featureText').value = ids.join(',');
-  document.getElementById('vectorBox').innerHTML = ids.length ? ids.map(id => chip(id)).join('') : '<span class="vector-empty">No optional features selected.</span>';
+  document.getElementById('vectorBox').innerHTML = ids.length ? ids.map(id => chip(id)).join('') : '<span class="small">No optional features selected.</span>';
 }
 
-function renderShellCards() {
-  document.getElementById('results').innerHTML = visibleTasks().map(task => resultCard(task, null)).join('');
-  wireSampleSelectors();
-}
-
-function sampleOptions(task, selectedId) {
+function renderSampleSelect() {
+  const task = currentTask();
+  const select = document.getElementById('sampleSelect');
   const rows = SAMPLES[task] || [];
-  if (!rows.length) return '<option value="">fixture/default sample</option>';
-  return rows.map(r => `<option value="${esc(r.query_id)}" ${r.query_id === selectedId ? 'selected' : ''}>${esc(r.summary || r.query_id)}</option>`).join('');
+  select.innerHTML = rows.length
+    ? rows.map(r => `<option value="${esc(r.query_id)}">${esc(r.summary || r.query_id)}</option>`).join('')
+    : '<option value="">fixture/default sample</option>';
 }
 
-function queryIdsFromSelectors() {
-  const query_ids = {};
-  document.querySelectorAll('select[data-task-sample]').forEach(sel => { query_ids[sel.dataset.taskSample] = sel.value; });
-  return query_ids;
+function selectedQueryId() {
+  return document.getElementById('sampleSelect').value || '';
 }
 
-async function renderAll() {
-  const button = document.getElementById('renderBtn');
-  button.disabled = true;
-  button.textContent = 'Rendering...';
+async function renderSelectedTask() {
+  const task = currentTask();
+  document.getElementById('renderBtn').disabled = true;
+  document.getElementById('renderBtn').textContent = 'Rendering...';
+  document.getElementById('renderState').textContent = 'rendering';
   try {
-    const query_ids = queryIdsFromSelectors();
+    const query_ids = {};
+    query_ids[task] = selectedQueryId();
     const res = await fetch('/api/render', {
       method: 'POST',
       headers: {'content-type': 'application/json'},
-      body: JSON.stringify({features: [...SELECTED], query_ids})
+      body: JSON.stringify({features: [...SELECTED], tasks: [task], query_ids})
     }).then(r => r.json());
     if (!res.ok) throw new Error(res.error || 'render failed');
-    LAST_RESULTS = res.results;
-    renderResults();
+    LAST_RESULTS[task] = res.results[task];
+    renderPrompt(task, LAST_RESULTS[task]);
   } catch (err) {
-    document.getElementById('results').innerHTML = `<section class="panel"><div class="error">${esc(err.message || String(err))}</div></section>`;
+    document.getElementById('promptArea').innerHTML = `<div class="status-line bad"><span class="error">${esc(err.message || String(err))}</span></div>`;
   } finally {
-    button.disabled = false;
-    button.textContent = 'Render Feature Vector';
+    document.getElementById('renderBtn').disabled = false;
+    document.getElementById('renderBtn').textContent = 'Render';
+    document.getElementById('renderState').textContent = 'idle';
   }
 }
 
-function renderResults() {
-  if (!LAST_RESULTS) return renderShellCards();
-  document.getElementById('results').innerHTML = visibleTasks().map(task => resultCard(task, LAST_RESULTS[task])).join('');
-  wireSampleSelectors();
-}
-
-function resultCard(task, result) {
-  const ok = result && result.ok;
-  const selectedId = result?.query_id || (SAMPLES[task]?.[0]?.query_id || '');
-  const active = result?.active_features || [];
-  const missing = result?.missing_features || [];
-  const base = result?.base_features || [];
-  const status = result ? (ok ? `${active.length} toggled / ${base.length} base` : 'render error') : 'not rendered yet';
-  return `<article class="result" id="result-${task}">
-    <div class="result-head">
-      <div class="result-title"><span class="task-name">${TASK_LABEL[task]}</span><span class="status ${ok ? 'good' : result ? 'bad' : ''}">${esc(status)}</span></div>
-      <select data-task-sample="${task}">${sampleOptions(task, selectedId)}</select>
-      ${base.length ? `<div><h3>Fixed Base</h3><div class="base-row">${base.map(x => chip(x)).join('')}</div></div>` : ''}
-      <div><h3>Active Toggles</h3><div class="active-row">${active.length ? active.map(x => chip(x)).join('') : '<span class="small">none</span>'}</div></div>
-      ${missing.length ? `<div><h3>Unavailable For This Benchmark</h3><div class="missing-row">${missing.map(x => chip(x)).join('')}</div></div>` : ''}
+function renderPrompt(task, result) {
+  document.getElementById('promptTitle').textContent = `${TASK_LABEL[task]} Prompt`;
+  const availableSelected = [...SELECTED].filter(id => taskHasFeature(FEATURE_BY_ID.get(id), task));
+  const unavailableSelected = [...SELECTED].filter(id => !taskHasFeature(FEATURE_BY_ID.get(id), task));
+  document.getElementById('promptSubtitle').textContent = `${availableSelected.length} selected features available for this benchmark`;
+  if (!result) {
+    document.getElementById('promptArea').innerHTML = '<div class="status-line">No render yet.</div>';
+    return;
+  }
+  if (!result.ok) {
+    document.getElementById('promptArea').innerHTML = `<div class="status-line bad"><span class="error">${esc(result.error)}</span></div>`;
+    return;
+  }
+  const base = result.base_features || [];
+  const active = result.active_features || [];
+  const missing = result.missing_features || unavailableSelected;
+  document.getElementById('promptArea').innerHTML = `
+    <div class="status-line good">
+      <span><strong>${esc(result.query_id || '')}</strong></span>
+      <span class="small">${active.length} toggled / ${base.length} base</span>
     </div>
-    ${result && !ok ? `<div class="error">${esc(result.error)}</div>` : promptHtml(result)}
-  </article>`;
-}
-
-function promptHtml(result) {
-  return `<div class="prompt-pair">
-    <div>
-      <div class="prompt-label"><span>System prompt</span><span>${esc(result?.query_id || '')}</span></div>
-      <textarea readonly>${esc(result?.system_prompt || '')}</textarea>
+    <div class="meta-grid">
+      <section class="meta-card"><h3>Fixed Base</h3><div class="chip-row">${base.map(x => chip(x, 'base')).join('')}</div></section>
+      <section class="meta-card"><h3>Active Toggles</h3><div class="chip-row">${active.length ? active.map(x => chip(x)).join('') : '<span class="small">none</span>'}</div></section>
+      <section class="meta-card"><h3>Unavailable Here</h3><div class="chip-row">${missing.length ? missing.map(x => chip(x, 'missing')).join('') : '<span class="small">none</span>'}</div></section>
     </div>
-    <div class="user">
-      <div class="prompt-label"><span>User prompt</span><span>${esc((result?.question || '').slice(0, 80))}</span></div>
-      <textarea readonly>${esc(result?.user_content || '')}</textarea>
-    </div>
-  </div>`;
+    <article class="prompt-card">
+      <div class="prompt-card-head"><h2>Rendered Prompt</h2><span>${esc((result.question || '').slice(0, 120))}</span></div>
+      <div class="prompt-grid">
+        <section class="prompt-section">
+          <div class="prompt-label"><span>System prompt</span><span>${(result.system_prompt || '').length} chars</span></div>
+          <textarea class="system-box" readonly>${esc(result.system_prompt || '')}</textarea>
+        </section>
+        <section class="prompt-section">
+          <div class="prompt-label"><span>User prompt</span><span>${(result.user_content || '').length} chars</span></div>
+          <textarea readonly>${esc(result.user_content || '')}</textarea>
+        </section>
+      </div>
+    </article>`;
 }
 
-function wireSampleSelectors() {
-  document.querySelectorAll('select[data-task-sample]').forEach(sel => {
-    sel.addEventListener('change', renderAll);
-  });
-}
-
-document.getElementById('taskView').addEventListener('change', () => { renderFeatureList(); renderResults(); });
+document.getElementById('taskView').addEventListener('change', async () => {
+  await loadSamples(currentTask());
+  renderSampleSelect();
+  renderFeatureList();
+  await renderSelectedTask();
+});
 document.getElementById('familyFilter').addEventListener('change', renderFeatureList);
 document.getElementById('search').addEventListener('input', renderFeatureList);
-document.getElementById('clearBtn').addEventListener('click', () => { SELECTED.clear(); renderFeatureList(); renderVector(); renderAll(); });
-document.getElementById('renderBtn').addEventListener('click', renderAll);
+document.getElementById('clearBtn').addEventListener('click', () => { SELECTED.clear(); renderFeatureList(); renderVector(); renderSelectedTask(); });
+document.getElementById('renderBtn').addEventListener('click', renderSelectedTask);
+document.getElementById('refreshBtn').addEventListener('click', renderSelectedTask);
+document.getElementById('sampleSelect').addEventListener('change', renderSelectedTask);
 document.querySelectorAll('button[data-vector]').forEach(btn => {
   btn.addEventListener('click', () => setVector(btn.dataset.vector.split(',').map(x => x.trim()).filter(Boolean)));
 });
 
 init().catch(err => {
-  document.getElementById('results').innerHTML = `<section class="panel"><div class="error">${esc(err.message || String(err))}</div></section>`;
+  document.getElementById('promptArea').innerHTML = `<div class="status-line bad"><span class="error">${esc(err.message || String(err))}</span></div>`;
 });
 </script>
 </body>
