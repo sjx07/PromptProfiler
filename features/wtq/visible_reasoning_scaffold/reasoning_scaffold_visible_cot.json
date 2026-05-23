@@ -3,7 +3,7 @@
   "task": "wtq",
   "semantic_labels": [
     {
-      "label": "reasoning.visible_trace",
+      "label": "reasoning.visible_thinking_out_loud_trace",
       "role": "mechanism"
     },
     {
@@ -25,7 +25,7 @@
   ],
   "scope": {
     "dataset": "wtq",
-    "profile": "visible_reasoning_trace",
+    "profile": "visible_thinking_out_loud_trace",
     "implementation_surface": "output_schema_and_task_instruction",
     "cost_dependency": "prompt_only",
     "visible_reasoning_field": true,
@@ -51,7 +51,7 @@
         "parent_id": "__root__",
         "payload": {
           "name": "reasoning",
-          "description": "Concise visible reasoning that cites the concrete table rows, columns, cell values, or computations used for this query.",
+          "description": "A concise thinking-out-loud trace that performs the table evidence work for this query: identify relevant rows or columns, apply the needed lookup/filter/count/compare/list operation, and state the support before the final answer.",
           "ordinal": 89
         }
       }
@@ -74,7 +74,7 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Use the `reasoning` field for a concise task-bound trace before the final answer. Reference the specific table rows, columns, cell values, or computations used for this query; do not write generic procedure text. Keep the final result separate from the reasoning trace.",
+          "content": "Use the `reasoning` field to think out loud in a compact, task-bound way before the final answer: name the relevant table evidence, show the minimal operation or comparison, and state the check that leads to the answer. Cite concrete rows, columns, cell values, or computations. Do not write generic procedure text. Keep the final answer separate.",
           "ordinal": 70
         }
       }
@@ -85,11 +85,11 @@
         "node_type": "rule",
         "parent_id": "73598c496947",
         "payload": {
-          "content": "Return only the fields shown in the output format instructions. Keep intermediate reasoning in the reasoning/workpad field(s), and keep the final result in the final output field.",
+          "content": "Return only the fields shown in the output format instructions. Put the task trace only in the `reasoning` field and put the final result only in the final output field.",
           "ordinal": 92
         }
       }
     }
   ],
-  "rationale": "General visible reasoning-trace carrier adapted from factory/cards/themes/reasoning-trace.md for WTQ."
+  "rationale": "Visible thinking-out-loud reasoning carrier adapted for table QA and verification tasks; replaces vanilla reasoning with evidence-bound trace behavior."
 }

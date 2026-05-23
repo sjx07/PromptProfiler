@@ -2,15 +2,29 @@
   "canonical_id": "reasoning_evidence_localization",
   "task": "wtq",
   "semantic_labels": [
-    {"label": "reasoning.evidence_localization", "role": "mechanism"},
-    {"label": "style.internal_procedure", "role": "style_rule"},
-    {"label": "format.dp_preserving", "role": "format"}
+    {
+      "label": "reasoning.evidence_localization",
+      "role": "mechanism"
+    },
+    {
+      "label": "style.visible_thinking_out_loud",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.visible_reasoning_trace",
+      "role": "format"
+    },
+    {
+      "label": "reasoning.visible_trace_refinement",
+      "role": "implementation_surface"
+    }
   ],
   "scope": {
     "dataset": "wtq",
-    "profile": "dp",
-    "implementation_surface": "task_or_user_instruction",
-    "cost_dependency": "prompt_only"
+    "profile": "visible_thinking_out_loud_trace",
+    "implementation_surface": "reasoning_field_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true
   },
   "requires": [
     "facet_dp_scaffold",
@@ -24,11 +38,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Before deciding internally, first identify the relevant columns and rows, ignore distractor rows, then extract the answer from those cells. Keep the visible `answer` field concise.",
+          "content": "In the `reasoning` field, first localize the relevant rows, columns, and cell values, then explain how those cells support the final answer. Ignore distractor rows explicitly when they could change the result.",
           "ordinal": 40
         }
       }
     }
   ],
-  "rationale": "Prompt-only DP-preserving reasoning behavior: filter table evidence before extracting the answer."
+  "rationale": "Prompt-only visible reasoning refinement: steer the reasoning field toward evidence localization with concrete table evidence."
 }

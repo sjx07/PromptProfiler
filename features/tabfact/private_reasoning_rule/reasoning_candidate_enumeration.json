@@ -2,17 +2,34 @@
   "canonical_id": "reasoning_candidate_enumeration",
   "task": "tabfact",
   "semantic_labels": [
-    {"label": "reasoning.candidate_enumeration", "role": "mechanism"},
-    {"label": "style.internal_procedure", "role": "style_rule"},
-    {"label": "format.dp_preserving", "role": "format"}
+    {
+      "label": "reasoning.candidate_enumeration",
+      "role": "mechanism"
+    },
+    {
+      "label": "style.visible_thinking_out_loud",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.visible_reasoning_trace",
+      "role": "format"
+    },
+    {
+      "label": "reasoning.visible_trace_refinement",
+      "role": "implementation_surface"
+    }
   ],
   "scope": {
     "dataset": "tabfact",
-    "profile": "dp",
-    "implementation_surface": "task_or_user_instruction",
-    "cost_dependency": "prompt_only"
+    "profile": "visible_thinking_out_loud_trace",
+    "implementation_surface": "reasoning_field_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true
   },
-  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning"
+  ],
   "conflicts_with": [],
   "primitive_edits": [
     {
@@ -21,11 +38,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "For statements involving counts, superlatives, all/only claims, or multiple entities, internally enumerate the candidate rows or values before deciding whether every statement part is supported.",
+          "content": "In the `reasoning` field, enumerate the table rows or values relevant to the statement before deciding the verdict. Include all rows that support, contradict, or qualify the claim part being checked.",
           "ordinal": 60
         }
       }
     }
   ],
-  "rationale": "Prompt-only TabFact adaptation of candidate enumeration: enumerate rows or values before committing to a support/refute verdict."
+  "rationale": "Prompt-only visible reasoning refinement: steer the reasoning field toward candidate enumeration with concrete table evidence."
 }

@@ -2,19 +2,38 @@
   "canonical_id": "reasoning_intermediate_evidence_table",
   "task": "wtq",
   "semantic_labels": [
-    {"label": "reasoning.intermediate_evidence_table", "role": "mechanism"},
-    {"label": "reasoning.representation_scaffold", "role": "mechanism"},
-    {"label": "style.internal_procedure", "role": "style_rule"},
-    {"label": "format.dp_preserving", "role": "format"}
+    {
+      "label": "reasoning.intermediate_evidence_table",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.visible_representation_trace",
+      "role": "mechanism"
+    },
+    {
+      "label": "style.visible_thinking_out_loud",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.visible_reasoning_trace",
+      "role": "format"
+    },
+    {
+      "label": "reasoning.visible_trace_refinement",
+      "role": "implementation_surface"
+    }
   ],
   "scope": {
     "dataset": "wtq",
-    "profile": "dp",
-    "implementation_surface": "task_or_user_instruction",
+    "profile": "visible_thinking_out_loud_trace",
+    "implementation_surface": "reasoning_field_instruction",
     "cost_dependency": "prompt_only",
-    "visible_reasoning_field": false
+    "visible_reasoning_field": true
   },
-  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning"
+  ],
   "conflicts_with": [],
   "primitive_edits": [
     {
@@ -23,11 +42,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Internally build a minimal evidence table containing only the relevant columns, rows, and cell values. Answer from that reduced evidence table, but do not print the evidence table.",
+          "content": "In the `reasoning` field, write a compact evidence table or bullet list containing only the relevant columns, rows, and cell values. Derive the final answer from that reduced evidence.",
           "ordinal": 54
         }
       }
     }
   ],
-  "rationale": "Prompt-only private representation scaffold: construct a hidden reduced evidence table before final output."
+  "rationale": "Prompt-only visible reasoning refinement: steer the reasoning field toward intermediate evidence table with concrete table evidence."
 }

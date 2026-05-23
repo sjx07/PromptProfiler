@@ -88,5 +88,5 @@
       }
     }
   ],
-  "rationale": "Visible plan-answer scaffold for testing whether an explicit reasoning field changes SQA behavior beyond private DP-preserving rules."
+  "rationale": "Visible plan-answer scaffold for testing whether an explicit plan field changes SQA reasoning behavior beyond the default answer-only surface."
 }

@@ -2,15 +2,29 @@
   "canonical_id": "reasoning_extract_then_compute",
   "task": "tabfact",
   "semantic_labels": [
-    {"label": "reasoning.extract_then_compute", "role": "mechanism"},
-    {"label": "style.internal_procedure", "role": "style_rule"},
-    {"label": "format.dp_preserving", "role": "format"}
+    {
+      "label": "reasoning.extract_then_compute",
+      "role": "mechanism"
+    },
+    {
+      "label": "style.visible_thinking_out_loud",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.visible_reasoning_trace",
+      "role": "format"
+    },
+    {
+      "label": "reasoning.visible_trace_refinement",
+      "role": "implementation_surface"
+    }
   ],
   "scope": {
     "dataset": "tab_fact",
-    "profile": "dp",
-    "implementation_surface": "task_or_user_instruction",
-    "cost_dependency": "prompt_only"
+    "profile": "visible_thinking_out_loud_trace",
+    "implementation_surface": "reasoning_field_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true
   },
   "requires": [
     "facet_dp_scaffold",
@@ -24,11 +38,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "For numeric, ranking, comparison, or count statements, internally extract the relevant table cells first, then compute or compare them before deciding the final verdict. Put only the final verdict in `verdict`.",
+          "content": "In the `reasoning` field, separate evidence extraction from claim checking: list the table values needed for the statement part, then perform the comparison, count, rank, or lookup that determines the verdict.",
           "ordinal": 40
         }
       }
     }
   ],
-  "rationale": "Prompt-only direct-verdict reasoning behavior: separate evidence extraction from computation without exposing a visible reasoning field."
+  "rationale": "Prompt-only visible reasoning refinement: steer the reasoning field toward extract then compute with concrete table evidence."
 }

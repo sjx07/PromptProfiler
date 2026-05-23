@@ -2,17 +2,34 @@
   "canonical_id": "reasoning_verify_before_output",
   "task": "sqa",
   "semantic_labels": [
-    {"label": "reasoning.verify_before_output", "role": "mechanism"},
-    {"label": "constraint.final_answer_check", "role": "constraint"},
-    {"label": "format.dp_preserving", "role": "format"}
+    {
+      "label": "reasoning.verify_before_output",
+      "role": "mechanism"
+    },
+    {
+      "label": "constraint.final_answer_check",
+      "role": "constraint"
+    },
+    {
+      "label": "format.visible_reasoning_trace",
+      "role": "format"
+    },
+    {
+      "label": "reasoning.visible_trace_refinement",
+      "role": "implementation_surface"
+    }
   ],
   "scope": {
     "dataset": "sqa",
-    "profile": "dp",
-    "implementation_surface": "task_or_user_instruction",
-    "cost_dependency": "prompt_only"
+    "profile": "visible_thinking_out_loud_trace",
+    "implementation_surface": "reasoning_field_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true
   },
-  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning"
+  ],
   "conflicts_with": [],
   "primitive_edits": [
     {
@@ -21,11 +38,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Before output, internally verify that the answer resolves the current question, is consistent with prior turns, and appears in or is computed from the table. If multiple values are needed, include all and only those values.",
+          "content": "In the `reasoning` field, explicitly verify that the final value resolves the current turn, respects prior-turn context when relevant, matches the table evidence, and has the expected answer granularity. State this verification using concrete rows, columns, cell values, prior answer references, or computations before writing the final answer.",
           "ordinal": 70
         }
       }
     }
   ],
-  "rationale": "Prompt-only DP-preserving reasoning behavior: final consistency check without adding a visible reasoning field."
+  "rationale": "Prompt-only visible reasoning refinement: steer the reasoning field toward verify before output with concrete table evidence."
 }

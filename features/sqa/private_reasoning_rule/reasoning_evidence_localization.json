@@ -2,17 +2,34 @@
   "canonical_id": "reasoning_evidence_localization",
   "task": "sqa",
   "semantic_labels": [
-    {"label": "reasoning.evidence_localization", "role": "mechanism"},
-    {"label": "grounding.cell_evidence", "role": "grounding"},
-    {"label": "format.dp_preserving", "role": "format"}
+    {
+      "label": "reasoning.evidence_localization",
+      "role": "mechanism"
+    },
+    {
+      "label": "grounding.cell_evidence",
+      "role": "grounding"
+    },
+    {
+      "label": "format.visible_reasoning_trace",
+      "role": "format"
+    },
+    {
+      "label": "reasoning.visible_trace_refinement",
+      "role": "implementation_surface"
+    }
   ],
   "scope": {
     "dataset": "sqa",
-    "profile": "dp",
-    "implementation_surface": "task_or_user_instruction",
-    "cost_dependency": "prompt_only"
+    "profile": "visible_thinking_out_loud_trace",
+    "implementation_surface": "reasoning_field_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true
   },
-  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning"
+  ],
   "conflicts_with": [],
   "primitive_edits": [
     {
@@ -21,11 +38,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Before answering, internally locate the table columns, rows, and prior-turn references that ground the answer. Use only that localized evidence when filling `answer`.",
+          "content": "In the `reasoning` field, first localize the relevant rows, columns, cell values, and any prior-turn constraint, then explain how those cells support the final answer. Ignore distractor rows explicitly when they could change the result.",
           "ordinal": 50
         }
       }
     }
   ],
-  "rationale": "Prompt-only DP-preserving reasoning behavior: bind the answer to localized table and conversation evidence."
+  "rationale": "Prompt-only visible reasoning refinement: steer the reasoning field toward evidence localization with concrete table evidence."
 }

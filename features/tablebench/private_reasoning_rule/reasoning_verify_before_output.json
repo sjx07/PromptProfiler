@@ -2,15 +2,29 @@
   "canonical_id": "reasoning_verify_before_output",
   "task": "tablebench",
   "semantic_labels": [
-    {"label": "reasoning.verify_before_output", "role": "mechanism"},
-    {"label": "style.internal_procedure", "role": "style_rule"},
-    {"label": "format.dp_preserving", "role": "format"}
+    {
+      "label": "reasoning.verify_before_output",
+      "role": "mechanism"
+    },
+    {
+      "label": "style.visible_thinking_out_loud",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.visible_reasoning_trace",
+      "role": "format"
+    },
+    {
+      "label": "reasoning.visible_trace_refinement",
+      "role": "implementation_surface"
+    }
   ],
   "scope": {
     "dataset": "tablebench",
-    "profile": "dp",
-    "implementation_surface": "task_or_user_instruction",
-    "cost_dependency": "prompt_only"
+    "profile": "visible_thinking_out_loud_trace",
+    "implementation_surface": "reasoning_field_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true
   },
   "requires": [
     "facet_dp_scaffold",
@@ -24,11 +38,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "Before writing `answer`, internally verify that the final value matches the question wording, the relevant table cells, and the expected answer granularity. Then output only the verified final answer.",
+          "content": "In the `reasoning` field, explicitly verify that the final value matches the question wording, the relevant table evidence, and the expected answer granularity. State this verification using concrete rows, columns, cell values, or computations before writing the final answer.",
           "ordinal": 40
         }
       }
     }
   ],
-  "rationale": "Prompt-only DP-preserving reasoning behavior: final answer verification without exposing a visible reasoning field."
+  "rationale": "Prompt-only visible reasoning refinement: steer the reasoning field toward verify before output with concrete table evidence."
 }

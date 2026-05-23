@@ -2,15 +2,29 @@
   "canonical_id": "reasoning_candidate_enumeration",
   "task": "wtq",
   "semantic_labels": [
-    {"label": "reasoning.candidate_enumeration", "role": "mechanism"},
-    {"label": "style.internal_procedure", "role": "style_rule"},
-    {"label": "format.dp_preserving", "role": "format"}
+    {
+      "label": "reasoning.candidate_enumeration",
+      "role": "mechanism"
+    },
+    {
+      "label": "style.visible_thinking_out_loud",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.visible_reasoning_trace",
+      "role": "format"
+    },
+    {
+      "label": "reasoning.visible_trace_refinement",
+      "role": "implementation_surface"
+    }
   ],
   "scope": {
     "dataset": "wtq",
-    "profile": "dp",
-    "implementation_surface": "task_or_user_instruction",
-    "cost_dependency": "prompt_only"
+    "profile": "visible_thinking_out_loud_trace",
+    "implementation_surface": "reasoning_field_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true
   },
   "requires": [
     "facet_dp_scaffold",
@@ -24,11 +38,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "For count, all-match, superlative, or ranking questions, internally enumerate the candidate rows or values before selecting the final answer. Do not skip ties or qualifying rows.",
+          "content": "In the `reasoning` field, enumerate the candidate rows or values that satisfy the question before selecting the final answer. For count, all-match, superlative, or ranking questions, include ties and every qualifying row or value.",
           "ordinal": 40
         }
       }
     }
   ],
-  "rationale": "Prompt-only DP-preserving reasoning behavior: exhaustive candidate enumeration before final selection."
+  "rationale": "Prompt-only visible reasoning refinement: steer the reasoning field toward candidate enumeration with concrete table evidence."
 }

@@ -2,19 +2,38 @@
   "canonical_id": "reasoning_critique_then_revise",
   "task": "hitab",
   "semantic_labels": [
-    {"label": "reasoning.critique_then_revise", "role": "mechanism"},
-    {"label": "reasoning.process_scaffold", "role": "mechanism"},
-    {"label": "style.internal_procedure", "role": "style_rule"},
-    {"label": "format.dp_preserving", "role": "format"}
+    {
+      "label": "reasoning.critique_then_revise",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.visible_process_trace",
+      "role": "mechanism"
+    },
+    {
+      "label": "style.visible_thinking_out_loud",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.visible_reasoning_trace",
+      "role": "format"
+    },
+    {
+      "label": "reasoning.visible_trace_refinement",
+      "role": "implementation_surface"
+    }
   ],
   "scope": {
     "dataset": "hitab",
-    "profile": "dp",
-    "implementation_surface": "task_or_user_instruction",
+    "profile": "visible_thinking_out_loud_trace",
+    "implementation_surface": "reasoning_field_instruction",
     "cost_dependency": "prompt_only",
-    "visible_reasoning_field": false
+    "visible_reasoning_field": true
   },
-  "requires": ["facet_dp_scaffold", "_section_reasoning"],
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning"
+  ],
   "conflicts_with": [],
   "primitive_edits": [
     {
@@ -23,11 +42,11 @@
         "node_type": "rule",
         "parent_id": "d51d3f3e65a8",
         "payload": {
-          "content": "After drafting the answer internally, critique it against the question wording, relevant hierarchical headers, table cells, and output contract. If the draft is unsupported, incomplete, or misformatted, revise before writing `answer`.",
+          "content": "In the `reasoning` field, derive a tentative answer, then check it against the relevant hierarchical headers, table cells, question wording, and answer granularity. If the tentative answer is unsupported, incomplete, or too broad, revise it before writing the final answer.",
           "ordinal": 55
         }
       }
     }
   ],
-  "rationale": "Prompt-only private process scaffold for HiTab."
+  "rationale": "Prompt-only visible reasoning refinement: steer the reasoning field toward critique then revise with concrete table evidence."
 }

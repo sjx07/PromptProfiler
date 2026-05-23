@@ -1,0 +1,310 @@
+{
+  "study_id": "wikitable_reasoning_out_loud_addone_v1",
+  "description": "Reasoning-out-loud add-one sweep for WikiTable-style benchmarks. Every valid row uses plain prompt format, JSON-columns table serialization, and the visible thinking-out-loud scaffold as the background; each non-background feature is swept one at a time.",
+  "preview_path": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/reasoning_out_loud_addone/wikitable_reasoning_out_loud_addone_v1_preview.html",
+  "common_config": {
+    "experiment_type": "explicit_coalitions",
+    "config_kind": "reasoning_out_loud_addone",
+    "split": "test",
+    "max_queries": 0,
+    "sample_seed": 42,
+    "seed": 42,
+    "max_tokens": 2048,
+    "temperature": 0,
+    "top_p": 1.0,
+    "sampling_top_k": -1,
+    "model": "Qwen/Qwen2.5-14B-Instruct",
+    "ports": [
+      8000,
+      8001,
+      8002,
+      8003
+    ],
+    "num_workers": 128,
+    "request_timeout": 240,
+    "retry_errors": true,
+    "db_path": "/data/users/jsu323/facet/wikitable_reasoning_out_loud_addone_v1.db",
+    "vllm_db": "/data/users/jsu323/facet/wikitable_reasoning_out_loud_addone_v1_vllm.db",
+    "batch_configs": true,
+    "include_base": false,
+    "summary_baseline_label": "base"
+  },
+  "targets": {
+    "wtq": {
+      "task": "wtq",
+      "phase": "wtq_reasoning_out_loud_addone_v1_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/reasoning_out_loud_addone/wtq.reasoning_out_loud_addone_v1.full.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "scaffold.cot"
+      ]
+    },
+    "sqa": {
+      "task": "sqa",
+      "phase": "sqa_reasoning_out_loud_addone_v1_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/reasoning_out_loud_addone/sqa.reasoning_out_loud_addone_v1.full.json",
+      "sqa_data_dir": "/data/users/jsu323/sqa/SQA Release 1.0",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold",
+        "sqa_dialog_binding_base"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "scaffold.cot"
+      ]
+    },
+    "tablebench": {
+      "task": "tablebench",
+      "phase": "tablebench_reasoning_out_loud_addone_v1_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/reasoning_out_loud_addone/tablebench.reasoning_out_loud_addone_v1.full.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "scaffold.cot"
+      ]
+    },
+    "tabfact": {
+      "task": "tabfact",
+      "split": "validation",
+      "phase": "tabfact_reasoning_out_loud_addone_v1_qwen25_14b_validation",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/reasoning_out_loud_addone/tabfact.reasoning_out_loud_addone_v1.validation.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "scaffold.cot"
+      ]
+    },
+    "hitab": {
+      "task": "hitab",
+      "phase": "hitab_reasoning_out_loud_addone_v1_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/reasoning_out_loud_addone/hitab.reasoning_out_loud_addone_v1.full.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "scaffold.cot"
+      ]
+    }
+  },
+  "families": {
+    "format": {
+      "mode": "exclusive",
+      "description": "Prompt layout and delimiter surface. The add-one replaces the fixed plain renderer."
+    },
+    "ser": {
+      "mode": "exclusive",
+      "description": "Table serialization. The add-one replaces the fixed JSON-columns table view."
+    },
+    "ctx": {
+      "mode": "additive",
+      "description": "Lightweight deterministic input-context builders. Row/column relevance selection is deferred."
+    },
+    "scaffold": {
+      "mode": "exclusive",
+      "description": "Visible thinking-out-loud reasoning carrier. The COT trace scaffold is the fixed background in this study."
+    },
+    "reason": {
+      "mode": "additive",
+      "description": "Visible reasoning-field refinements layered on top of the thinking-out-loud carrier."
+    }
+  },
+  "blocks": {
+    "format.plain": {
+      "family": "format",
+      "role": "fixed_background",
+      "atoms": [
+        "prompt_format_plain"
+      ]
+    },
+    "format.json": {
+      "family": "format",
+      "role": "add_one",
+      "atoms": [
+        "prompt_format_json"
+      ]
+    },
+    "ser.columns": {
+      "family": "ser",
+      "role": "fixed_background",
+      "atoms": [
+        "table_serialization_json_columns_data"
+      ]
+    },
+    "ser.records": {
+      "family": "ser",
+      "role": "add_one",
+      "atoms": [
+        "table_serialization_json_records"
+      ]
+    },
+    "ser.html": {
+      "family": "ser",
+      "role": "add_one",
+      "atoms": [
+        "table_serialization_html"
+      ]
+    },
+    "scaffold.cot": {
+      "family": "scaffold",
+      "role": "fixed_background",
+      "atoms": [
+        "reasoning_scaffold_visible_cot"
+      ]
+    },
+    "ctx.stats": {
+      "family": "ctx",
+      "role": "add_one",
+      "atoms": [
+        "input_context_column_statistics"
+      ]
+    },
+    "ctx.type": {
+      "family": "ctx",
+      "role": "add_one",
+      "atoms": [
+        "input_context_type_annotation"
+      ]
+    },
+    "reason.extract_compute": {
+      "family": "reason",
+      "role": "add_one",
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_extract_then_compute"
+      ]
+    },
+    "reason.evidence_localize": {
+      "family": "reason",
+      "role": "add_one",
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_evidence_localization"
+      ]
+    },
+    "reason.enumerate": {
+      "family": "reason",
+      "role": "add_one",
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_candidate_enumeration"
+      ]
+    },
+    "reason.evidence_table": {
+      "family": "reason",
+      "role": "add_one",
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_intermediate_evidence_table"
+      ]
+    },
+    "reason.symbolic_op": {
+      "family": "reason",
+      "role": "add_one",
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_symbolic_operation"
+      ]
+    },
+    "reason.verify": {
+      "family": "reason",
+      "role": "add_one",
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_verify_before_output"
+      ]
+    },
+    "reason.plan_answer": {
+      "family": "reason",
+      "role": "add_one",
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_plan_then_answer"
+      ]
+    },
+    "reason.critique_revise": {
+      "family": "reason",
+      "role": "add_one",
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_critique_then_revise"
+      ]
+    }
+  },
+  "generation": {
+    "include_anchor": true,
+    "main_blocks": [
+      "format.json",
+      "ser.records",
+      "ser.html",
+      "ctx.stats",
+      "ctx.type",
+      "reason.extract_compute",
+      "reason.evidence_localize",
+      "reason.enumerate",
+      "reason.evidence_table",
+      "reason.symbolic_op",
+      "reason.verify",
+      "reason.plan_answer",
+      "reason.critique_revise"
+    ]
+  }
+}
