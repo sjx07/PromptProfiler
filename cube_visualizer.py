@@ -17,6 +17,7 @@ import sys
 import threading
 import traceback
 import webbrowser
+from collections import OrderedDict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -40,9 +41,22 @@ class CubeApp:
         self.cube_path = str(path)
         self.store = CubeStore(self.cube_path, read_only=True)
         self.lock = threading.Lock()
+        self.cache: "OrderedDict[str, Any]" = OrderedDict()
+        self.cache_max_entries = 64
 
     def close(self) -> None:
         self.store.close()
+
+    def cached(self, key: str, fn: Callable[[], Any]) -> Any:
+        if key in self.cache:
+            self.cache.move_to_end(key)
+            return self.cache[key]
+        value = fn()
+        self.cache[key] = value
+        self.cache.move_to_end(key)
+        while len(self.cache) > self.cache_max_entries:
+            self.cache.popitem(last=False)
+        return value
 
 
 def make_handler(app: CubeApp):
@@ -58,7 +72,7 @@ def make_handler(app: CubeApp):
                 self._api(lambda _body, _qs: {
                     "cubePath": app.cube_path,
                     "summary": cube_ops.cube_summary(app.store),
-                })
+                }, cache_key=_cache_key(parsed))
                 return
             if parsed.path == "/api/configs":
                 self._api(lambda _body, qs: cube_ops.list_configs_detailed(
@@ -68,6 +82,11 @@ def make_handler(app: CubeApp):
                     dataset=_first_qs(qs, "dataset"),
                     split=_first_qs(qs, "split"),
                     only_with_results=_truthy_qs(qs, "onlyWithResults"),
+                    feature_mode=_first_qs(qs, "featureMode"),
+                    feature_atoms=_list_qs(qs, "featureAtoms"),
+                    feature_axes=_list_qs(qs, "featureAxes"),
+                    config_groups=_list_qs(qs, "configGroups"),
+                    include_meta=_truthy_qs(qs, "includeMeta"),
                 ))
                 return
             if parsed.path == "/api/meta-fields":
@@ -78,7 +97,7 @@ def make_handler(app: CubeApp):
                     model=_first_qs(qs, "model"),
                     scorer=_first_qs(qs, "scorer"),
                     only_with_results=_truthy_qs(qs, "onlyWithResults"),
-                ))
+                ), cache_key=_cache_key(parsed))
                 return
             if parsed.path == "/api/predicates":
                 self._api(lambda _body, qs: cube_ops.list_predicate_fields(
@@ -88,7 +107,7 @@ def make_handler(app: CubeApp):
                     model=_first_qs(qs, "model"),
                     scorer=_first_qs(qs, "scorer"),
                     only_with_results=_truthy_qs(qs, "onlyWithResults"),
-                ))
+                ), cache_key=_cache_key(parsed))
                 return
             if parsed.path == "/api/artifact":
                 self._api(lambda _body, qs: _not_none(
@@ -110,6 +129,7 @@ def make_handler(app: CubeApp):
                 "/api/compare-examples": _post_compare_examples,
                 "/api/diagnostics": _post_diagnostics,
                 "/api/feature-labels": _post_feature_labels,
+                "/api/feature-summary": _post_feature_summary,
                 "/api/plan-delete": _post_plan_delete,
             }
             route = routes.get(parsed.path)
@@ -125,13 +145,21 @@ def make_handler(app: CubeApp):
                 fmt % args,
             ))
 
-        def _api(self, fn: Callable[[Dict[str, Any], Dict[str, list]], Any]) -> None:
+        def _api(
+            self,
+            fn: Callable[[Dict[str, Any], Dict[str, list]], Any],
+            *,
+            cache_key: Optional[str] = None,
+        ) -> None:
             parsed = urlparse(self.path)
             try:
                 body = self._read_json_body()
                 qs = parse_qs(parsed.query)
                 with app.lock:
-                    payload = fn(body, qs)
+                    if cache_key:
+                        payload = app.cached(cache_key, lambda: fn(body, qs))
+                    else:
+                        payload = fn(body, qs)
                 self._send_json({"ok": True, "data": payload})
             except ValueError as e:
                 self._send_json(
@@ -158,7 +186,7 @@ def make_handler(app: CubeApp):
             return data
 
         def _send_json(self, payload: Dict[str, Any], *, status: int = HTTPStatus.OK) -> None:
-            data = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8")
+            data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
@@ -240,6 +268,18 @@ def make_handler(app: CubeApp):
             base_config_id=_maybe_int(body.get("baseConfigId")),
             filters=body.get("filters") or [],
             limit=int(body.get("limit") or 500),
+        )
+
+    def _post_feature_summary(body: Dict[str, Any], _qs: Dict[str, list]) -> Any:
+        return cube_ops.feature_summary(
+            app.store,
+            model=_required(body, "model"),
+            scorer=_required(body, "scorer"),
+            config_ids=_int_list(body.get("configIds")),
+            base_config_id=_maybe_int(body.get("baseConfigId")),
+            filters=body.get("filters") or [],
+            include_sections=bool(body.get("includeSections") or False),
+            limit=int(body.get("limit") or 1000),
         )
 
     def _post_plan_delete(body: Dict[str, Any], _qs: Dict[str, list]) -> Any:
@@ -332,11 +372,28 @@ def _request_limit(value: Any, *, default: int) -> Optional[int]:
     return None if n <= 0 else n
 
 
+def _cache_key(parsed: Any) -> str:
+    return parsed.path + ("?" + parsed.query if parsed.query else "")
+
+
 def _first_qs(qs: Dict[str, list], key: str) -> Optional[str]:
     values = qs.get(key)
     if not values:
         return None
     return values[0] or None
+
+
+def _list_qs(qs: Dict[str, list], key: str) -> Optional[list[str]]:
+    values = qs.get(key)
+    if not values:
+        return None
+    out: list[str] = []
+    for raw in values:
+        for value in str(raw or "").split(","):
+            value = value.strip()
+            if value:
+                out.append(value)
+    return out or None
 
 
 def _truthy_qs(qs: Dict[str, list], key: str) -> bool:
@@ -528,6 +585,17 @@ INDEX_HTML = r"""<!doctype html>
     tr.selectable { cursor: pointer; }
     tr.selectable:hover td { background: #eef7f4; }
     tr.selected td { background: #dff3ed; }
+    tr.group-row td {
+      background: #eef1f5;
+      color: #475467;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+    .chip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+    }
     .metric-strip {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -634,6 +702,39 @@ INDEX_HTML = r"""<!doctype html>
         <label>Configs</label>
         <select id="configSelect" multiple></select>
       </div>
+      <div class="field">
+        <label>Feature filter</label>
+        <select id="featureModeSelect">
+          <option value="all">All configs</option>
+          <option value="contains_atoms">Has selected atoms</option>
+          <option value="exact_atoms">Exact atom coalition</option>
+          <option value="contains_axes">Has selected families</option>
+          <option value="exact_axes">Exact family coalition</option>
+          <option value="groups">Config group</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Feature atoms</label>
+        <select id="featureAtomSelect" multiple></select>
+      </div>
+      <div class="field">
+        <label>Feature families</label>
+        <select id="featureAxisSelect" multiple></select>
+      </div>
+      <div class="field">
+        <label>Config groups</label>
+        <select id="featureGroupSelect" multiple></select>
+      </div>
+      <div class="field">
+        <label>Config order</label>
+        <select id="configSortSelect">
+          <option value="family">Family / feature axis</option>
+          <option value="score_desc">Score descending</option>
+          <option value="score_asc">Score ascending</option>
+          <option value="completion">Completion gap</option>
+          <option value="id">Config id</option>
+        </select>
+      </div>
       <div class="row">
         <div class="field">
           <label>Base</label>
@@ -658,6 +759,7 @@ INDEX_HTML = r"""<!doctype html>
         <button id="sliceBtn">Slice</button>
         <button id="compareBtn">Compare</button>
         <button id="diagBtn">Diagnostics</button>
+        <button id="featureBtn">Features</button>
         <button id="labelsBtn">Labels</button>
         <button id="planBtn">Plan Delete</button>
       </div>
@@ -712,6 +814,7 @@ INDEX_HTML = r"""<!doctype html>
       predicates: [],
       appliedBenchmark: {dataset: '', split: ''},
       selectedSlice: null,
+      selectedConfigId: null,
       selectedExampleId: null,
       artifact: null,
       artifactTab: 'rawResponse'
@@ -775,6 +878,15 @@ INDEX_HTML = r"""<!doctype html>
 
     function selectedConfigIds() {
       return selectedValues('configSelect').map(Number);
+    }
+
+    function featureFilterState() {
+      return {
+        mode: $('featureModeSelect')?.value || 'all',
+        atoms: selectedValues('featureAtomSelect'),
+        axes: selectedValues('featureAxisSelect'),
+        groups: selectedValues('featureGroupSelect')
+      };
     }
 
     function currentScope() {
@@ -883,6 +995,7 @@ INDEX_HTML = r"""<!doctype html>
 
     function clearScopedOutputs() {
       state.selectedSlice = null;
+      state.selectedConfigId = null;
       state.selectedExampleId = null;
       state.artifact = null;
       $('sliceCount').textContent = '';
@@ -923,29 +1036,124 @@ INDEX_HTML = r"""<!doctype html>
       }
       if (b.split) q.set('split', b.split);
       state.configs = await api('/api/configs?' + q.toString());
+      populateFeatureControls();
       renderConfigControls();
       renderConfigsTable();
     }
 
+    function populateFeatureControls() {
+      const prev = {
+        mode: $('featureModeSelect').value || 'all',
+        atoms: new Set(selectedValues('featureAtomSelect')),
+        axes: new Set(selectedValues('featureAxisSelect')),
+        groups: new Set(selectedValues('featureGroupSelect'))
+      };
+      const atoms = uniqueSorted(state.configs.flatMap(r => r.surfaceAtoms || []));
+      const axes = uniqueSorted(state.configs.flatMap(r => r.configAxes || []));
+      const groups = uniqueSorted(state.configs.map(r => r.configGroup || '').filter(Boolean));
+      $('featureModeSelect').value = prev.mode;
+      $('featureAtomSelect').innerHTML = atoms.map(v => option(v, v, prev.atoms.has(v))).join('');
+      $('featureAxisSelect').innerHTML = axes.map(v => option(v, v, prev.axes.has(v))).join('');
+      $('featureGroupSelect').innerHTML = groups.map(v => option(compactGroupName(v), v, prev.groups.has(v))).join('');
+    }
+
+    function uniqueSorted(values) {
+      return Array.from(new Set((values || []).filter(v => v !== null && v !== undefined && String(v).trim()).map(v => String(v)))).sort();
+    }
+
+    function setFrom(values) {
+      return new Set((values || []).map(v => String(v)).filter(Boolean));
+    }
+
+    function isSubset(wanted, actual) {
+      for (const value of wanted) {
+        if (!actual.has(value)) return false;
+      }
+      return true;
+    }
+
+    function sameSet(a, b) {
+      return a.size === b.size && isSubset(a, b);
+    }
+
+    function configMatchesFeatureFilter(row) {
+      const filter = featureFilterState();
+      const atoms = setFrom(row.surfaceAtoms || []);
+      const axes = setFrom(row.configAxes || []);
+      const wantedAtoms = setFrom(filter.atoms);
+      const wantedAxes = setFrom(filter.axes);
+      const wantedGroups = setFrom(filter.groups);
+      if (filter.mode === 'contains_atoms') return !wantedAtoms.size || isSubset(wantedAtoms, atoms);
+      if (filter.mode === 'exact_atoms') return !wantedAtoms.size || sameSet(wantedAtoms, atoms);
+      if (filter.mode === 'contains_axes') return !wantedAxes.size || isSubset(wantedAxes, axes);
+      if (filter.mode === 'exact_axes') return !wantedAxes.size || sameSet(wantedAxes, axes);
+      if (filter.mode === 'groups') return !wantedGroups.size || wantedGroups.has(row.configGroup || '');
+      return true;
+    }
+
+    function visibleConfigs() {
+      return state.configs.filter(configMatchesFeatureFilter);
+    }
+
+    function featureFilterDescription() {
+      const filter = featureFilterState();
+      const labels = {
+        all: 'all configs',
+        contains_atoms: `has atoms ${filter.atoms.join(', ') || '(any)'}`,
+        exact_atoms: `exact atoms ${filter.atoms.join(', ') || '(any)'}`,
+        contains_axes: `has families ${filter.axes.join(', ') || '(any)'}`,
+        exact_axes: `exact families ${filter.axes.join(', ') || '(any)'}`,
+        groups: `groups ${filter.groups.map(compactGroupName).join(', ') || '(any)'}`
+      };
+      return labels[filter.mode] || 'all configs';
+    }
+
     function renderConfigControls() {
-      const rows = state.configs;
+      const rows = sortedConfigs();
       const selectedDefaults = new Set(rows.map(r => r.configId));
       $('configSelect').innerHTML = rows.map(r => {
-        const label = `${r.configId} ${configDisplayName(r)} score=${fmtScore(r.avgScore)}`;
+        const label = `${r.configId} ${compactGroupName(r.configGroup)} · ${configDisplayName(r)} score=${fmtScore(r.avgScore)}`;
         return option(label, r.configId, selectedDefaults.has(r.configId));
       }).join('');
       $('baseSelect').innerHTML = rows.map((r, i) => option(`${r.configId} ${configDisplayName(r)}`, r.configId, i === 0)).join('');
       $('targetSelect').innerHTML = rows.map((r, i) => option(`${r.configId} ${configDisplayName(r)}`, r.configId, i === Math.min(1, rows.length - 1))).join('');
-      $('configCount').textContent = `${rows.length} configs · ${appliedBenchmarkLabel()}`;
+      const suffix = rows.length === state.configs.length ? '' : ` / ${state.configs.length}`;
+      $('configCount').textContent = `${rows.length}${suffix} configs · ${appliedBenchmarkLabel()}`;
+    }
+
+    function sortedConfigs() {
+      const mode = $('configSortSelect')?.value || 'family';
+      const rows = [...visibleConfigs()];
+      const score = r => r.avgScore === null || r.avgScore === undefined ? -Infinity : Number(r.avgScore);
+      const gap = r => Math.max(0, Number(r.nExecutions || 0) - Number(r.nEvaluations || 0));
+      if (mode === 'id') {
+        rows.sort((a, b) => a.configId - b.configId);
+      } else if (mode === 'score_desc') {
+        rows.sort((a, b) => score(b) - score(a) || a.configId - b.configId);
+      } else if (mode === 'score_asc') {
+        rows.sort((a, b) => score(a) - score(b) || a.configId - b.configId);
+      } else if (mode === 'completion') {
+        rows.sort((a, b) => gap(b) - gap(a) || a.configId - b.configId);
+      } else {
+        rows.sort((a, b) =>
+          String(a.sortKey || '').localeCompare(String(b.sortKey || '')) ||
+          a.configId - b.configId
+        );
+      }
+      return rows;
     }
 
     function configDisplayName(row) {
-      return row.canonicalId || row.label || row.kind || '';
+      return row.cleanLabel || row.label || row.canonicalId || row.kind || '';
     }
 
     function configFeatureTitle(row) {
       const ids = row.canonicalIds || row.resolvedCanonicalIds || [];
       return ids.join(', ');
+    }
+
+    function compactGroupName(group) {
+      return String(group || '90 other').replace(/^\d+\s+/, '');
     }
 
     function renderSummary() {
@@ -968,23 +1176,51 @@ INDEX_HTML = r"""<!doctype html>
     }
 
     function renderConfigsTable() {
-      const rows = state.configs;
+      const rows = sortedConfigs();
+      let lastGroup = null;
+      const bodyRows = [];
+      rows.forEach(r => {
+        const group = compactGroupName(r.configGroup);
+        if (group !== lastGroup && ($('configSortSelect').value || 'family') === 'family') {
+          lastGroup = group;
+          bodyRows.push(`<tr class="group-row"><td colspan="7">${esc(group)}</td></tr>`);
+        }
+        const axes = (r.surfaceAtoms && r.surfaceAtoms.length ? r.surfaceAtoms : r.configAxes || []);
+        bodyRows.push(`<tr class="selectable" data-config="${r.configId}">
+          <td class="mono">${r.configId}</td>
+          <td title="${esc(r.configGroup || '')}">${esc(group)}</td>
+          <td title="${esc(configFeatureTitle(r))}">${esc(configDisplayName(r))}</td>
+          <td><div class="chip-list">${axes.map(a => `<span class="pill">${esc(a)}</span>`).join('')}</div></td>
+          <td>${r.nExecutions}</td>
+          <td>${r.nEvaluations}</td>
+          <td>${fmtScore(r.avgScore)}</td>
+        </tr>`);
+      });
       $('configsTable').innerHTML = `
         <thead><tr>
-          <th style="width:64px">id</th><th>canonical</th><th>kind</th>
+          <th style="width:64px">id</th><th style="width:150px">group</th><th>label</th><th>atoms</th>
           <th style="width:72px">exec</th><th style="width:72px">eval</th>
           <th style="width:82px">score</th>
         </tr></thead>
-        <tbody>
-          ${rows.map(r => `<tr>
-            <td class="mono">${r.configId}</td>
-            <td title="${esc(configFeatureTitle(r))}">${esc(configDisplayName(r))}</td>
-            <td>${esc(r.kind || '')}</td>
-            <td>${r.nExecutions}</td>
-            <td>${r.nEvaluations}</td>
-            <td>${fmtScore(r.avgScore)}</td>
-          </tr>`).join('')}
-        </tbody>`;
+        <tbody>${bodyRows.join('')}</tbody>`;
+      $('configsTable').querySelectorAll('tr[data-config]').forEach(tr => {
+        tr.addEventListener('click', () => {
+          const configId = Number(tr.dataset.config);
+          const row = state.configs.find(r => Number(r.configId) === configId);
+          if (!row) return;
+          state.selectedConfigId = configId;
+          $('configsTable').querySelectorAll('tr[data-config]').forEach(x => x.classList.remove('selected'));
+          tr.classList.add('selected');
+          selectOnlyConfig(configId);
+          runExamplesForConfig(row).catch(err => setStatus(err.message, 'bad'));
+        });
+      });
+    }
+
+    function selectOnlyConfig(configId) {
+      Array.from($('configSelect').options).forEach(opt => {
+        opt.selected = Number(opt.value) === Number(configId);
+      });
     }
 
     async function runSlices() {
@@ -1063,6 +1299,46 @@ INDEX_HTML = r"""<!doctype html>
       });
       renderExamples(rows);
       setStatus(`Loaded ${rows.length} examples`);
+    }
+
+    async function runExamplesForConfig(config) {
+      const scope = currentScope();
+      setStatus(`Loading cfg ${config.configId} executions...`);
+      const rows = await api('/api/examples', {
+        body: {
+          model: scope.model,
+          scorer: scope.scorer,
+          configIds: [config.configId],
+          filters: benchmarkFilters(),
+          scoreOrder: 'asc',
+          limit: 300
+        }
+      });
+      renderExamples(rows);
+      renderConfigInspection(config, rows);
+      const suffix = Number(config.nEvaluations || 0) > rows.length ? ` (first ${rows.length})` : '';
+      setStatus(`Loaded cfg ${config.configId} executions${suffix}`);
+    }
+
+    function renderConfigInspection(config, rows) {
+      const loaded = rows.length;
+      const failures = rows.filter(r => Number(r.score) === 0).length;
+      const successes = rows.filter(r => Number(r.score) === 1).length;
+      const atoms = (config.surfaceAtoms || config.configAxes || []).map(a => `<span class="pill">${esc(a)}</span>`).join(' ');
+      $('analysisPane').innerHTML = `
+        <div class="metric-strip">
+          <div class="metric"><div class="k">config</div><div class="v">${config.configId}</div></div>
+          <div class="metric"><div class="k">score</div><div class="v">${fmtScore(config.avgScore)}</div></div>
+          <div class="metric"><div class="k">exec/eval</div><div class="v">${config.nExecutions}/${config.nEvaluations}</div></div>
+          <div class="metric"><div class="k">loaded</div><div class="v">${loaded}</div></div>
+          <div class="metric"><div class="k">0 / 1</div><div class="v">${failures}/${successes}</div></div>
+        </div>
+        <div style="padding:8px 10px">
+          <div class="mono" style="margin-bottom:6px">${esc(configDisplayName(config))}</div>
+          <div class="muted" style="margin-bottom:6px">${esc(compactGroupName(config.configGroup))}</div>
+          <div class="chip-list">${atoms}</div>
+          <p class="muted" style="margin:8px 0 0">Click an execution in Examples to inspect prompt, response, prediction, metrics, and captured reasoning.</p>
+        </div>`;
     }
 
     function renderExamples(rows) {
@@ -1243,6 +1519,79 @@ INDEX_HTML = r"""<!doctype html>
       setStatus(`Loaded ${rows.length} label rows`);
     }
 
+    async function runFeatureSummary() {
+      const scope = currentScope();
+      setStatus('Loading feature summary...');
+      const rows = await api('/api/feature-summary', {
+        body: {
+          model: scope.model,
+          scorer: scope.scorer,
+          configIds: scope.configIds,
+          baseConfigId: scope.baseConfigId,
+          filters: benchmarkFilters(),
+          includeSections: false,
+          limit: 1000
+        }
+      });
+      renderFeatureSummary(rows);
+      setStatus(`Loaded ${rows.length} feature rows`);
+    }
+
+    function renderFeatureSummary(rows) {
+      const byFamily = new Map();
+      rows.forEach(r => {
+        const family = r.family || 'other';
+        if (!byFamily.has(family)) byFamily.set(family, []);
+        byFamily.get(family).push(r);
+      });
+      const familyRows = Array.from(byFamily.entries()).map(([family, values]) => {
+        const n = values.reduce((acc, r) => acc + Number(r.n || 0), 0);
+        const weighted = values.reduce((acc, r) => acc + Number(r.avgScore || 0) * Number(r.n || 0), 0);
+        return {family, nFeatures: values.length, n, avgScore: n ? weighted / n : null};
+      }).sort((a, b) => String(a.family).localeCompare(String(b.family)));
+      const deltas = rows.map(r => r.deltaVsBase).filter(v => v !== null && v !== undefined && !Number.isNaN(Number(v)));
+      const best = [...rows].sort((a, b) => Number(b.avgScore || -Infinity) - Number(a.avgScore || -Infinity))[0];
+      const strongest = [...rows]
+        .filter(r => r.deltaVsBase !== null && r.deltaVsBase !== undefined)
+        .sort((a, b) => Math.abs(Number(b.deltaVsBase || 0)) - Math.abs(Number(a.deltaVsBase || 0)))[0];
+      const familySummary = familyRows.map(r =>
+        `<span class="pill">${esc(r.family)} · ${r.nFeatures} · ${fmtScore(r.avgScore)}</span>`
+      ).join(' ');
+      const tableRows = rows.map(r => {
+        const delta = r.deltaVsBase;
+        const cls = delta > 0 ? 'good' : delta < 0 ? 'bad' : '';
+        return `<tr>
+          <td>${esc(r.family)}</td>
+          <td class="full-text">${esc(r.canonicalId)}</td>
+          <td>${esc(r.task || '')}</td>
+          <td>${r.nConfigs}</td>
+          <td>${r.nQueries}</td>
+          <td>${r.n}</td>
+          <td>${fmtScore(r.avgScore)}</td>
+          <td class="${cls}">${fmtDelta(delta)}</td>
+        </tr>`;
+      }).join('');
+      $('analysisPane').innerHTML = `
+        <div class="metric-strip">
+          <div class="metric"><div class="k">features</div><div class="v">${rows.length}</div></div>
+          <div class="metric"><div class="k">families</div><div class="v">${familyRows.length}</div></div>
+          <div class="metric"><div class="k">best mean</div><div class="v" style="font-size:13px">${esc(best ? best.canonicalId : '')}</div></div>
+          <div class="metric"><div class="k">strongest vs base</div><div class="v" style="font-size:13px">${esc(strongest ? strongest.canonicalId : '')}</div></div>
+        </div>
+        <div style="padding:8px 10px">
+          <p class="muted" style="margin:0 0 8px">Descriptive rollup: each evaluated config/query row contributes to every canonical feature present in that config. Use Compare for paired feature effects.</p>
+          ${familySummary || '<span class="muted">No evaluated feature rows.</span>'}
+        </div>
+        <table class="full-table">
+          <thead><tr>
+            <th style="width:120px">family</th><th class="full-text">feature</th><th style="width:90px">task</th>
+            <th style="width:70px">cfgs</th><th style="width:80px">queries</th><th style="width:80px">rows</th>
+            <th style="width:82px">score</th><th style="width:82px">vs base</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>`;
+    }
+
     function renderFeatureLabels(rows) {
       const byLabel = new Map();
       rows.forEach(r => {
@@ -1329,11 +1678,24 @@ INDEX_HTML = r"""<!doctype html>
     $('sliceBtn').addEventListener('click', () => runSlices().catch(err => setStatus(err.message, 'bad')));
     $('compareBtn').addEventListener('click', () => runCompare().catch(err => setStatus(err.message, 'bad')));
     $('diagBtn').addEventListener('click', () => runDiagnostics().catch(err => setStatus(err.message, 'bad')));
+    $('featureBtn').addEventListener('click', () => runFeatureSummary().catch(err => setStatus(err.message, 'bad')));
     $('labelsBtn').addEventListener('click', () => runFeatureLabels().catch(err => setStatus(err.message, 'bad')));
     $('planBtn').addEventListener('click', () => runPlanDelete().catch(err => setStatus(err.message, 'bad')));
     $('modelSelect').addEventListener('change', () => refreshScopedControls().catch(err => setStatus(err.message, 'bad')));
     $('scorerSelect').addEventListener('change', () => refreshScopedControls().catch(err => setStatus(err.message, 'bad')));
     $('benchmarkSelect').addEventListener('change', () => setStatus('Benchmark changed; click Apply Filter.'));
+    ['featureModeSelect', 'featureAtomSelect', 'featureAxisSelect', 'featureGroupSelect'].forEach(id => {
+      $(id).addEventListener('change', () => {
+        renderConfigControls();
+        renderConfigsTable();
+        setStatus(`Feature filter: ${featureFilterDescription()}`);
+      });
+    });
+    $('configSortSelect').addEventListener('change', () => {
+      renderConfigControls();
+      renderConfigsTable();
+      setStatus(`Config order: ${$('configSortSelect').selectedOptions[0]?.textContent || ''}`);
+    });
 
     loadBoot().catch(err => setStatus(err.message, 'bad'));
   </script>

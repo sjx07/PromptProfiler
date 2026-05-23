@@ -26,6 +26,29 @@ from analyze.meta import (
 )
 from analyze.data import predicate_kinds, predicate_overlap
 
+# ── FACET feature/context matrix operators ───────────────────────────
+from analyze.facet_matrix_ops import (
+    FacetChainState,
+    FacetOperatorChain,
+    FacetScope,
+    bootstrap_mean_delta_ci,
+    compare_binary_rules_across_benchmarks,
+    config_feature_sets,
+    context_itemsets_from_context,
+    context_transactions,
+    discover_benchmark_subgroups,
+    feature_itemsets_from_delta,
+    feature_transactions,
+    frequent_itemsets,
+    infer_baseline_config_id,
+    paired_delta_rows,
+    query_context_sets,
+    score_binary_contextual_rules,
+    score_contextual_feature_itemsets,
+    score_feature_itemsets,
+    wilson_interval,
+)
+
 # ── chain-of-ops pipeline (R2) ────────────────────────────────────────
 from analyze.pipeline import Pipeline
 
@@ -62,6 +85,7 @@ from analyze.cube_ops import (
     examples,
     execution_artifact,
     diagnostics,
+    feature_summary,
     plan_delete,
 )
 
@@ -83,6 +107,26 @@ __all__ = [
     "summary",
     "predicate_kinds",
     "predicate_overlap",
+    # FACET matrix
+    "FacetChainState",
+    "FacetOperatorChain",
+    "FacetScope",
+    "bootstrap_mean_delta_ci",
+    "compare_binary_rules_across_benchmarks",
+    "config_feature_sets",
+    "context_itemsets_from_context",
+    "context_transactions",
+    "discover_benchmark_subgroups",
+    "feature_itemsets_from_delta",
+    "feature_transactions",
+    "frequent_itemsets",
+    "infer_baseline_config_id",
+    "paired_delta_rows",
+    "query_context_sets",
+    "score_binary_contextual_rules",
+    "score_contextual_feature_itemsets",
+    "score_feature_itemsets",
+    "wilson_interval",
     # query
     "ExecutionQuery",
     # compare
@@ -109,6 +153,7 @@ __all__ = [
     "examples",
     "execution_artifact",
     "diagnostics",
+    "feature_summary",
     "plan_delete",
     # monitor
     "ProgressMonitor",

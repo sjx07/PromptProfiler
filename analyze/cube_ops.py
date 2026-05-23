@@ -34,13 +34,20 @@ def list_configs_detailed(
     dataset: Optional[str] = None,
     split: Optional[str] = None,
     only_with_results: bool = False,
+    feature_mode: Optional[str] = None,
+    feature_atoms: Optional[Sequence[str]] = None,
+    feature_axes: Optional[Sequence[str]] = None,
+    config_groups: Optional[Sequence[str]] = None,
+    include_meta: bool = False,
 ) -> List[Dict[str, Any]]:
     """Configs with parsed metadata plus execution/evaluation score counts."""
     conn = store._get_conn()
-    exec_where, exec_params = _query_scope_where("q", dataset=dataset, split=split)
+    query_where, query_params = _query_scope_where("q", dataset=dataset, split=split)
+    model_where = ["1=1"]
+    model_params: List[Any] = []
     if model:
-        exec_where.append("e.model = ?")
-        exec_params.append(model)
+        model_where.append("e.model = ?")
+        model_params.append(model)
 
     eval_join = "LEFT JOIN evaluation ev ON ev.execution_id = e.execution_id"
     eval_params: List[Any] = []
@@ -48,14 +55,48 @@ def list_configs_detailed(
         eval_join += " AND ev.scorer = ?"
         eval_params.append(scorer)
 
+    if dataset or split:
+        scoped_scores_sql = f"""
+        WITH scoped_queries AS (
+            SELECT q.query_id
+            FROM query q
+            WHERE {' AND '.join(query_where)}
+        ),
+        scoped_config_scores AS (
+            SELECT e.config_id,
+                   COUNT(e.execution_id) AS n_executions,
+                   COUNT(ev.eval_id) AS n_evaluations,
+                   AVG(ev.score) AS avg_score,
+                   MIN(e.created_at) AS first_execution_at,
+                   MAX(e.created_at) AS last_execution_at
+            FROM scoped_queries sq
+            JOIN execution e INDEXED BY idx_exec_query ON e.query_id = sq.query_id
+            {eval_join}
+            WHERE {' AND '.join(model_where)}
+            GROUP BY e.config_id
+        ),
+        """
+        scoped_scores_params = query_params + eval_params + model_params
+    else:
+        scoped_scores_sql = f"""
+        WITH scoped_config_scores AS (
+            SELECT e.config_id,
+                   COUNT(e.execution_id) AS n_executions,
+                   COUNT(ev.eval_id) AS n_evaluations,
+                   AVG(ev.score) AS avg_score,
+                   MIN(e.created_at) AS first_execution_at,
+                   MAX(e.created_at) AS last_execution_at
+            FROM execution e
+            {eval_join}
+            WHERE {' AND '.join(model_where)}
+            GROUP BY e.config_id
+        ),
+        """
+        scoped_scores_params = eval_params + model_params
+
     rows = conn.execute(
         f"""
-        WITH filtered_execution AS (
-            SELECT e.*
-            FROM execution e
-            JOIN query q ON q.query_id = e.query_id
-            WHERE {' AND '.join(exec_where)}
-        ),
+        {scoped_scores_sql}
         feature_names AS (
             SELECT cf.config_id,
                    GROUP_CONCAT(f.canonical_id, '|') AS resolved_canonical_ids
@@ -67,19 +108,17 @@ def list_configs_detailed(
                c.func_ids,
                c.meta,
                COALESCE(fn.resolved_canonical_ids, '') AS resolved_canonical_ids,
-               COUNT(DISTINCT e.execution_id) AS n_executions,
-               COUNT(DISTINCT ev.eval_id) AS n_evaluations,
-               AVG(ev.score) AS avg_score,
-               MIN(e.created_at) AS first_execution_at,
-               MAX(e.created_at) AS last_execution_at
+               COALESCE(sc.n_executions, 0) AS n_executions,
+               COALESCE(sc.n_evaluations, 0) AS n_evaluations,
+               sc.avg_score,
+               sc.first_execution_at,
+               sc.last_execution_at
         FROM config c
-        LEFT JOIN filtered_execution e ON e.config_id = c.config_id
-        {eval_join}
+        LEFT JOIN scoped_config_scores sc ON sc.config_id = c.config_id
         LEFT JOIN feature_names fn ON fn.config_id = c.config_id
-        GROUP BY c.config_id
         ORDER BY c.config_id
         """,
-        tuple(exec_params + eval_params),
+        tuple(scoped_scores_params),
     ).fetchall()
 
     out: List[Dict[str, Any]] = []
@@ -89,22 +128,33 @@ def list_configs_detailed(
         resolved = [x for x in (r["resolved_canonical_ids"] or "").split("|") if x]
         meta_canonical_ids = _string_list(meta.get("canonical_ids"))
         all_canonical_ids = meta_canonical_ids or resolved
+        labels = _config_labels(meta)
         canonical = (
-            meta.get("label")
+            labels["label"]
             or meta.get("canonical_id")
             or _display_feature_set(all_canonical_ids, kind=meta.get("kind"), has_funcs=bool(func_ids))
             or ("base" if not func_ids else None)
         )
+        shape = _config_shape(
+            canonical=canonical,
+            canonical_ids=all_canonical_ids,
+            kind=meta.get("kind"),
+        )
         n_executions = int(r["n_executions"] or 0)
         n_evaluations = int(r["n_evaluations"] or 0)
-        if only_with_results:
-            n_results = n_evaluations if scorer else n_executions
-            if n_results <= 0:
-                continue
-        out.append({
+        if only_with_results and n_executions <= 0:
+            continue
+        rec = {
             "configId": int(r["config_id"]),
             "canonicalId": canonical,
+            "label": labels["label"],
+            "cleanLabel": labels["clean_label"],
+            "surfaceLabel": labels["surface_label"],
             "kind": meta.get("kind"),
+            "configGroup": shape["group"],
+            "configAxes": shape["axes"],
+            "surfaceAtoms": shape["atoms"],
+            "sortKey": shape["sort_key"],
             "funcIds": func_ids,
             "nFuncs": len(func_ids),
             "featureIds": meta.get("feature_ids", []),
@@ -115,8 +165,62 @@ def list_configs_detailed(
             "avgScore": _float_or_none(r["avg_score"]),
             "firstExecutionAt": r["first_execution_at"],
             "lastExecutionAt": r["last_execution_at"],
-            "meta": meta,
-        })
+        }
+        if include_meta:
+            rec["meta"] = meta
+        out.append(rec)
+    out = filter_config_rows_by_features(
+        out,
+        mode=feature_mode,
+        atoms=feature_atoms,
+        axes=feature_axes,
+        groups=config_groups,
+    )
+    out.sort(key=lambda row: (row["sortKey"], row["configId"]))
+    return out
+
+
+def filter_config_rows_by_features(
+    rows: Sequence[Dict[str, Any]],
+    *,
+    mode: Optional[str] = None,
+    atoms: Optional[Sequence[str]] = None,
+    axes: Optional[Sequence[str]] = None,
+    groups: Optional[Sequence[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Filter parsed config rows by feature existence or exact coalition shape.
+
+    ``atoms`` are normalized feature atoms such as ``fmt.json`` or
+    ``ctx.stats``. ``axes`` are feature families such as ``fmt``/``ser``/``ctx``.
+    Empty selections are treated as no-op filters so the UI can switch modes
+    before the user chooses values.
+    """
+    mode = str(mode or "all").strip().lower()
+    wanted_atoms = _normalized_set(atoms)
+    wanted_axes = _normalized_set(axes)
+    wanted_groups = _normalized_set(groups)
+    if mode in {"", "all", "none"}:
+        return list(rows)
+
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        row_atoms = _normalized_set(row.get("surfaceAtoms") or [])
+        row_axes = _normalized_set(row.get("configAxes") or [])
+        row_group = str(row.get("configGroup") or "")
+        if mode in {"contains_atoms", "has_atoms", "feature_exists"}:
+            keep = not wanted_atoms or wanted_atoms <= row_atoms
+        elif mode in {"exact_atoms", "exact_coalition"}:
+            keep = not wanted_atoms or row_atoms == wanted_atoms
+        elif mode in {"contains_axes", "has_axes", "family_exists"}:
+            keep = not wanted_axes or wanted_axes <= row_axes
+        elif mode in {"exact_axes", "exact_family"}:
+            keep = not wanted_axes or row_axes == wanted_axes
+        elif mode in {"groups", "config_group"}:
+            keep = not wanted_groups or row_group in wanted_groups
+        else:
+            raise ValueError(f"unsupported feature filter mode: {mode!r}")
+        if keep:
+            out.append(row)
     return out
 
 
@@ -248,24 +352,27 @@ def slice_scores(
         ids = [int(c) for c in config_ids]
         if not ids:
             return []
-        where.append(f"s.config_id IN ({','.join('?' * len(ids))})")
+        where.append(f"e.config_id IN ({','.join('?' * len(ids))})")
         params.extend(ids)
 
     select_groups = (", " + ", ".join(group_exprs)) if group_exprs else ""
-    group_cols = ["s.config_id", *group_aliases]
+    group_cols = ["e.config_id", *group_aliases]
     sql = f"""
-        SELECT s.config_id AS config_id{select_groups},
+        SELECT e.config_id AS config_id{select_groups},
                COUNT(*) AS n,
-               AVG(s.score) AS avg_score,
-               SUM(CASE WHEN s.score = 1 THEN 1 ELSE 0 END) AS n_score_one,
-               SUM(CASE WHEN s.score = 0 THEN 1 ELSE 0 END) AS n_score_zero
-        FROM v_query_scores s
-        JOIN query q ON q.query_id = s.query_id
+               AVG(ev.score) AS avg_score,
+               SUM(CASE WHEN ev.score = 1 THEN 1 ELSE 0 END) AS n_score_one,
+               SUM(CASE WHEN ev.score = 0 THEN 1 ELSE 0 END) AS n_score_zero
+        FROM execution e
+        JOIN evaluation ev ON ev.execution_id = e.execution_id
+        JOIN query q ON q.query_id = e.query_id
         {compiler.join_sql()}
-        WHERE s.model = ? AND s.scorer = ?
+        WHERE e.model = ? AND ev.scorer = ?
+          AND (e.error IS NULL OR e.error = '')
+          AND ev.score IS NOT NULL
           {('AND ' + ' AND '.join(where)) if where else ''}
         GROUP BY {', '.join(group_cols)}
-        ORDER BY {', '.join(group_aliases) + ',' if group_aliases else ''} s.config_id
+        ORDER BY {', '.join(group_aliases) + ',' if group_aliases else ''} e.config_id
         LIMIT ?
     """
     params.append(int(limit))
@@ -427,6 +534,106 @@ def feature_label_analysis(
     return out
 
 
+def feature_summary(
+    store: CubeStore,
+    *,
+    model: str,
+    scorer: str,
+    config_ids: Optional[Sequence[int]] = None,
+    base_config_id: Optional[int] = None,
+    filters: Optional[Sequence[FilterSpec]] = None,
+    include_sections: bool = False,
+    limit: int = 1000,
+) -> List[Dict[str, Any]]:
+    """Aggregate evaluated config/query rows by canonical feature.
+
+    This is a browsing summary, not a causal effect estimator: a config/query
+    score contributes to every canonical feature present in that config. Use
+    ``compare_configs`` for paired treatment/control flips.
+    """
+    compiler = _QueryCompiler()
+    where, params = compiler.compile_filters(filters or [])
+    base_params: List[Any] = [model, scorer]
+    if config_ids is not None:
+        ids = [int(c) for c in config_ids]
+        if not ids:
+            return []
+        where.append(f"e.config_id IN ({','.join('?' * len(ids))})")
+        params.extend(ids)
+    if not include_sections:
+        where.append("f.canonical_id NOT GLOB '_section_*'")
+        where.append("f.canonical_id NOT IN ('facet_dp_scaffold', 'sqa_dialog_binding_base')")
+
+    sql = f"""
+        WITH scored_features AS (
+            SELECT DISTINCT
+                   f.canonical_id,
+                   f.task,
+                   e.config_id,
+                   e.query_id,
+                   ev.score
+            FROM execution e
+            JOIN evaluation ev ON ev.execution_id = e.execution_id
+            JOIN query q ON q.query_id = e.query_id
+            JOIN config_feature cf ON cf.config_id = e.config_id
+            JOIN feature f ON f.feature_id = cf.feature_id
+            {compiler.join_sql()}
+            WHERE e.model = ?
+              AND ev.scorer = ?
+              AND ev.score IS NOT NULL
+              {('AND ' + ' AND '.join(where)) if where else ''}
+        )
+        SELECT canonical_id,
+               task,
+               COUNT(DISTINCT config_id) AS n_configs,
+               COUNT(DISTINCT query_id) AS n_queries,
+               COUNT(*) AS n,
+               AVG(score) AS avg_score,
+               SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END) AS n_score_one,
+               SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END) AS n_score_zero
+        FROM scored_features
+        GROUP BY canonical_id, task
+        ORDER BY avg_score DESC, n DESC, canonical_id
+        LIMIT ?
+    """
+    rows = store._get_conn().execute(
+        sql,
+        tuple(base_params + params + [int(limit)]),
+    ).fetchall()
+    base_score = (
+        _base_score_over_filters(
+            store,
+            model=model,
+            scorer=scorer,
+            base_config_id=int(base_config_id),
+            filters=filters,
+        )
+        if base_config_id is not None
+        else None
+    )
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        avg_score = _float_or_none(r["avg_score"])
+        out.append({
+            "canonicalId": r["canonical_id"],
+            "task": r["task"],
+            "family": _canonical_family(r["canonical_id"]),
+            "nConfigs": int(r["n_configs"] or 0),
+            "nQueries": int(r["n_queries"] or 0),
+            "n": int(r["n"] or 0),
+            "avgScore": avg_score,
+            "baseScore": base_score,
+            "deltaVsBase": (
+                None
+                if base_score is None or avg_score is None
+                else avg_score - base_score
+            ),
+            "nScoreOne": int(r["n_score_one"] or 0),
+            "nScoreZero": int(r["n_score_zero"] or 0),
+        })
+    return out
+
+
 def compare_configs(
     store: CubeStore,
     *,
@@ -538,9 +745,14 @@ def examples(
     where, params = compiler.compile_filters(filters or [])
     base_params: List[Any] = [scorer, model]
     raw_reasoning_expr = (
-        "e.raw_reasoning"
+        "substr(COALESCE(e.raw_reasoning, ''), 1, 240)"
         if _table_has_column(store, "execution", "raw_reasoning")
         else "''"
+    )
+    reasoning_chars_expr = (
+        "length(COALESCE(e.raw_reasoning, ''))"
+        if _table_has_column(store, "execution", "raw_reasoning")
+        else "0"
     )
     finish_reason_expr = (
         "e.finish_reason"
@@ -566,8 +778,10 @@ def examples(
                ev.score,
                ev.metrics,
                e.prediction,
-               e.raw_response,
-               {raw_reasoning_expr} AS raw_reasoning,
+               substr(COALESCE(e.raw_response, ''), 1, 240) AS raw_response_preview,
+               length(COALESCE(e.raw_response, '')) AS response_chars,
+               {raw_reasoning_expr} AS raw_reasoning_preview,
+               {reasoning_chars_expr} AS reasoning_chars,
                e.error,
                e.latency_ms,
                e.prompt_tokens,
@@ -807,7 +1021,7 @@ class _QueryCompiler:
             alias = self._predicate_alias(value)
             return f"{alias}.value"
         if kind == "score":
-            return "s.score"
+            return "ev.score"
         raise ValueError(f"unsupported group field: {field!r}")
 
     def compile_filters(self, filters: Sequence[FilterSpec]) -> Tuple[List[str], List[Any]]:
@@ -975,8 +1189,12 @@ def _comparison_example_sort_key(row: Dict[str, Any]) -> Tuple[int, float, str]:
 def _example_from_row(row: sqlite3.Row) -> Dict[str, Any]:
     qmeta = _json_loads(row["query_meta"], {})
     metrics = _json_loads(row["metrics"], {})
-    raw_response = row["raw_response"] or ""
+    raw_response = _row_value(row, "raw_response", "") or ""
     raw_reasoning = _row_value(row, "raw_reasoning", "") or ""
+    raw_response_preview = _row_value(row, "raw_response_preview")
+    raw_reasoning_preview = _row_value(row, "raw_reasoning_preview")
+    response_chars = _row_value(row, "response_chars")
+    reasoning_chars = _row_value(row, "reasoning_chars")
     return {
         "executionId": int(row["execution_id"]),
         "configId": int(row["config_id"]),
@@ -988,10 +1206,26 @@ def _example_from_row(row: sqlite3.Row) -> Dict[str, Any]:
         "score": _float_or_none(row["score"]),
         "metrics": metrics,
         "prediction": row["prediction"] or "",
-        "rawResponsePreview": _preview(raw_response),
-        "rawReasoningPreview": _preview(raw_reasoning),
-        "responseChars": len(raw_response),
-        "reasoningChars": len(raw_reasoning),
+        "rawResponsePreview": (
+            str(raw_response_preview)
+            if raw_response_preview is not None
+            else _preview(raw_response)
+        ),
+        "rawReasoningPreview": (
+            str(raw_reasoning_preview)
+            if raw_reasoning_preview is not None
+            else _preview(raw_reasoning)
+        ),
+        "responseChars": (
+            int(response_chars)
+            if response_chars is not None
+            else len(raw_response)
+        ),
+        "reasoningChars": (
+            int(reasoning_chars)
+            if reasoning_chars is not None
+            else len(raw_reasoning)
+        ),
         "error": row["error"] or "",
         "latencyMs": _float_or_none(row["latency_ms"]),
         "promptTokens": row["prompt_tokens"],
@@ -1086,6 +1320,35 @@ def _base_scores_by_predicate(
         tuple([int(base_config_id), model, scorer] + params),
     ).fetchone()
     return {None: _float_or_none(row["avg_score"]) if row else None}
+
+
+def _base_score_over_filters(
+    store: CubeStore,
+    *,
+    model: str,
+    scorer: str,
+    base_config_id: int,
+    filters: Optional[Sequence[FilterSpec]] = None,
+) -> Optional[float]:
+    compiler = _QueryCompiler()
+    where, params = compiler.compile_filters(filters or [])
+    extra_where = f" AND {' AND '.join(where)}" if where else ""
+    row = store._get_conn().execute(
+        f"""
+        SELECT AVG(ev.score) AS avg_score
+        FROM execution e
+        JOIN evaluation ev ON ev.execution_id = e.execution_id
+        JOIN query q ON q.query_id = e.query_id
+        {compiler.join_sql()}
+        WHERE e.config_id = ?
+          AND e.model = ?
+          AND ev.scorer = ?
+          AND ev.score IS NOT NULL
+          {extra_where}
+        """,
+        tuple([int(base_config_id), model, scorer] + params),
+    ).fetchone()
+    return _float_or_none(row["avg_score"]) if row else None
 
 
 def _parse_field(field: str) -> Tuple[str, str]:
@@ -1188,6 +1451,220 @@ def _string_list(value: Any) -> List[str]:
     if not isinstance(value, list):
         return []
     return [str(v) for v in value if v is not None and str(v)]
+
+
+def _normalized_set(values: Optional[Iterable[Any]]) -> set[str]:
+    return {
+        str(v).strip()
+        for v in (values or [])
+        if v is not None and str(v).strip()
+    }
+
+
+def _config_labels(meta: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    label = _first_text(meta.get("label"))
+    clean_label = _first_text(meta.get("clean_label"))
+    surface_label = _first_text(meta.get("surface_label"))
+    aliases = meta.get("clean_aliases")
+    if isinstance(aliases, list):
+        for alias in aliases:
+            if not isinstance(alias, dict):
+                continue
+            clean_label = clean_label or _first_text(alias.get("clean_label"))
+            surface_label = surface_label or _first_text(alias.get("surface_label"))
+            if clean_label and surface_label:
+                break
+    label = label or clean_label or surface_label
+    return {
+        "label": label,
+        "clean_label": clean_label,
+        "surface_label": surface_label,
+    }
+
+
+def _first_text(value: Any) -> Optional[str]:
+    value = _first(value)
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _config_shape(
+    *,
+    canonical: Optional[str],
+    canonical_ids: Sequence[str],
+    kind: Optional[str],
+) -> Dict[str, Any]:
+    atoms = _surface_atoms(canonical)
+    axes = _axes_from_atoms(atoms)
+    axes = [axis for axis in axes if axis not in {"section", "base"}]
+    if not atoms:
+        atoms = _atoms_from_canonical_ids(canonical_ids)
+        axes = _axes_from_atoms(atoms)
+        if not axes:
+            for cid in canonical_ids:
+                axis = _canonical_axis(cid)
+                if axis and axis not in axes:
+                    axes.append(axis)
+            axes = [axis for axis in axes if axis not in {"section", "base"}]
+    group = _config_group(canonical, axes=axes, kind=kind)
+    return {
+        "atoms": atoms,
+        "axes": axes,
+        "group": group,
+        "sort_key": _config_sort_key(group, canonical or "", axes),
+    }
+
+
+def _surface_atoms(label: Optional[str]) -> List[str]:
+    if not label:
+        return []
+    if label == "base" or label.startswith("base:"):
+        return ["base"]
+    atoms: List[str] = []
+    for part in str(label).split("__"):
+        part = part.strip()
+        if part and part not in atoms:
+            atoms.append(part)
+    return atoms
+
+
+def _axes_from_atoms(atoms: Sequence[str]) -> List[str]:
+    axes: List[str] = []
+    for atom in atoms:
+        prefix = str(atom).split(".", 1)[0]
+        mapped = {
+            "format": "fmt",
+            "table": "ser",
+            "context": "ctx",
+            "reason": "reason",
+            "domain": "domain",
+        }.get(prefix, prefix)
+        if mapped and mapped not in axes:
+            axes.append(mapped)
+    return axes
+
+
+def _atoms_from_canonical_ids(canonical_ids: Sequence[str]) -> List[str]:
+    atoms: List[str] = []
+    for cid in canonical_ids:
+        atom = _canonical_atom(cid)
+        if atom and atom not in atoms:
+            atoms.append(atom)
+    return atoms
+
+
+def _canonical_axis(canonical_id: str) -> Optional[str]:
+    cid = str(canonical_id)
+    if cid.startswith("_section_"):
+        return "section"
+    if cid in {"facet_dp_scaffold", "sqa_dialog_binding_base"}:
+        return "base"
+    if cid.startswith("prompt_format_"):
+        return "fmt"
+    if cid.startswith("table_serialization_"):
+        return "ser"
+    if cid.startswith("input_context_"):
+        return "ctx"
+    if cid.startswith("output_contract_"):
+        return "contract"
+    if cid.startswith("reasoning_scaffold_"):
+        return "scaffold"
+    if cid.startswith("reasoning_"):
+        return "reason"
+    if cid.startswith("domain_heuristic") or cid.startswith("domain_"):
+        return "domain"
+    return "other"
+
+
+def _canonical_atom(canonical_id: str) -> Optional[str]:
+    cid = str(canonical_id)
+    if cid.startswith("_section_") or cid in {"facet_dp_scaffold", "sqa_dialog_binding_base"}:
+        return None
+    mapping = {
+        "prompt_format_plain": "fmt.plain",
+        "prompt_format_json": "fmt.json",
+        "prompt_format_markdown": "fmt.markdown",
+        "prompt_format_yaml": "fmt.yaml",
+        "prompt_format_code_block": "fmt.code_block",
+        "table_serialization_json_columns_data": "ser.json_columns",
+        "table_serialization_json_records": "ser.records",
+        "table_serialization_html": "ser.html",
+        "input_context_column_statistics": "ctx.stats",
+        "input_context_type_annotation": "ctx.type",
+        "input_context_column_selection_relevance_12": "ctx.cols12",
+        "input_context_row_selection_relevance_50": "ctx.rows50",
+        "output_contract_json_answer_list": "contract.json_answer_list",
+        "reasoning_scaffold_visible_cot": "scaffold.trace",
+        "reasoning_scaffold_visible_plan": "scaffold.plan",
+        "reasoning_scaffold_visible_evidence": "scaffold.evidence",
+        "reasoning_scaffold_visible_operation": "scaffold.operation",
+        "reasoning_scaffold_visible_workpad": "scaffold.workpad",
+        "reasoning_extract_then_compute": "reason.extract",
+        "reasoning_evidence_localization": "reason.localize",
+        "reasoning_candidate_enumeration": "reason.enumerate",
+        "reasoning_intermediate_evidence_table": "reason.evidence_table",
+        "reasoning_symbolic_operation": "reason.symbolic_op",
+        "reasoning_verify_before_output": "reason.verify",
+        "reasoning_plan_then_answer": "reason.plan_execute",
+        "reasoning_critique_then_revise": "reason.critique_revise",
+    }
+    if cid in mapping:
+        return mapping[cid]
+    axis = _canonical_axis(cid)
+    return None if axis in {None, "base", "section"} else f"{axis}.{cid}"
+
+
+def _canonical_family(canonical_id: str) -> str:
+    return _canonical_axis(canonical_id) or "other"
+
+
+def _config_group(
+    canonical: Optional[str],
+    *,
+    axes: Sequence[str],
+    kind: Optional[str],
+) -> str:
+    label = canonical or ""
+    if label == "base" or label.startswith("base:") or kind == "base":
+        return "00 base"
+    axis_set = set(axes)
+    if axis_set <= {"fmt"}:
+        return "10 format"
+    if axis_set <= {"ser"}:
+        return "11 serialization"
+    if axis_set <= {"ctx"}:
+        return "12 input context"
+    if axis_set <= {"contract"}:
+        return "13 response contract"
+    if {"fmt", "ser", "ctx"}.issubset(axis_set):
+        return "30 surface matrix"
+    if {"fmt", "ser"}.issubset(axis_set):
+        return "20 format x serialization"
+    if {"ser", "ctx"}.issubset(axis_set) or {"fmt", "ctx"}.issubset(axis_set):
+        return "21 context interaction"
+    if "scaffold" in axis_set or "reason" in axis_set:
+        return "40 reasoning"
+    if "domain" in axis_set:
+        return "50 domain heuristic"
+    return f"90 {kind or 'other'}"
+
+
+def _config_sort_key(group: str, canonical: str, axes: Sequence[str]) -> str:
+    axis_order = {
+        "base": "00",
+        "fmt": "10",
+        "ser": "11",
+        "ctx": "12",
+        "contract": "13",
+        "scaffold": "20",
+        "reason": "21",
+        "domain": "30",
+        "other": "90",
+    }
+    axis_key = ".".join(axis_order.get(axis, "90") for axis in axes)
+    return f"{group}|{axis_key}|{canonical}"
 
 
 def _display_feature_set(

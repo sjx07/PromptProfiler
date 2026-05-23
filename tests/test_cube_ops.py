@@ -170,6 +170,8 @@ def test_config_inventory_and_meta_fields(mini_cube):
     assert by_id[ctx["target"]]["nEvaluations"] == 3
     assert by_id[ctx["target"]]["avgScore"] == pytest.approx(1 / 3)
     assert by_id[ctx["coalition"]]["canonicalId"] == "pot_all"
+    assert by_id[ctx["coalition"]]["configGroup"] == "90 explicit_coalition"
+    assert by_id[ctx["coalition"]]["surfaceAtoms"] == ["pot_all"]
     assert by_id[ctx["coalition"]]["canonicalIds"] == [
         "_section_role",
         "tb_pot_fixed_scaffold",
@@ -179,6 +181,86 @@ def test_config_inventory_and_meta_fields(mini_cube):
     fields = {row["field"] for row in cube_ops.list_query_meta_fields(store)}
     assert "query.meta.qtype" in fields
     assert "query.meta.qsubtype" in fields
+
+
+def test_config_feature_shape_filters(mini_cube):
+    store, ctx = mini_cube
+    surface = store.get_or_create_config(
+        ["func_fmt", "func_ser", "func_ctx"],
+        meta={
+            "kind": "explicit_coalition",
+            "canonical_id": "fmt.json__ser.records__ctx.stats",
+            "canonical_ids": [
+                "prompt_format_json",
+                "table_serialization_json_records",
+                "input_context_column_statistics",
+            ],
+        },
+    )
+    rows = cube_ops.list_configs_detailed(store, model=MODEL, scorer=SCORER)
+    by_id = {row["configId"]: row for row in rows}
+
+    assert by_id[surface]["configGroup"] == "30 surface matrix"
+    assert by_id[surface]["surfaceAtoms"] == ["fmt.json", "ser.records", "ctx.stats"]
+    assert by_id[surface]["configAxes"] == ["fmt", "ser", "ctx"]
+
+    contains_atom = cube_ops.filter_config_rows_by_features(
+        rows,
+        mode="contains_atoms",
+        atoms=["fmt.json"],
+    )
+    assert {row["configId"] for row in contains_atom} == {surface}
+
+    exact_atom = cube_ops.filter_config_rows_by_features(
+        rows,
+        mode="exact_atoms",
+        atoms=["fmt.json", "ser.records", "ctx.stats"],
+    )
+    assert {row["configId"] for row in exact_atom} == {surface}
+
+    contains_axes = cube_ops.filter_config_rows_by_features(
+        rows,
+        mode="contains_axes",
+        axes=["fmt", "ctx"],
+    )
+    assert {row["configId"] for row in contains_axes} == {surface}
+
+    exact_axes = cube_ops.filter_config_rows_by_features(
+        rows,
+        mode="exact_axes",
+        axes=["fmt", "ctx"],
+    )
+    assert surface not in {row["configId"] for row in exact_axes}
+
+    exact_axes = cube_ops.filter_config_rows_by_features(
+        rows,
+        mode="exact_axes",
+        axes=["fmt", "ser", "ctx"],
+    )
+    assert {row["configId"] for row in exact_axes} == {surface}
+
+    group_rows = cube_ops.filter_config_rows_by_features(
+        rows,
+        mode="groups",
+        groups=["30 surface matrix"],
+    )
+    assert {row["configId"] for row in group_rows} == {surface}
+    target_rows = cube_ops.filter_config_rows_by_features(
+        rows,
+        mode="feature_exists",
+        atoms=["target_feature"],
+    )
+    assert {row["configId"] for row in target_rows} == {ctx["target"]}
+
+
+def test_reasoning_protocol_canonical_atom_aliases():
+    assert cube_ops._canonical_atom("reasoning_scaffold_visible_cot") == "scaffold.trace"
+    assert cube_ops._canonical_atom("reasoning_scaffold_visible_operation") == "scaffold.operation"
+    assert cube_ops._canonical_atom("reasoning_scaffold_visible_workpad") == "scaffold.workpad"
+    assert cube_ops._canonical_atom("reasoning_evidence_localization") == "reason.localize"
+    assert cube_ops._canonical_atom("reasoning_candidate_enumeration") == "reason.enumerate"
+    assert cube_ops._canonical_atom("reasoning_symbolic_operation") == "reason.symbolic_op"
+    assert cube_ops._canonical_atom("reasoning_plan_then_answer") == "reason.plan_execute"
 
 
 def test_predicate_fields_are_available_for_slicing(mini_cube):
@@ -467,6 +549,27 @@ def test_feature_label_analysis_overall_and_by_predicate(mini_cube):
     assert idx["false"]["avgScore"] == pytest.approx(0.0)
     assert idx["false"]["baseScore"] == pytest.approx(1.0)
     assert idx["false"]["deltaVsBase"] == pytest.approx(-1.0)
+
+
+def test_feature_summary_rolls_up_canonical_features(mini_cube):
+    store, ctx = mini_cube
+    rows = cube_ops.feature_summary(
+        store,
+        model=MODEL,
+        scorer=SCORER,
+        config_ids=[ctx["target"], ctx["coalition"]],
+        base_config_id=ctx["base"],
+    )
+    by_feature = {row["canonicalId"]: row for row in rows}
+
+    assert by_feature["target_feature"]["family"] == "other"
+    assert by_feature["target_feature"]["nConfigs"] == 1
+    assert by_feature["target_feature"]["nQueries"] == 3
+    assert by_feature["target_feature"]["n"] == 3
+    assert by_feature["target_feature"]["avgScore"] == pytest.approx(1 / 3)
+    assert by_feature["target_feature"]["baseScore"] == pytest.approx(2 / 3)
+    assert by_feature["target_feature"]["deltaVsBase"] == pytest.approx(-1 / 3)
+    assert "_section_role" not in by_feature
 
 
 def test_examples_artifact_and_compare(mini_cube):
