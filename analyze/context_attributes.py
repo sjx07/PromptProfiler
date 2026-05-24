@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
 
-DATASETS = ("wtq", "sqa", "tablebench", "tab_fact", "hitab")
+DATASETS = ("wtq", "sqa", "tablebench", "tab_fact", "tabfact", "hitab")
 
 STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "did", "do", "does",
@@ -155,6 +155,10 @@ def load_json_obj(value: Any) -> dict[str, Any]:
     return value or {}
 
 
+def normalize_dataset(dataset: str) -> str:
+    return {"tabfact": "tab_fact"}.get(str(dataset), str(dataset))
+
+
 def tokenize(text: str) -> set[str]:
     return {
         token
@@ -165,6 +169,7 @@ def tokenize(text: str) -> set[str]:
 
 def flatten_table(raw: Mapping[str, Any], dataset: str) -> tuple[list[str], list[list[Any]]]:
     """Return a header/rows view from task-local query metadata."""
+    dataset = normalize_dataset(dataset)
     if dataset == "sqa":
         table = raw.get("table", {})
         if isinstance(table, Mapping):
@@ -189,6 +194,7 @@ def flatten_table(raw: Mapping[str, Any], dataset: str) -> tuple[list[str], list
 
 
 def query_text(raw: Mapping[str, Any], dataset: str) -> str:
+    dataset = normalize_dataset(dataset)
     if dataset == "tab_fact":
         return str(raw.get("statement", "") or "")
     return str(raw.get("question", "") or "")
@@ -210,6 +216,7 @@ def numeric_like(value: str) -> bool:
 
 def canonical_context_values(meta: Mapping[str, Any] | str, dataset: str) -> dict[str, str]:
     """Compute canonical, input-only context attributes for one query."""
+    dataset = normalize_dataset(dataset)
     meta_obj = load_json_obj(meta)
     raw = load_json_obj(meta_obj.get("_raw", {}))
     text = query_text(raw, dataset)

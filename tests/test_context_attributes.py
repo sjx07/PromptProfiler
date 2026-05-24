@@ -85,3 +85,18 @@ def test_query_context_sets_can_use_canonical_context(tmp_path):
     assert "cell.has_range_or_score=yes" in atoms
     assert all(not atom.startswith("dialog.") for atom in atoms)
     store.close()
+
+
+def test_tabfact_alias_uses_statement_text():
+    meta = {
+        "split": "validation",
+        "_raw": {
+            "statement": "The team scored before 2001.",
+            "table_text": "team#year\nA#1999",
+        },
+    }
+
+    values = canonical_context_values(meta, "tabfact")
+
+    assert values["intent.temporal"] == "yes"
+    assert values["grounding.header_overlap"] == "yes"
