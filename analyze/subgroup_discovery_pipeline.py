@@ -21,6 +21,7 @@ from pathlib import Path
 from statistics import median
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from analyze.context_attributes import canonical_context_items
 from analyze.transition_flip import (
     AtomEditSpec,
     DEFAULT_PREFIX_RULES,
@@ -218,11 +219,49 @@ def context_atom(name: str, value: str) -> Optional[str]:
     return None
 
 
-def load_context_atoms(conn: sqlite3.Connection, query_ids: Iterable[str]) -> Dict[str, Tuple[str, ...]]:
+def load_context_atoms(
+    conn: sqlite3.Connection,
+    query_ids: Iterable[str],
+    *,
+    context_view: str = "canonical_shared",
+    include_negative: bool = True,
+) -> Dict[str, Tuple[str, ...]]:
     ids = sorted(set(str(qid) for qid in query_ids))
     out: Dict[str, List[str]] = defaultdict(list)
     if not ids:
         return {}
+    if context_view != "raw":
+        view = {
+            "canonical_shared": "shared",
+            "canonical_scoped": "scoped",
+            "canonical_all": "all",
+        }.get(context_view)
+        if view is None:
+            raise ValueError(
+                "context_view must be raw, canonical_shared, canonical_scoped, "
+                f"or canonical_all; got {context_view!r}"
+            )
+        for i in range(0, len(ids), 800):
+            chunk = ids[i : i + 800]
+            rows = conn.execute(
+                f"""
+                SELECT query_id, dataset, meta
+                FROM query
+                WHERE query_id IN ({','.join('?' for _ in chunk)})
+                """,
+                tuple(chunk),
+            ).fetchall()
+            for row in rows:
+                out[str(row["query_id"])].extend(
+                    canonical_context_items(
+                        row["meta"],
+                        str(row["dataset"]),
+                        view=view,
+                        include_negative=include_negative,
+                    )
+                )
+        return {qid: tuple(sorted(set(out.get(qid, [])))) for qid in ids}
+
     for i in range(0, len(ids), 800):
         chunk = ids[i : i + 800]
         rows = conn.execute(
@@ -379,6 +418,8 @@ def run_one(
     min_query_support: int,
     min_pairs: int,
     top_rules: int,
+    context_view: str,
+    include_negative_context: bool,
 ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
     scoped_rows = [row for row in rows if row.dataset == dataset]
     pairs = transition_pairs(scoped_rows, assignments, atoms_by_config, transition)
@@ -386,7 +427,12 @@ def run_one(
         return None, [], []
     query_effects = aggregate_query_effects(pairs)
     with connect(db_path) as conn:
-        context = load_context_atoms(conn, [str(row["query_id"]) for row in query_effects])
+        context = load_context_atoms(
+            conn,
+            [str(row["query_id"]) for row in query_effects],
+            context_view=context_view,
+            include_negative=include_negative_context,
+        )
     query_context = attach_query_context(query_effects, context, transition)
     if len(query_context) < min_query_support:
         return None, [], []
@@ -464,6 +510,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-query-support", type=int, default=80)
     p.add_argument("--max-rule-order", type=int, default=2)
     p.add_argument("--top-rules", type=int, default=50)
+    p.add_argument(
+        "--context-view",
+        choices=("raw", "canonical_shared", "canonical_scoped", "canonical_all"),
+        default="canonical_shared",
+        help="Context atom source for subgroup mining. raw preserves old predicate-table behavior.",
+    )
+    p.add_argument("--positive-context-only", action="store_true", help="Drop negative/no canonical atoms from mining.")
     p.add_argument("--num-workers", type=int, default=8)
     p.add_argument("--save-query-effects", action="store_true")
     p.add_argument("--progress", action="store_true")
@@ -513,6 +566,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                 min_query_support=args.min_query_support,
                 min_pairs=args.min_pairs,
                 top_rules=args.top_rules,
+                context_view=args.context_view,
+                include_negative_context=not args.positive_context_only,
             )
             for dataset, transition in jobs
         ]
@@ -553,6 +608,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         "min_query_support": args.min_query_support,
         "max_rule_order": args.max_rule_order,
         "top_rules": args.top_rules,
+        "context_view": args.context_view,
+        "positive_context_only": bool(args.positive_context_only),
         "num_workers": args.num_workers,
         "save_query_effects": bool(args.save_query_effects),
         "runtime_s": runtime_s,

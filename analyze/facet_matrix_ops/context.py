@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+from analyze.context_attributes import canonical_context_items
 from core.store import CubeStore
 
 from .common import query_scope_clause, query_split
@@ -15,12 +16,59 @@ def query_context_sets(
     split: Optional[str] = None,
     predicate_names: Optional[Sequence[str]] = None,
     max_values_per_predicate: Optional[int] = 32,
+    context_view: str = "raw",
+    include_negative: bool = True,
 ):
-    """Return query-level context atom sets from the ``predicate`` table."""
+    """Return query-level context atom sets.
+
+    ``context_view="raw"`` preserves the historical behavior and reads
+    ``predicate`` rows directly. ``"canonical_shared"`` and
+    ``"canonical_scoped"`` compute the canonical context layer from query
+    metadata without modifying the cube.
+    """
     try:
         import pandas as pd
     except ImportError as e:  # pragma: no cover
         raise ImportError("pandas required for query_context_sets") from e
+
+    if context_view != "raw":
+        view = {
+            "canonical_shared": "shared",
+            "canonical_scoped": "scoped",
+            "canonical_all": "all",
+        }.get(context_view)
+        if view is None:
+            raise ValueError(
+                "context_view must be raw, canonical_shared, canonical_scoped, "
+                f"or canonical_all; got {context_view!r}"
+            )
+        where, params = query_scope_clause(dataset=dataset, split=split, alias="q")
+        rows = store._get_conn().execute(
+            f"""
+            SELECT q.query_id, q.dataset, q.meta AS query_meta
+            FROM query q
+            WHERE {' AND '.join(where)}
+            ORDER BY q.query_id
+            """,
+            tuple(params),
+        ).fetchall()
+        records = []
+        for row in rows:
+            meta = row["query_meta"]
+            records.append({
+                "query_id": str(row["query_id"]),
+                "dataset": row["dataset"],
+                "split": query_split(meta),
+                "context_atoms": frozenset(
+                    canonical_context_items(
+                        meta,
+                        str(row["dataset"]),
+                        view=view,
+                        include_negative=include_negative,
+                    )
+                ),
+            })
+        return pd.DataFrame(records, columns=["query_id", "dataset", "split", "context_atoms"])
 
     where, params = query_scope_clause(dataset=dataset, split=split, alias="q")
     pred_filter = ""

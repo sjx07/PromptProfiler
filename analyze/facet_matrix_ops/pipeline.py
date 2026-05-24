@@ -126,6 +126,8 @@ class FacetOperatorChain:
         *,
         predicate_names: Optional[Sequence[str]] = None,
         max_values_per_predicate: Optional[int] = 32,
+        context_view: str = "raw",
+        include_negative: bool = True,
     ) -> "FacetOperatorChain":
         self.state.context_rows = query_context_sets(
             self.store,
@@ -133,11 +135,15 @@ class FacetOperatorChain:
             split=self.scope.split,
             predicate_names=predicate_names,
             max_values_per_predicate=max_values_per_predicate,
+            context_view=context_view,
+            include_negative=include_negative,
         )
         self.state.meta["predicate_names"] = (
             list(predicate_names) if predicate_names is not None else None
         )
         self.state.meta["max_values_per_predicate"] = max_values_per_predicate
+        self.state.meta["context_view"] = context_view
+        self.state.meta["include_negative_context"] = include_negative
         return self
 
     def with_itemsets(
@@ -244,12 +250,18 @@ class FacetOperatorChain:
         min_query_support: int = 50,
         min_config_support: int = 1,
         max_values_per_predicate: Optional[int] = 32,
+        context_view: str = "raw",
+        include_negative: bool = True,
         n_bootstrap: int = 500,
         seed: int = 42,
     ) -> "FacetOperatorChain":
         return (
             self.with_paired_deltas()
-            .with_context(max_values_per_predicate=max_values_per_predicate)
+            .with_context(
+                max_values_per_predicate=max_values_per_predicate,
+                context_view=context_view,
+                include_negative=include_negative,
+            )
             .with_itemsets(
                 max_feature_order=max_feature_order,
                 max_context_order=max_context_order,
