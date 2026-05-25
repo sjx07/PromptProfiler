@@ -127,10 +127,21 @@ def is_numeric_context_atom(atom: str) -> bool:
     return context_atom_name(atom) in NUMERIC_CONTEXT_NAMES
 
 
-def filter_context_atoms(atoms: Iterable[str], *, exclude_numeric_context: bool) -> frozenset[str]:
-    if not exclude_numeric_context:
-        return frozenset(atoms)
-    return frozenset(atom for atom in atoms if not is_numeric_context_atom(atom))
+def filter_context_atoms(
+    atoms: Iterable[str],
+    *,
+    exclude_numeric_context: bool,
+    exclude_context_names: frozenset[str] = frozenset(),
+) -> frozenset[str]:
+    out = []
+    for atom in atoms:
+        name = context_atom_name(atom)
+        if exclude_numeric_context and is_numeric_context_atom(atom):
+            continue
+        if name in exclude_context_names:
+            continue
+        out.append(atom)
+    return frozenset(out)
 
 
 def mean(values: Sequence[float]) -> float:
@@ -239,6 +250,7 @@ def build_context_maps(
     *,
     include_negative: bool,
     exclude_numeric_context: bool,
+    exclude_context_names: frozenset[str] = frozenset(),
 ) -> tuple[dict[tuple[str, str], frozenset[str]], dict[tuple[str, str], frozenset[str]]]:
     within = {}
     shared = {}
@@ -248,10 +260,12 @@ def build_context_maps(
         within[key] = filter_context_atoms(
             canonical_context_items(meta, dataset, view="all", include_negative=include_negative),
             exclude_numeric_context=exclude_numeric_context,
+            exclude_context_names=exclude_context_names,
         )
         shared[key] = filter_context_atoms(
             canonical_context_items(meta, dataset, view="shared", include_negative=include_negative),
             exclude_numeric_context=exclude_numeric_context,
+            exclude_context_names=exclude_context_names,
         )
     return within, shared
 
@@ -678,6 +692,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Drop numeric/table-size/value-surface context atoms before rule mining.",
     )
+    p.add_argument(
+        "--exclude-context-names",
+        default="",
+        help="Comma-separated canonical context names to drop before rule mining, e.g. intent.negation_marker.",
+    )
     return p
 
 
@@ -690,10 +709,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     conn.row_factory = sqlite3.Row
     configs = load_configs(conn)
     query_meta = load_query_meta(conn, datasets)
+    excluded_context_names = frozenset(split_csv(args.exclude_context_names))
     context_within, context_shared = build_context_maps(
         query_meta,
         include_negative=bool(args.include_negative_context),
         exclude_numeric_context=bool(args.exclude_numeric_context),
+        exclude_context_names=excluded_context_names,
     )
     observations, feature_summary = load_addone_observations(
         conn,
@@ -738,6 +759,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         "include_negative_context": bool(args.include_negative_context),
         "exclude_numeric_context": bool(args.exclude_numeric_context),
         "excluded_numeric_context_names": sorted(NUMERIC_CONTEXT_NAMES) if args.exclude_numeric_context else [],
+        "excluded_context_names": sorted(excluded_context_names),
         "n_observations": len(observations),
         "n_feature_summaries": len(feature_summary),
         "n_within_rules": len(within_rules),

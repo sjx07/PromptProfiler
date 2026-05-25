@@ -1,0 +1,73 @@
+{
+  "across_diagnostics": {
+    "candidate_itemsets": {
+      "1": 12,
+      "2": 60
+    }
+  },
+  "across_min_dataset_support": 30,
+  "across_min_total_support": 200,
+  "datasets": [
+    "wtq",
+    "sqa",
+    "tablebench",
+    "tab_fact",
+    "hitab"
+  ],
+  "db": "/data/users/jsu323/facet/wikitable_reasoning_default_addone_v1.db",
+  "exclude_numeric_context": true,
+  "excluded_context_names": [
+    "intent.negation_marker"
+  ],
+  "excluded_numeric_context_names": [
+    "cell.has_comma_number",
+    "cell.has_percent",
+    "cell.has_range_or_score",
+    "intent.arithmetic_op_marker",
+    "intent.percent_or_ratio",
+    "schema.has_rank_col",
+    "schema.has_score_col",
+    "schema.has_unit_col",
+    "table.cols_bin",
+    "table.numeric_cols_bin",
+    "table.numeric_density_bin",
+    "table.rows_bin",
+    "table.shape",
+    "text.has_number",
+    "text.has_ordinal",
+    "text.has_year"
+  ],
+  "include_negative_context": false,
+  "max_order": 2,
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "n_across_rules": 1008,
+  "n_feature_summaries": 70,
+  "n_observations": 305298,
+  "n_within_rules": 4942,
+  "out": "study_layer/artifacts/addone_context_rule_learning_7b_no_numeric_no_negation_v1",
+  "within_diagnostics": {
+    "candidate_itemsets": {
+      "hitab": {
+        "1": 16,
+        "2": 86
+      },
+      "sqa": {
+        "1": 13,
+        "2": 59
+      },
+      "tab_fact": {
+        "1": 10,
+        "2": 43
+      },
+      "tablebench": {
+        "1": 12,
+        "2": 49
+      },
+      "wtq": {
+        "1": 12,
+        "2": 53
+      }
+    }
+  },
+  "within_min_support": 80
+}
