@@ -1,0 +1,51 @@
+{
+  "across_diagnostics": {
+    "candidate_itemsets": {
+      "1": 43,
+      "2": 645
+    }
+  },
+  "across_min_dataset_support": 30,
+  "across_min_total_support": 200,
+  "datasets": [
+    "wtq",
+    "sqa",
+    "tablebench",
+    "tab_fact",
+    "hitab"
+  ],
+  "db": "/data/users/jsu323/facet/wikitable_reasoning_default_addone_v1.db",
+  "include_negative_context": false,
+  "max_order": 2,
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "n_across_rules": 9177,
+  "n_feature_summaries": 70,
+  "n_observations": 305298,
+  "n_within_rules": 33057,
+  "out": "study_layer/artifacts/addone_context_rule_learning_7b_v1",
+  "within_diagnostics": {
+    "candidate_itemsets": {
+      "hitab": {
+        "1": 39,
+        "2": 431
+      },
+      "sqa": {
+        "1": 36,
+        "2": 427
+      },
+      "tab_fact": {
+        "1": 37,
+        "2": 536
+      },
+      "tablebench": {
+        "1": 30,
+        "2": 251
+      },
+      "wtq": {
+        "1": 41,
+        "2": 534
+      }
+    }
+  },
+  "within_min_support": 80
+}
