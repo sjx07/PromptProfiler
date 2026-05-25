@@ -383,6 +383,26 @@ def build_rows(
     return outcome_rows, feature_rows, context_rows, metadata
 
 
+def is_aligned_context_indicator(indicator: str) -> bool:
+    """Return true for slice atoms whose semantics can align across benchmarks."""
+    return not indicator.startswith("native.")
+
+
+def aligned_global_context_rows(global_context_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for row in global_context_rows:
+        if row["dataset_count"] < 2:
+            continue
+        if not is_aligned_context_indicator(row["context_indicator"]):
+            continue
+        out = dict(row)
+        out["slice_id"] = out["context_indicator"]
+        out["feature_slice_id"] = f"{out['feature_label']} | {out['context_indicator']}"
+        rows.append(out)
+    rows.sort(key=lambda r: (r["feature_family"], r["feature_label"], r["context_indicator"]))
+    return rows
+
+
 def build_global_summaries(
     outcome_rows: list[dict[str, Any]],
     feature_rows: list[dict[str, Any]],
@@ -515,6 +535,7 @@ def write_html(
     context_rows: list[dict[str, Any]],
     global_feature_rows: list[dict[str, Any]],
     global_context_rows: list[dict[str, Any]],
+    global_aligned_context_rows: list[dict[str, Any]],
     artifact_paths: dict[str, Path],
 ) -> None:
     def table(headers: list[str], rows: list[dict[str, Any]], limit: int | None = None) -> str:
@@ -544,11 +565,11 @@ def write_html(
     ]
     strong_context.sort(key=lambda r: (abs(r["diff_from_global"]), abs(r["delta_mean"]), r["n"]), reverse=True)
     global_context_strong = [
-        r for r in global_context_rows
-        if r["n"] >= 500 and r["dataset_count"] >= 2
+        r for r in global_aligned_context_rows
+        if r["n"] >= 500
     ]
     global_context_strong.sort(
-        key=lambda r: (abs(r["diff_from_global_macro"]), abs(r["diff_from_global_micro"]), r["n"]),
+        key=lambda r: (abs(r["diff_from_global_micro"]), abs(r["diff_from_global_macro"]), r["n"]),
         reverse=True,
     )
 
@@ -582,7 +603,7 @@ def write_html(
 </head>
 <body>
   <h1>7B Context Outcome Table v1.2</h1>
-  <div class="subtle">Model: <code>{esc(metadata['model'])}</code>. Outcome rows: {metadata['n_outcome_rows']}. Context rows: {metadata['n_context_rows']}. Global feature-slice rows: {metadata.get('n_global_context_rows', 0)}.</div>
+  <div class="subtle">Model: <code>{esc(metadata['model'])}</code>. Outcome rows: {metadata['n_outcome_rows']}. Context rows: {metadata['n_context_rows']}. Aligned global feature-slice rows: {metadata.get('n_global_aligned_context_rows', 0)}.</div>
   <div class="pills">{pills}</div>
   <div class="note"><b>Persistence decision:</b> this build does not mutate the cube <code>predicate</code> table. The v1.2 context atoms remain a versioned sidecar artifact for now, because legacy predicates mix older task-specific names and the new registry has categorical atoms, support metadata, and extractor provenance. If we need old-view compatibility later, use a prefixed export such as <code>ctx_v1_2.table.rows_bin</code>.</div>
 
@@ -592,20 +613,20 @@ def write_html(
   <h2>Config Coverage</h2>
   {table(['dataset','feature_label','feature_family','base_config_id','config_id','base_n','treatment_n','paired_n','base_mean','treatment_mean','delta_mean'], coverage_rows)}
 
-  <h2>Feature Summary</h2>
-  {table(['dataset','feature_label','feature_family','n','base_mean','score_mean','delta_mean','delta_ci95_low','delta_ci95_high','win_rate','loss_rate','tie_rate'], feature_sorted)}
-
   <h2>Global Feature Summary With CI</h2>
-  <div class="subtle">Micro pools query-level paired deltas. Macro gives each benchmark equal weight. CI columns are normal-approximation intervals over paired deltas for micro and over benchmark means for macro.</div>
+  <div class="subtle">One row per aligned feature across all benchmarks. Micro pools query-level paired deltas. Macro gives each benchmark equal weight.</div>
   {table(['feature_label','feature_family','n','dataset_count','datasets','delta_mean_micro','delta_ci95_low_micro','delta_ci95_high_micro','delta_mean_macro','delta_ci95_low_macro','delta_ci95_high_macro','win_rate_micro','loss_rate_micro'], global_feature_sorted)}
 
-  <h2>Large Context-Conditional Deviations</h2>
-  <div class="subtle">Within-benchmark slice rows shown when support n &gt;= 100 and abs(diff from feature global delta) &gt;= 3 points.</div>
-  {table(['dataset','feature_label','feature_family','context_indicator','n','delta_mean','delta_ci95_low','delta_ci95_high','global_delta_mean','diff_from_global','win_rate','loss_rate'], strong_context, limit=250)}
-
-  <h2>Global Feature x Slice Outcome With CI</h2>
-  <div class="subtle">Shown when pooled support n &gt;= 500 and the slice appears in at least two benchmarks. <code>diff_from_global_*</code> compares the slice effect against the same feature's global effect.</div>
+  <h2>Aligned Global Feature x Slice Outcome With CI</h2>
+  <div class="subtle">Primary analysis view: one row per <code>(feature_label, context_indicator)</code>, pooled across benchmarks for larger support. Benchmark names are provenance only; they are not part of the grouping key. Dataset-native atoms are excluded from this aligned view.</div>
   {table(['feature_label','feature_family','context_indicator','n','dataset_count','datasets','delta_mean_micro','delta_ci95_low_micro','delta_ci95_high_micro','diff_from_global_micro','delta_mean_macro','delta_ci95_low_macro','delta_ci95_high_macro','diff_from_global_macro'], global_context_strong, limit=300)}
+
+  <h2>Per-Benchmark Feature Summary</h2>
+  {table(['dataset','feature_label','feature_family','n','base_mean','score_mean','delta_mean','delta_ci95_low','delta_ci95_high','win_rate','loss_rate','tie_rate'], feature_sorted)}
+
+  <h2>Per-Benchmark Large Context Deviations</h2>
+  <div class="subtle">Diagnostic only: within-benchmark slice rows shown when support n &gt;= 100 and abs(diff from feature global delta) &gt;= 3 points.</div>
+  {table(['dataset','feature_label','feature_family','context_indicator','n','delta_mean','delta_ci95_low','delta_ci95_high','global_delta_mean','diff_from_global','win_rate','loss_rate'], strong_context, limit=250)}
 </body>
 </html>
 """
@@ -628,8 +649,10 @@ def main() -> int:
     outcome_rows, feature_rows, context_rows, metadata = build_rows(conn, model=args.model, registry=registry)
     conn.close()
     global_feature_rows, global_context_rows = build_global_summaries(outcome_rows, feature_rows, context_rows)
+    global_aligned_context_rows = aligned_global_context_rows(global_context_rows)
     metadata["n_global_feature_rows"] = len(global_feature_rows)
     metadata["n_global_context_rows"] = len(global_context_rows)
+    metadata["n_global_aligned_context_rows"] = len(global_aligned_context_rows)
 
     out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -640,6 +663,7 @@ def main() -> int:
         "context_summary_csv": out_dir / f"{args.prefix}.context_summary.csv",
         "global_feature_summary_csv": out_dir / f"{args.prefix}.global_feature_summary.csv",
         "global_context_summary_csv": out_dir / f"{args.prefix}.global_context_summary.csv",
+        "global_aligned_feature_slice_csv": out_dir / f"{args.prefix}.global_aligned_feature_slice.csv",
         "metadata_json": out_dir / f"{args.prefix}.metadata.json",
         "html": out_dir / f"{args.prefix}.html",
     }
@@ -671,6 +695,11 @@ def main() -> int:
         global_context_rows,
         ["feature_label", "feature_family", "context_indicator", "n", "dataset_count", "datasets", "base_mean_micro", "score_mean_micro", "delta_mean_micro", "delta_se_micro", "delta_ci95_low_micro", "delta_ci95_high_micro", "global_delta_mean_micro", "diff_from_global_micro", "win_rate_micro", "loss_rate_micro", "tie_rate_micro", "delta_mean_macro", "delta_se_macro", "delta_ci95_low_macro", "delta_ci95_high_macro", "global_delta_mean_macro", "diff_from_global_macro"],
     )
+    write_csv(
+        paths["global_aligned_feature_slice_csv"],
+        global_aligned_context_rows,
+        ["feature_slice_id", "feature_label", "feature_family", "slice_id", "context_indicator", "n", "dataset_count", "datasets", "base_mean_micro", "score_mean_micro", "delta_mean_micro", "delta_se_micro", "delta_ci95_low_micro", "delta_ci95_high_micro", "global_delta_mean_micro", "diff_from_global_micro", "win_rate_micro", "loss_rate_micro", "tie_rate_micro", "delta_mean_macro", "delta_se_macro", "delta_ci95_low_macro", "delta_ci95_high_macro", "global_delta_mean_macro", "diff_from_global_macro"],
+    )
     paths["metadata_json"].write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     write_html(
         paths["html"],
@@ -679,6 +708,7 @@ def main() -> int:
         context_rows=context_rows,
         global_feature_rows=global_feature_rows,
         global_context_rows=global_context_rows,
+        global_aligned_context_rows=global_aligned_context_rows,
         artifact_paths=paths,
     )
     if args.obsidian_html:
@@ -689,6 +719,7 @@ def main() -> int:
             context_rows=context_rows,
             global_feature_rows=global_feature_rows,
             global_context_rows=global_context_rows,
+            global_aligned_context_rows=global_aligned_context_rows,
             artifact_paths=paths,
         )
 
@@ -698,6 +729,7 @@ def main() -> int:
     print(f"context_rows: {len(context_rows)}")
     print(f"global_feature_rows: {len(global_feature_rows)}")
     print(f"global_context_rows: {len(global_context_rows)}")
+    print(f"global_aligned_context_rows: {len(global_aligned_context_rows)}")
     for name, path in paths.items():
         print(f"{name}: {path}")
     if args.obsidian_html:
