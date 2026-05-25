@@ -39,6 +39,25 @@ DATASET_SCORERS = {
     "hitab": "denotation_acc",
 }
 STRUCTURAL_PREFIXES = ("_section_", "facet_dp_scaffold")
+NUMERIC_CONTEXT_NAMES = frozenset({
+    "intent.arithmetic_op_marker",
+    "intent.percent_or_ratio",
+    "text.has_number",
+    "text.has_year",
+    "text.has_ordinal",
+    "schema.has_rank_col",
+    "schema.has_score_col",
+    "schema.has_unit_col",
+    "table.rows_bin",
+    "table.cols_bin",
+    "table.numeric_cols_bin",
+    "table.numeric_density_bin",
+    "table.shape",
+    "cell.has_comma_number",
+    "cell.has_percent",
+    "cell.has_range_or_score",
+})
+
 
 
 @dataclass(frozen=True)
@@ -98,6 +117,20 @@ def feature_family(label: str, atom: str) -> str:
     if label.startswith("reason.") or atom.startswith("reasoning_"):
         return "reasoning"
     return "other"
+
+
+def context_atom_name(atom: str) -> str:
+    return atom.split("=", 1)[0]
+
+
+def is_numeric_context_atom(atom: str) -> bool:
+    return context_atom_name(atom) in NUMERIC_CONTEXT_NAMES
+
+
+def filter_context_atoms(atoms: Iterable[str], *, exclude_numeric_context: bool) -> frozenset[str]:
+    if not exclude_numeric_context:
+        return frozenset(atoms)
+    return frozenset(atom for atom in atoms if not is_numeric_context_atom(atom))
 
 
 def mean(values: Sequence[float]) -> float:
@@ -205,17 +238,20 @@ def build_context_maps(
     query_meta: Mapping[tuple[str, str], Mapping[str, Any]],
     *,
     include_negative: bool,
+    exclude_numeric_context: bool,
 ) -> tuple[dict[tuple[str, str], frozenset[str]], dict[tuple[str, str], frozenset[str]]]:
     within = {}
     shared = {}
     for key, row in query_meta.items():
         dataset = str(row["dataset"])
         meta = row["meta"]
-        within[key] = frozenset(
-            canonical_context_items(meta, dataset, view="all", include_negative=include_negative)
+        within[key] = filter_context_atoms(
+            canonical_context_items(meta, dataset, view="all", include_negative=include_negative),
+            exclude_numeric_context=exclude_numeric_context,
         )
-        shared[key] = frozenset(
-            canonical_context_items(meta, dataset, view="shared", include_negative=include_negative)
+        shared[key] = filter_context_atoms(
+            canonical_context_items(meta, dataset, view="shared", include_negative=include_negative),
+            exclude_numeric_context=exclude_numeric_context,
         )
     return within, shared
 
@@ -637,6 +673,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--across-min-dataset-support", type=int, default=30)
     p.add_argument("--bootstrap", type=int, default=300)
     p.add_argument("--include-negative-context", action="store_true")
+    p.add_argument(
+        "--exclude-numeric-context",
+        action="store_true",
+        help="Drop numeric/table-size/value-surface context atoms before rule mining.",
+    )
     return p
 
 
@@ -652,6 +693,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     context_within, context_shared = build_context_maps(
         query_meta,
         include_negative=bool(args.include_negative_context),
+        exclude_numeric_context=bool(args.exclude_numeric_context),
     )
     observations, feature_summary = load_addone_observations(
         conn,
@@ -694,6 +736,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         "across_min_total_support": args.across_min_total_support,
         "across_min_dataset_support": args.across_min_dataset_support,
         "include_negative_context": bool(args.include_negative_context),
+        "exclude_numeric_context": bool(args.exclude_numeric_context),
+        "excluded_numeric_context_names": sorted(NUMERIC_CONTEXT_NAMES) if args.exclude_numeric_context else [],
         "n_observations": len(observations),
         "n_feature_summaries": len(feature_summary),
         "n_within_rules": len(within_rules),
