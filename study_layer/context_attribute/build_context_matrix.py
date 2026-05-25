@@ -8,6 +8,7 @@ import html
 import inspect
 import json
 import math
+import re
 import sqlite3
 import sys
 from collections import Counter, defaultdict
@@ -181,17 +182,90 @@ def pct(value: float) -> str:
     return f"{100 * value:.1f}%"
 
 
-def source_snippets() -> list[dict[str, str]]:
-    names = ["TEXT_PATTERNS", "HEADER_PATTERNS", "split_range_and_score_atoms", "canonical_atoms", "indicator_atoms"]
-    snippets = []
-    for name in names:
-        obj = getattr(extractors, name)
-        try:
-            code = inspect.getsource(obj)
-        except TypeError:
-            code = repr(obj)
-        snippets.append({"name": name, "code": code})
-    return snippets
+def regex_flags(pattern: Any) -> str:
+    flags: list[str] = []
+    if pattern.flags & re.IGNORECASE:
+        flags.append("re.I")
+    return " | ".join(flags) or "0"
+
+
+def pattern_snippet(mapping_name: str, atom: str, pattern: Any, source_value: str) -> str:
+    return (
+        f'{mapping_name}["{atom}"] = re.compile({pattern.pattern!r}, {regex_flags(pattern)})\n\n'
+        f'# canonical_atoms(...)\n'
+        f'out["{atom}"] = "yes" if {mapping_name}["{atom}"].search({source_value}) else "no"'
+    )
+
+
+def atom_implementation(atom_spec: dict[str, Any]) -> str:
+    atom = atom_spec["atom"]
+    if atom in extractors.TEXT_PATTERNS:
+        return pattern_snippet("TEXT_PATTERNS", atom, extractors.TEXT_PATTERNS[atom], "text")
+    if atom in extractors.HEADER_PATTERNS:
+        return (
+            pattern_snippet("HEADER_PATTERNS", atom, extractors.HEADER_PATTERNS[atom], "str(header)")
+            .replace(
+                f'out["{atom}"] = "yes" if HEADER_PATTERNS["{atom}"].search(str(header)) else "no"',
+                f'out["{atom}"] = "yes" if any(HEADER_PATTERNS["{atom}"].search(str(header)) for header in headers) else "no"',
+            )
+        )
+    if atom == "schema.header_repetition_marker":
+        return 'normalized_headers = [str(header).strip().lower() for header in headers]\nout["schema.header_repetition_marker"] = "yes" if len(normalized_headers) != len(set(normalized_headers)) else "no"'
+    if atom == "table.rows_bin":
+        return 'n_rows = len(rows)\nout["table.rows_bin"] = bin_count(n_rows, (5, 10, 25, 50))'
+    if atom == "table.cols_bin":
+        return 'n_cols = len(headers)\nout["table.cols_bin"] = bin_count(n_cols, (3, 6, 10))'
+    if atom == "table.shape":
+        return 'if not n_rows or not n_cols:\n    out["table.shape"] = "empty"\nelse:\n    ratio = n_cols / n_rows\n    out["table.shape"] = "wide" if ratio > 0.5 else ("tall" if ratio < 0.1 else "balanced")'
+    if atom in {"table.numeric_cols_bin", "table.numeric_density_bin"}:
+        return '''numeric_cols = 0
+for ci in range(n_cols):
+    vals = [
+        str(rows[ri][ci]).strip()
+        for ri in range(min(n_rows, 50))
+        if ci < len(rows[ri]) and str(rows[ri][ci]).strip()
+    ]
+    if vals and sum(numeric_like(v) for v in vals) / len(vals) > 0.5:
+        numeric_cols += 1
+out["table.numeric_cols_bin"] = "0" if numeric_cols == 0 else ("1" if numeric_cols == 1 else ("2_3" if numeric_cols <= 3 else "ge_4"))
+if not n_cols or numeric_cols == 0:
+    out["table.numeric_density_bin"] = "none"
+else:
+    density = numeric_cols / n_cols
+    out["table.numeric_density_bin"] = "low" if density < 0.25 else ("mid" if density < 0.6 else "high")'''
+    cell_pattern_atoms = {
+        "cell.has_comma_number": ("COMMA_NUMBER_PATTERN", extractors.COMMA_NUMBER_PATTERN),
+        "cell.has_percent": ("PERCENT_PATTERN", extractors.PERCENT_PATTERN),
+        "cell.has_currency": ("CURRENCY_PATTERN", extractors.CURRENCY_PATTERN),
+        "cell.has_date_like": ("DATE_LIKE_PATTERN", extractors.DATE_LIKE_PATTERN),
+    }
+    if atom in cell_pattern_atoms:
+        name, pattern = cell_pattern_atoms[atom]
+        return f'{name} = re.compile({pattern.pattern!r}, {regex_flags(pattern)})\nout["{atom}"] = "yes" if {name}.search(flat_text) else "no"'
+    if atom == "cell.missing_value_marker":
+        return 'MISSING_MARKERS = {"", "-", "--", "?", "n/a", "na", "none", "null"}\nout["cell.missing_value_marker"] = "yes" if any(cell.strip().lower() in MISSING_MARKERS for cell in visible_cells) else "no"'
+    if atom in {"cell.has_numeric_range", "cell.has_score_surface"}:
+        return inspect.getsource(extractors.split_range_and_score_atoms) + '\n# canonical_atoms(...)\nnumeric_range, score_surface = split_range_and_score_atoms(flat_text, out["schema.has_score_col"] == "yes")\nout["cell.has_numeric_range"] = numeric_range\nout["cell.has_score_surface"] = score_surface'
+    if atom in {"grounding.header_overlap", "grounding.cell_overlap"}:
+        return inspect.getsource(extractors.tokens) + '\n# canonical_atoms(...)\nquestion_tokens = tokens(text)\nout["grounding.header_overlap"] = "yes" if question_tokens & tokens(header_text) else "no"\nout["grounding.cell_overlap"] = "yes" if question_tokens & tokens(flat_text) else "no"'
+    if atom in {"dialog.turn_bin", "dialog.has_reference_marker"}:
+        return 'DIALOG_REFERENCE_PATTERN = re.compile(...)\nif dataset == "sqa":\n    position = int(raw.get("position", meta.get("position", 0)) or 0)\n    out["dialog.turn_bin"] = "first" if position == 0 else ("early" if position <= 2 else "late")\n    out["dialog.has_reference_marker"] = "yes" if DIALOG_REFERENCE_PATTERN.search(text) else "no"\nelse:\n    out["dialog.turn_bin"] = "na"\n    out["dialog.has_reference_marker"] = "na"'
+    if atom in {"native.tablebench_qtype", "native.tablebench_qsubtype"}:
+        return 'if dataset == "tablebench":\n    out["native.tablebench_qtype"] = str(raw.get("qtype", meta.get("qtype", "unknown")) or "unknown")\n    out["native.tablebench_qsubtype"] = str(raw.get("qsubtype", meta.get("qsubtype", "unknown")) or "unknown")'
+    if atom in {"native.hitab_agg_type", "native.hitab_source_family"}:
+        return 'if dataset == "hitab":\n    out["native.hitab_agg_type"] = str(raw.get("aggregation", meta.get("aggregation", "unknown")) or "unknown")\n    out["native.hitab_source_family"] = str(raw.get("table_source", meta.get("table_source", "unknown")) or "unknown")'
+    return f'# Extractor path: {atom_spec.get("extractor", "unknown")}\n# See lightweight_extractors.canonical_atoms for implementation.'
+
+
+def atom_cell_html(atom_spec: dict[str, Any]) -> str:
+    atom = atom_spec["atom"]
+    code = atom_implementation(atom_spec)
+    return (
+        '<details class="atom-code">'
+        f'<summary><code>{esc(atom)}</code></summary>'
+        f'<pre><code>{esc(code)}</code></pre>'
+        '</details>'
+    )
 
 
 def write_report(path: Path, registry: dict[str, Any], rows: list[dict[str, Any]], support_rows: list[dict[str, Any]], redundancy: list[dict[str, Any]], matrix_path: Path, min_support: int) -> None:
@@ -220,7 +294,7 @@ def write_report(path: Path, registry: dict[str, Any], rows: list[dict[str, Any]
     for atom in registry["atoms"]:
         registry_html.append(
             "<tr>"
-            f"<td><code>{esc(atom['atom'])}</code></td>"
+            f"<td>{atom_cell_html(atom)}</td>"
             f"<td>{esc(atom['family'])}</td>"
             f"<td>{esc(atom['value_type'])}</td>"
             f"<td>{esc(atom['scope'])}</td>"
@@ -239,13 +313,6 @@ def write_report(path: Path, registry: dict[str, Any], rows: list[dict[str, Any]
             f"<td>{row['support_left']}</td><td>{row['support_right']}</td><td>{row['intersection']}</td>"
             f"<td>{row['jaccard']:.3f}</td><td>{row['phi']:.3f}</td><td>{row['nmi']:.3f}</td>"
             "</tr>"
-        )
-
-    snippets_html = []
-    for snippet in source_snippets():
-        snippets_html.append(
-            f"<details open><summary>{esc(snippet['name'])}</summary>"
-            f"<pre><code>{esc(snippet['code'])}</code></pre></details>"
         )
 
     excluded_html = "".join(f"<li><code>{esc(item['name'])}</code>: {esc(item['reason'])}</li>" for item in registry.get("explicitly_excluded", []))
@@ -276,6 +343,12 @@ def write_report(path: Path, registry: dict[str, Any], rows: list[dict[str, Any]
     pre {{ background: #111827; color: #e5e7eb; padding: 12px; overflow: auto; border-radius: 6px; max-height: 420px; }}
     details {{ background: white; border: 1px solid #d8dee8; border-radius: 8px; padding: 10px 12px; margin: 10px 0; }}
     summary {{ cursor: pointer; font-weight: 700; }}
+    .atom-code {{ padding: 0; margin: 0; border: 0; background: transparent; }}
+    .atom-code summary {{ list-style: none; display: inline-flex; align-items: center; gap: 8px; }}
+    .atom-code summary::-webkit-details-marker {{ display: none; }}
+    .atom-code summary::before {{ content: "+"; display: inline-grid; place-items: center; width: 16px; height: 16px; border: 1px solid #b8c2d4; border-radius: 4px; color: #344054; font-size: 12px; }}
+    .atom-code[open] summary::before {{ content: "-"; }}
+    .atom-code pre {{ margin: 8px 0 0; max-width: min(920px, 82vw); }}
     .decision {{ background: #edf7ee; border: 1px solid #c7e4cc; border-radius: 6px; padding: 2px 6px; font-size: 12px; }}
     .warn {{ background: #fff7e6; border-color: #f5cf85; }}
   </style>
@@ -305,7 +378,8 @@ def write_report(path: Path, registry: dict[str, Any], rows: list[dict[str, Any]
   <ul>{excluded_html}</ul>
 
   <h2>Registry</h2>
-  <table><thead><tr><th>Atom</th><th>Family</th><th>Type</th><th>Scope</th><th>Decision</th><th>Extractor</th><th>Description</th></tr></thead><tbody>{''.join(registry_html)}</tbody></table>
+  <p class="subtle">Click an atom to unfold the exact lightweight extractor code used for that atom.</p>
+  <table><thead><tr><th>Atom + implementation</th><th>Family</th><th>Type</th><th>Scope</th><th>Decision</th><th>Extractor</th><th>Description</th></tr></thead><tbody>{''.join(registry_html)}</tbody></table>
 
   <h2>Support By Benchmark</h2>
   <table><thead><tr><th>Atom</th><th>Family</th><th>Scope</th><th>Decision</th><th>Total</th>{dataset_headers}</tr></thead><tbody>{''.join(support_html)}</tbody></table>
@@ -314,9 +388,6 @@ def write_report(path: Path, registry: dict[str, Any], rows: list[dict[str, Any]
   <p class=\"subtle\">Pairs shown when Jaccard >= 0.45, abs(phi) >= 0.35, or NMI >= 0.25.</p>
   <table><thead><tr><th>Left</th><th>Right</th><th>Support L</th><th>Support R</th><th>Both</th><th>Jaccard</th><th>Phi</th><th>NMI</th></tr></thead><tbody>{''.join(redundant_html)}</tbody></table>
 
-  <h2>Lightweight Extractor Implementation</h2>
-  <p class=\"subtle\">These snippets are read from <code>study_layer/context_attribute/lightweight_extractors.py</code>, so the report shows the actual implementation used to build the matrix.</p>
-  {''.join(snippets_html)}
 </body>
 </html>
 """
