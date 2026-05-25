@@ -1,0 +1,190 @@
+{
+  "study_id": "wikitable_value_surface_rule_pack_v1",
+  "description": "Base-vs-bundled-rule-pack experiment for context v1.2. The value-surface rule section is evaluated as one normal feature; no explicit context-trigger routing is used.",
+  "preview_path": "Obsidian/Transferability/Project/coding_agent_logs/codex/code/systematic_design/context_attribute/value_surface_rule_pack_v1_preview.html",
+  "common_config": {
+    "experiment_type": "explicit_coalitions",
+    "config_kind": "value_surface_rule_pack_v1",
+    "split": "test",
+    "max_queries": 0,
+    "sample_seed": 42,
+    "seed": 42,
+    "max_tokens": 2048,
+    "temperature": 0,
+    "top_p": 1.0,
+    "sampling_top_k": -1,
+    "model": "Qwen/Qwen2.5-14B-Instruct",
+    "ports": [
+      8000,
+      8001,
+      8002,
+      8003
+    ],
+    "num_workers": 128,
+    "request_timeout": 240,
+    "retry_errors": true,
+    "db_path": "/data/users/jsu323/facet/wikitable_value_surface_rule_pack_v1.db",
+    "vllm_db": "/data/users/jsu323/facet/wikitable_value_surface_rule_pack_v1_vllm.db",
+    "batch_configs": true,
+    "include_base": false,
+    "summary_baseline_label": "base"
+  },
+  "targets": {
+    "wtq": {
+      "task": "wtq",
+      "phase": "wtq_value_surface_rule_pack_v1_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/value_surface_rule_pack/wtq.value_surface_rule_pack_v1.full.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "scaffold.cot"
+      ]
+    },
+    "sqa": {
+      "task": "sqa",
+      "phase": "sqa_value_surface_rule_pack_v1_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/value_surface_rule_pack/sqa.value_surface_rule_pack_v1.full.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold",
+        "sqa_dialog_binding_base"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "scaffold.cot"
+      ],
+      "sqa_data_dir": "/data/users/jsu323/sqa/SQA Release 1.0"
+    },
+    "tablebench": {
+      "task": "tablebench",
+      "phase": "tablebench_value_surface_rule_pack_v1_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/value_surface_rule_pack/tablebench.value_surface_rule_pack_v1.full.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "scaffold.cot"
+      ]
+    },
+    "tabfact": {
+      "task": "tabfact",
+      "phase": "tabfact_value_surface_rule_pack_v1_qwen25_14b_validation",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/value_surface_rule_pack/tabfact.value_surface_rule_pack_v1.validation.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "scaffold.cot"
+      ],
+      "split": "validation"
+    },
+    "hitab": {
+      "task": "hitab",
+      "phase": "hitab_value_surface_rule_pack_v1_qwen25_14b_full",
+      "config_path": "Obsidian/facet_exp/wikitable_transfer/configs/systematic/qwen25_14b/value_surface_rule_pack/hitab.value_surface_rule_pack_v1.full.json",
+      "base_features": [
+        "_section_role",
+        "_section_task",
+        "_section_rules",
+        "_section_table_handling",
+        "_section_reasoning",
+        "_section_format_fix",
+        "facet_dp_scaffold"
+      ],
+      "fixed_blocks": [
+        "format.plain",
+        "ser.columns",
+        "scaffold.cot"
+      ]
+    }
+  },
+  "families": {
+    "format": {
+      "mode": "exclusive",
+      "description": "Prompt layout fixed to plain."
+    },
+    "ser": {
+      "mode": "exclusive",
+      "description": "Table serialization fixed to JSON columns."
+    },
+    "scaffold": {
+      "mode": "exclusive",
+      "description": "Visible reasoning scaffold fixed to COT carrier."
+    },
+    "domain_rule": {
+      "mode": "additive",
+      "description": "Bundled rule section evaluated as a single feature, not a routed rule policy."
+    }
+  },
+  "blocks": {
+    "format.plain": {
+      "family": "format",
+      "role": "fixed_background",
+      "atoms": [
+        "prompt_format_plain"
+      ]
+    },
+    "ser.columns": {
+      "family": "ser",
+      "role": "fixed_background",
+      "atoms": [
+        "table_serialization_json_columns_data"
+      ]
+    },
+    "scaffold.cot": {
+      "family": "scaffold",
+      "role": "fixed_background",
+      "atoms": [
+        "reasoning_scaffold_visible_cot"
+      ]
+    },
+    "domain_rule.value_surface_pack": {
+      "family": "domain_rule",
+      "role": "add_one",
+      "atoms": [
+        "domain_rule.wikitable_value_surface_pack"
+      ]
+    }
+  },
+  "generation": {
+    "include_anchor": true,
+    "main_blocks": [
+      "domain_rule.value_surface_pack"
+    ],
+    "ladders": [],
+    "pairwise": [],
+    "cartesian": [],
+    "selected": []
+  }
+}

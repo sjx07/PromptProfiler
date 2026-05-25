@@ -1,0 +1,374 @@
+{
+  "registry_id": "context_attribute_registry_v1_2",
+  "date": "2026-05-25",
+  "design_notes": [
+    "Registry-first context pass for WikiTable-style benchmarks.",
+    "Keep lightweight extractors primitive: lexical intent, table shape, numeric/date/value surfaces, header/cell overlap, and scoped native metadata.",
+    "Do not encode semantic entity ontology atoms such as country/team/player/name-role categories.",
+    "Targeted rule text is evaluated first as a bundled rule-pack feature, not explicitly triggered by these atoms."
+  ],
+  "datasets": [
+    "wtq",
+    "sqa",
+    "tablebench",
+    "tab_fact",
+    "hitab"
+  ],
+  "atoms": [
+    {
+      "atom": "intent.count",
+      "family": "intent",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_text",
+      "description": "Count or cardinality wording."
+    },
+    {
+      "atom": "intent.superlative_rank",
+      "family": "intent",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_text",
+      "description": "Superlative/ranking wording such as most, highest, first, last."
+    },
+    {
+      "atom": "intent.comparison",
+      "family": "intent",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_text",
+      "description": "Comparative wording, usually X than Y."
+    },
+    {
+      "atom": "intent.arithmetic",
+      "family": "intent",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_text",
+      "description": "Difference, ratio, percent, or arithmetic wording."
+    },
+    {
+      "atom": "intent.aggregate_noncount",
+      "family": "intent",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_text",
+      "description": "Aggregate operations other than count, such as sum or average."
+    },
+    {
+      "atom": "intent.temporal",
+      "family": "intent",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_text",
+      "description": "Temporal wording or explicit year/date mention."
+    },
+    {
+      "atom": "intent.negation_marker",
+      "family": "intent",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_text",
+      "description": "Negation markers."
+    },
+    {
+      "atom": "text.has_number",
+      "family": "text_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_text",
+      "description": "Question/statement contains a numeric literal."
+    },
+    {
+      "atom": "text.has_year",
+      "family": "text_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_text",
+      "description": "Question/statement contains a year-like literal."
+    },
+    {
+      "atom": "text.has_ordinal",
+      "family": "text_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_text",
+      "description": "Question/statement contains an ordinal cue."
+    },
+    {
+      "atom": "text.has_quoted_span",
+      "family": "text_surface",
+      "value_type": "binary",
+      "scope": "scoped",
+      "decision": "targeted_only",
+      "extractor": "regex_text",
+      "description": "Quoted exact string span; sparse but useful as exact-match cue."
+    },
+    {
+      "atom": "schema.has_date_col",
+      "family": "schema_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_header",
+      "description": "Header includes date/year/time-like terms."
+    },
+    {
+      "atom": "schema.has_score_col",
+      "family": "schema_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_header",
+      "description": "Header includes score/result/record/points-like terms."
+    },
+    {
+      "atom": "schema.has_unit_col",
+      "family": "schema_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_header",
+      "description": "Header includes explicit units, rates, percentages, area, density, or population terms."
+    },
+    {
+      "atom": "schema.has_rank_col",
+      "family": "schema_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_header",
+      "description": "Header includes rank/place/position/seed/round cues."
+    },
+    {
+      "atom": "schema.header_repetition_marker",
+      "family": "schema_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "scoped",
+      "extractor": "header_normalization",
+      "description": "Repeated normalized headers, often from flattened hierarchical tables."
+    },
+    {
+      "atom": "table.rows_bin",
+      "family": "table_shape",
+      "value_type": "categorical",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "shape_bin",
+      "description": "Input table row-count bin."
+    },
+    {
+      "atom": "table.cols_bin",
+      "family": "table_shape",
+      "value_type": "categorical",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "shape_bin",
+      "description": "Input table column-count bin."
+    },
+    {
+      "atom": "table.shape",
+      "family": "table_shape",
+      "value_type": "categorical",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "shape_ratio",
+      "description": "Wide/tall/balanced/empty shape from rows and columns."
+    },
+    {
+      "atom": "table.numeric_cols_bin",
+      "family": "table_shape",
+      "value_type": "categorical",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "numeric_column_scan",
+      "description": "Number of numeric-looking columns, binned."
+    },
+    {
+      "atom": "table.numeric_density_bin",
+      "family": "table_shape",
+      "value_type": "categorical",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "numeric_column_scan",
+      "description": "Share of numeric-looking columns, binned."
+    },
+    {
+      "atom": "cell.has_comma_number",
+      "family": "cell_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "targeted_only",
+      "extractor": "regex_cell",
+      "description": "Cells contain comma-grouped numerals."
+    },
+    {
+      "atom": "cell.has_percent",
+      "family": "cell_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_cell",
+      "description": "Cells contain percent-marked values."
+    },
+    {
+      "atom": "cell.has_currency",
+      "family": "cell_surface",
+      "value_type": "binary",
+      "scope": "scoped",
+      "decision": "targeted_only",
+      "extractor": "regex_cell",
+      "description": "Cells contain currency symbols."
+    },
+    {
+      "atom": "cell.has_numeric_range",
+      "family": "cell_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_cell_split",
+      "description": "Cells contain hyphen/en-dash numeric spans, separated from score surfaces."
+    },
+    {
+      "atom": "cell.has_score_surface",
+      "family": "cell_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_cell_split+schema_hint",
+      "description": "Cells contain score/result-like surfaces, separated from generic numeric ranges."
+    },
+    {
+      "atom": "cell.has_date_like",
+      "family": "cell_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_cell",
+      "description": "Cells contain years/month names/date-like text."
+    },
+    {
+      "atom": "cell.missing_value_marker",
+      "family": "cell_surface",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "regex_cell",
+      "description": "Cells include empty, dash, question mark, n/a, or none markers."
+    },
+    {
+      "atom": "grounding.header_overlap",
+      "family": "grounding_overlap",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "token_overlap",
+      "description": "Question tokens overlap header tokens."
+    },
+    {
+      "atom": "grounding.cell_overlap",
+      "family": "grounding_overlap",
+      "value_type": "binary",
+      "scope": "shared",
+      "decision": "keep",
+      "extractor": "token_overlap",
+      "description": "Question tokens overlap visible cell tokens."
+    },
+    {
+      "atom": "dialog.has_reference_marker",
+      "family": "dialog_context",
+      "value_type": "binary",
+      "scope": "sqa_only",
+      "decision": "scoped",
+      "extractor": "regex_text+sqa_only",
+      "description": "SQA follow-up contains reference markers such as these/those/their."
+    },
+    {
+      "atom": "dialog.turn_bin",
+      "family": "dialog_context",
+      "value_type": "categorical",
+      "scope": "sqa_only",
+      "decision": "scoped",
+      "extractor": "sqa_position",
+      "description": "First/early/late SQA dialog turn bin."
+    },
+    {
+      "atom": "native.tablebench_qtype",
+      "family": "native_metadata",
+      "value_type": "categorical",
+      "scope": "tablebench_only",
+      "decision": "scoped",
+      "extractor": "native_meta",
+      "description": "Native TableBench qtype for analysis only."
+    },
+    {
+      "atom": "native.tablebench_qsubtype",
+      "family": "native_metadata",
+      "value_type": "categorical",
+      "scope": "tablebench_only",
+      "decision": "scoped",
+      "extractor": "native_meta",
+      "description": "Native TableBench qsubtype for analysis only, not used as primitive transfer claim."
+    },
+    {
+      "atom": "native.hitab_agg_type",
+      "family": "native_metadata",
+      "value_type": "categorical",
+      "scope": "hitab_only",
+      "decision": "scoped",
+      "extractor": "native_meta",
+      "description": "Native HiTab aggregation type for within-benchmark analysis."
+    },
+    {
+      "atom": "native.hitab_source_family",
+      "family": "native_metadata",
+      "value_type": "categorical",
+      "scope": "hitab_only",
+      "decision": "scoped",
+      "extractor": "native_meta",
+      "description": "Native HiTab source family for within-benchmark analysis."
+    }
+  ],
+  "explicitly_excluded": [
+    {
+      "name": "schema.has_entity_col",
+      "reason": "Encodes semantic entity ontology such as country/team/player; too heavy for the lightweight primitive layer."
+    },
+    {
+      "name": "text.answer_role_entity",
+      "reason": "Task interpretation / answer-role inference, not a primitive surface attribute."
+    },
+    {
+      "name": "schema.has_identifier_col",
+      "reason": "Can be useful later, but behaves like schema-role semantics rather than primitive context."
+    },
+    {
+      "name": "country/team/player/name-role atoms",
+      "reason": "Would make the extractor a hand-built domain ontology."
+    }
+  ],
+  "bundled_rule_pack_experiment": {
+    "feature_canonical_id": "domain_rule.wikitable_value_surface_pack",
+    "policy": "evaluate as a normal feature first; no explicit context-triggered routing in v1",
+    "rule_surface": [
+      "Preserve complete score/result/record cells unless the question asks for margin, side, total, or difference.",
+      "Treat hyphenated numeric spans as intervals only when the column semantics support date/year/duration/range.",
+      "Keep percent and unit markers attached; compare values only under the same unit.",
+      "Resolve date/year wording against date-like columns and compare chronologically.",
+      "Treat rank/place/position as ordinal and decide direction before comparison.",
+      "For previous/next/before/after anchored to a cell, move by displayed row order.",
+      "For follow-up references, resolve the prior answer set before scanning the table."
+    ]
+  }
+}

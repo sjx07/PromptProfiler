@@ -1,0 +1,73 @@
+{
+  "canonical_id": "domain_rule.wikitable_value_surface_pack",
+  "task": "hitab",
+  "semantic_labels": [
+    {
+      "label": "domain_rule.wikitable_value_surface_pack",
+      "role": "feature_concept"
+    },
+    {
+      "label": "feature_mode.bundled_rule_pack",
+      "role": "experiment_design"
+    },
+    {
+      "label": "implementation_surface.task_or_user_instruction",
+      "role": "implementation_surface"
+    },
+    {
+      "label": "source_family.wiki_table",
+      "role": "source_family"
+    },
+    {
+      "label": "rule_surface.value_surface",
+      "role": "included_rule_family"
+    },
+    {
+      "label": "rule_surface.temporal_rank_unit",
+      "role": "included_rule_family"
+    },
+    {
+      "label": "rule_surface.dialog_reference",
+      "role": "included_rule_family"
+    }
+  ],
+  "scope": {
+    "dataset": "hitab",
+    "source_family": "wiki_table",
+    "feature_mode": "bundled_rule_pack",
+    "implementation_surface": "task_or_user_instruction",
+    "cost_dependency": "prompt_only",
+    "routing_policy": "not_triggered_v1",
+    "context_registry": "context_attribute_registry_v1_2"
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_rules"
+  ],
+  "conflicts_with": [],
+  "rationale": "Bundled value-surface rules for a first-pass data-tells experiment. The rules are not explicitly triggered by context atoms in v1; context attributes are used later for analysis of conditional effects.",
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "1c2498fdcc32",
+        "payload": {
+          "content": "Use this compact WikiTable value-surface rule pack when relevant. Do not treat it as benchmark-specific knowledge; apply a line only when the table/question surface matches.\n- Preserve complete score/result/record cells unless the question asks for margin, winner side, loser side, total, or difference.\n- Treat hyphenated numeric spans as intervals only when the column/header supports date, year, duration, or range semantics; otherwise preserve the cell string.\n- Keep percent and unit markers attached. Compare values only under the same unit or percentage basis.\n- Resolve date/year wording against date-like columns and compare chronologically.\n- Treat rank/place/position columns as ordinal and decide direction before max/min/comparison.\n- For previous/next/before/after anchored to a cell, locate the anchor row first, then move by displayed row order.\n- For follow-up references such as these, those, their, or of these, resolve the prior answer set before scanning the table.",
+          "ordinal": 64
+        }
+      }
+    },
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "This rule pack is a single experimental prompt section. Ignore any line that does not match the current table/question. If a line conflicts with explicit task instructions or answer format, follow the explicit instructions and answer format.",
+          "ordinal": 74
+        }
+      }
+    }
+  ]
+}
