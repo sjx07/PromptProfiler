@@ -14,7 +14,12 @@
     "top_p": 1.0,
     "sampling_top_k": -1,
     "model": "Qwen/Qwen2.5-14B-Instruct",
-    "ports": [8000, 8001, 8002, 8003],
+    "ports": [
+      8000,
+      8001,
+      8002,
+      8003
+    ],
     "num_workers": 128,
     "request_timeout": 240,
     "retry_errors": true,
@@ -150,90 +155,148 @@
     "format.plain": {
       "family": "format",
       "role": "fixed_background",
-      "atoms": ["prompt_format_plain"]
+      "atoms": [
+        "prompt_format_plain"
+      ]
     },
     "format.json": {
       "family": "format",
       "role": "add_one",
-      "atoms": ["prompt_format_json"]
+      "atoms": [
+        "prompt_format_json"
+      ]
     },
     "ser.columns": {
       "family": "ser",
       "role": "fixed_background",
-      "atoms": ["table_serialization_json_columns_data"]
+      "atoms": [
+        "table_serialization_json_columns_data"
+      ]
     },
     "ser.records": {
       "family": "ser",
       "role": "add_one",
-      "atoms": ["table_serialization_json_records"]
+      "atoms": [
+        "table_serialization_json_records"
+      ]
     },
     "ser.html": {
       "family": "ser",
       "role": "add_one",
-      "atoms": ["table_serialization_html"]
+      "atoms": [
+        "table_serialization_html"
+      ]
     },
     "scaffold.cot": {
       "family": "scaffold",
       "role": "fixed_background",
-      "atoms": ["reasoning_scaffold_visible_cot"]
+      "atoms": [
+        "reasoning_scaffold_visible_cot"
+      ]
     },
     "ctx.stats": {
       "family": "ctx",
       "role": "add_one",
-      "atoms": ["input_context_column_statistics"]
+      "atoms": [
+        "input_context_column_statistics"
+      ]
     },
     "ctx.type": {
       "family": "ctx",
       "role": "add_one",
-      "atoms": ["input_context_type_annotation"]
+      "atoms": [
+        "input_context_type_annotation"
+      ]
     },
     "reason.extract_compute": {
       "family": "reason",
       "role": "add_one",
-      "requires_families": ["scaffold"],
-      "atoms": ["reasoning_extract_then_compute"]
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_extract_then_compute"
+      ]
     },
     "reason.evidence_localize": {
       "family": "reason",
       "role": "add_one",
-      "requires_families": ["scaffold"],
-      "atoms": ["reasoning_evidence_localization"]
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_evidence_localization"
+      ]
+    },
+    "reason.decompose": {
+      "family": "reason",
+      "role": "add_one",
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_decompose_subtasks"
+      ]
     },
     "reason.enumerate": {
       "family": "reason",
       "role": "add_one",
-      "requires_families": ["scaffold"],
-      "atoms": ["reasoning_candidate_enumeration"]
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_candidate_enumeration"
+      ]
     },
     "reason.evidence_table": {
       "family": "reason",
       "role": "add_one",
-      "requires_families": ["scaffold"],
-      "atoms": ["reasoning_intermediate_evidence_table"]
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_intermediate_evidence_table"
+      ]
     },
     "reason.symbolic_op": {
       "family": "reason",
       "role": "add_one",
-      "requires_families": ["scaffold"],
-      "atoms": ["reasoning_symbolic_operation"]
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_symbolic_operation"
+      ]
     },
     "reason.verify": {
       "family": "reason",
       "role": "add_one",
-      "requires_families": ["scaffold"],
-      "atoms": ["reasoning_verify_before_output"]
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_verify_before_output"
+      ]
     },
     "reason.plan_answer": {
       "family": "reason",
       "role": "add_one",
-      "requires_families": ["scaffold"],
-      "atoms": ["reasoning_plan_then_answer"]
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_plan_then_answer"
+      ]
     },
     "reason.critique_revise": {
       "family": "reason",
       "role": "add_one",
-      "requires_families": ["scaffold"],
-      "atoms": ["reasoning_critique_then_revise"]
+      "requires_families": [
+        "scaffold"
+      ],
+      "atoms": [
+        "reasoning_critique_then_revise"
+      ]
     }
   },
   "generation": {
@@ -246,6 +309,7 @@
       "ctx.type",
       "reason.extract_compute",
       "reason.evidence_localize",
+      "reason.decompose",
       "reason.enumerate",
       "reason.evidence_table",
       "reason.symbolic_op",

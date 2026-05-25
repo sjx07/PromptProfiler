@@ -1,0 +1,52 @@
+{
+  "canonical_id": "reasoning_decompose_subtasks",
+  "task": "tablebench",
+  "semantic_labels": [
+    {
+      "label": "reasoning.decomposition",
+      "role": "mechanism"
+    },
+    {
+      "label": "reasoning.divide_and_conquer",
+      "role": "mechanism"
+    },
+    {
+      "label": "style.visible_thinking_out_loud",
+      "role": "style_rule"
+    },
+    {
+      "label": "format.visible_reasoning_trace",
+      "role": "format"
+    },
+    {
+      "label": "reasoning.visible_trace_refinement",
+      "role": "implementation_surface"
+    }
+  ],
+  "scope": {
+    "dataset": "tablebench",
+    "profile": "visible_thinking_out_loud_trace",
+    "implementation_surface": "reasoning_field_instruction",
+    "cost_dependency": "prompt_only",
+    "visible_reasoning_field": true
+  },
+  "requires": [
+    "facet_dp_scaffold",
+    "_section_reasoning"
+  ],
+  "conflicts_with": [],
+  "primitive_edits": [
+    {
+      "func_type": "insert_node",
+      "params": {
+        "node_type": "rule",
+        "parent_id": "d51d3f3e65a8",
+        "payload": {
+          "content": "In the `reasoning` field, decompose the question into the smallest necessary subquestions, answer each subquestion from the table, then combine those subanswers into the final answer.",
+          "ordinal": 40
+        }
+      }
+    }
+  ],
+  "rationale": "Prompt-only visible reasoning refinement: steer the reasoning field toward divide-and-conquer decomposition before final answer selection."
+}
