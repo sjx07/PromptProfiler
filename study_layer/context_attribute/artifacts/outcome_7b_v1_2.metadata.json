@@ -1106,5 +1106,7 @@
   "model": "Qwen/Qwen2.5-7B-Instruct",
   "n_context_rows": 3724,
   "n_feature_rows": 70,
+  "n_global_context_rows": 1372,
+  "n_global_feature_rows": 14,
   "n_outcome_rows": 305494
 }

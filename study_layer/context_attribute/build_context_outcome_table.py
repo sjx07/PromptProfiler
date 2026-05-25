@@ -11,6 +11,7 @@ import argparse
 import csv
 import html
 import json
+import math
 import sqlite3
 import sys
 from collections import Counter, defaultdict
@@ -189,13 +190,23 @@ def sign(delta: float) -> str:
 
 
 class Agg:
-    __slots__ = ("n", "base_sum", "score_sum", "delta_sum", "wins", "losses", "ties")
+    __slots__ = (
+        "n",
+        "base_sum",
+        "score_sum",
+        "delta_sum",
+        "delta_sq_sum",
+        "wins",
+        "losses",
+        "ties",
+    )
 
     def __init__(self) -> None:
         self.n = 0
         self.base_sum = 0.0
         self.score_sum = 0.0
         self.delta_sum = 0.0
+        self.delta_sq_sum = 0.0
         self.wins = 0
         self.losses = 0
         self.ties = 0
@@ -205,6 +216,7 @@ class Agg:
         self.base_sum += base_score
         self.score_sum += score
         self.delta_sum += delta
+        self.delta_sq_sum += delta * delta
         if delta > 0:
             self.wins += 1
         elif delta < 0:
@@ -214,15 +226,38 @@ class Agg:
 
     def row(self) -> dict[str, Any]:
         n = self.n or 1
+        delta_mean = self.delta_sum / n
+        if self.n > 1:
+            variance = max((self.delta_sq_sum - self.n * delta_mean * delta_mean) / (self.n - 1), 0.0)
+            delta_se = math.sqrt(variance / self.n)
+        else:
+            delta_se = 0.0
+        delta_ci = 1.96 * delta_se
         return {
             "n": self.n,
             "base_mean": self.base_sum / n,
             "score_mean": self.score_sum / n,
-            "delta_mean": self.delta_sum / n,
+            "delta_mean": delta_mean,
+            "delta_se": delta_se,
+            "delta_ci95_low": delta_mean - delta_ci,
+            "delta_ci95_high": delta_mean + delta_ci,
             "win_rate": self.wins / n,
             "loss_rate": self.losses / n,
             "tie_rate": self.ties / n,
         }
+
+
+def mean_ci(values: list[float]) -> tuple[float, float, float, float]:
+    if not values:
+        return 0.0, 0.0, 0.0, 0.0
+    mean = sum(values) / len(values)
+    if len(values) > 1:
+        variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+        se = math.sqrt(variance / len(values))
+    else:
+        se = 0.0
+    ci = 1.96 * se
+    return mean, se, mean - ci, mean + ci
 
 
 def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
@@ -235,7 +270,7 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
 def write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")
+        writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -348,6 +383,109 @@ def build_rows(
     return outcome_rows, feature_rows, context_rows, metadata
 
 
+def build_global_summaries(
+    outcome_rows: list[dict[str, Any]],
+    feature_rows: list[dict[str, Any]],
+    context_rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Aggregate feature and feature-by-slice effects across benchmarks.
+
+    Micro rows pool all paired query-level deltas. Macro rows average the
+    benchmark-level deltas so one large benchmark does not dominate the global
+    view. The CIs are lightweight normal-approximation summaries intended for
+    exploratory ranking, not final causal claims.
+    """
+    feature_micro_aggs: dict[tuple[str, str], Agg] = defaultdict(Agg)
+    context_micro_aggs: dict[tuple[str, str, str], Agg] = defaultdict(Agg)
+    for row in outcome_rows:
+        feature_key = (row["feature_label"], row["feature_family"])
+        feature_micro_aggs[feature_key].add(row["base_score"], row["score"], row["delta"])
+        for indicator in row["context_indicators"]:
+            context_key = (row["feature_label"], row["feature_family"], indicator)
+            context_micro_aggs[context_key].add(row["base_score"], row["score"], row["delta"])
+
+    feature_dataset_deltas: dict[tuple[str, str], list[tuple[str, float]]] = defaultdict(list)
+    for row in feature_rows:
+        feature_dataset_deltas[(row["feature_label"], row["feature_family"])].append(
+            (row["dataset"], row["delta_mean"])
+        )
+
+    global_feature_rows: list[dict[str, Any]] = []
+    feature_micro_delta: dict[tuple[str, str], float] = {}
+    feature_macro_delta: dict[tuple[str, str], float] = {}
+    for key, agg in sorted(feature_micro_aggs.items()):
+        label, family = key
+        micro = agg.row()
+        dataset_pairs = feature_dataset_deltas.get(key, [])
+        datasets = sorted({dataset for dataset, _ in dataset_pairs})
+        macro_mean, macro_se, macro_low, macro_high = mean_ci([delta for _, delta in dataset_pairs])
+        feature_micro_delta[key] = micro["delta_mean"]
+        feature_macro_delta[key] = macro_mean
+        global_feature_rows.append({
+            "feature_label": label,
+            "feature_family": family,
+            "n": micro["n"],
+            "dataset_count": len(datasets),
+            "datasets": ",".join(datasets),
+            "base_mean_micro": micro["base_mean"],
+            "score_mean_micro": micro["score_mean"],
+            "delta_mean_micro": micro["delta_mean"],
+            "delta_se_micro": micro["delta_se"],
+            "delta_ci95_low_micro": micro["delta_ci95_low"],
+            "delta_ci95_high_micro": micro["delta_ci95_high"],
+            "win_rate_micro": micro["win_rate"],
+            "loss_rate_micro": micro["loss_rate"],
+            "tie_rate_micro": micro["tie_rate"],
+            "delta_mean_macro": macro_mean,
+            "delta_se_macro": macro_se,
+            "delta_ci95_low_macro": macro_low,
+            "delta_ci95_high_macro": macro_high,
+        })
+
+    context_dataset_deltas: dict[tuple[str, str, str], list[tuple[str, float]]] = defaultdict(list)
+    for row in context_rows:
+        key = (row["feature_label"], row["feature_family"], row["context_indicator"])
+        context_dataset_deltas[key].append((row["dataset"], row["delta_mean"]))
+
+    global_context_rows: list[dict[str, Any]] = []
+    for key, agg in sorted(context_micro_aggs.items()):
+        label, family, indicator = key
+        feature_key = (label, family)
+        micro = agg.row()
+        dataset_pairs = context_dataset_deltas.get(key, [])
+        datasets = sorted({dataset for dataset, _ in dataset_pairs})
+        macro_mean, macro_se, macro_low, macro_high = mean_ci([delta for _, delta in dataset_pairs])
+        global_micro = feature_micro_delta.get(feature_key, 0.0)
+        global_macro = feature_macro_delta.get(feature_key, 0.0)
+        global_context_rows.append({
+            "feature_label": label,
+            "feature_family": family,
+            "context_indicator": indicator,
+            "n": micro["n"],
+            "dataset_count": len(datasets),
+            "datasets": ",".join(datasets),
+            "base_mean_micro": micro["base_mean"],
+            "score_mean_micro": micro["score_mean"],
+            "delta_mean_micro": micro["delta_mean"],
+            "delta_se_micro": micro["delta_se"],
+            "delta_ci95_low_micro": micro["delta_ci95_low"],
+            "delta_ci95_high_micro": micro["delta_ci95_high"],
+            "global_delta_mean_micro": global_micro,
+            "diff_from_global_micro": micro["delta_mean"] - global_micro,
+            "win_rate_micro": micro["win_rate"],
+            "loss_rate_micro": micro["loss_rate"],
+            "tie_rate_micro": micro["tie_rate"],
+            "delta_mean_macro": macro_mean,
+            "delta_se_macro": macro_se,
+            "delta_ci95_low_macro": macro_low,
+            "delta_ci95_high_macro": macro_high,
+            "global_delta_mean_macro": global_macro,
+            "diff_from_global_macro": macro_mean - global_macro,
+        })
+
+    return global_feature_rows, global_context_rows
+
+
 def compact_outcome_csv_rows(rows: list[dict[str, Any]], atom_names: list[str]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for row in rows:
@@ -375,6 +513,8 @@ def write_html(
     metadata: dict[str, Any],
     feature_rows: list[dict[str, Any]],
     context_rows: list[dict[str, Any]],
+    global_feature_rows: list[dict[str, Any]],
+    global_context_rows: list[dict[str, Any]],
     artifact_paths: dict[str, Path],
 ) -> None:
     def table(headers: list[str], rows: list[dict[str, Any]], limit: int | None = None) -> str:
@@ -393,11 +533,24 @@ def write_html(
     by_dataset = Counter(row["dataset"] for row in metadata["config_coverage"])
     coverage_rows = sorted(metadata["config_coverage"], key=lambda r: (r["dataset"], r["feature_family"], r["feature_label"]))
     feature_sorted = sorted(feature_rows, key=lambda r: (r["dataset"], -r["delta_mean"], r["feature_label"]))
+    global_feature_sorted = sorted(
+        global_feature_rows,
+        key=lambda r: (abs(r["delta_mean_macro"]), abs(r["delta_mean_micro"]), r["n"]),
+        reverse=True,
+    )
     strong_context = [
         r for r in context_rows
         if r["n"] >= 100 and abs(r["diff_from_global"]) >= 0.03
     ]
     strong_context.sort(key=lambda r: (abs(r["diff_from_global"]), abs(r["delta_mean"]), r["n"]), reverse=True)
+    global_context_strong = [
+        r for r in global_context_rows
+        if r["n"] >= 500 and r["dataset_count"] >= 2
+    ]
+    global_context_strong.sort(
+        key=lambda r: (abs(r["diff_from_global_macro"]), abs(r["diff_from_global_micro"]), r["n"]),
+        reverse=True,
+    )
 
     links = "".join(
         f'<li><code>{esc(name)}</code>: <code>{esc(path)}</code></li>'
@@ -429,7 +582,7 @@ def write_html(
 </head>
 <body>
   <h1>7B Context Outcome Table v1.2</h1>
-  <div class="subtle">Model: <code>{esc(metadata['model'])}</code>. Outcome rows: {metadata['n_outcome_rows']}. Context rows: {metadata['n_context_rows']}.</div>
+  <div class="subtle">Model: <code>{esc(metadata['model'])}</code>. Outcome rows: {metadata['n_outcome_rows']}. Context rows: {metadata['n_context_rows']}. Global feature-slice rows: {metadata.get('n_global_context_rows', 0)}.</div>
   <div class="pills">{pills}</div>
   <div class="note"><b>Persistence decision:</b> this build does not mutate the cube <code>predicate</code> table. The v1.2 context atoms remain a versioned sidecar artifact for now, because legacy predicates mix older task-specific names and the new registry has categorical atoms, support metadata, and extractor provenance. If we need old-view compatibility later, use a prefixed export such as <code>ctx_v1_2.table.rows_bin</code>.</div>
 
@@ -440,11 +593,19 @@ def write_html(
   {table(['dataset','feature_label','feature_family','base_config_id','config_id','base_n','treatment_n','paired_n','base_mean','treatment_mean','delta_mean'], coverage_rows)}
 
   <h2>Feature Summary</h2>
-  {table(['dataset','feature_label','feature_family','n','base_mean','score_mean','delta_mean','win_rate','loss_rate','tie_rate'], feature_sorted)}
+  {table(['dataset','feature_label','feature_family','n','base_mean','score_mean','delta_mean','delta_ci95_low','delta_ci95_high','win_rate','loss_rate','tie_rate'], feature_sorted)}
+
+  <h2>Global Feature Summary With CI</h2>
+  <div class="subtle">Micro pools query-level paired deltas. Macro gives each benchmark equal weight. CI columns are normal-approximation intervals over paired deltas for micro and over benchmark means for macro.</div>
+  {table(['feature_label','feature_family','n','dataset_count','datasets','delta_mean_micro','delta_ci95_low_micro','delta_ci95_high_micro','delta_mean_macro','delta_ci95_low_macro','delta_ci95_high_macro','win_rate_micro','loss_rate_micro'], global_feature_sorted)}
 
   <h2>Large Context-Conditional Deviations</h2>
-  <div class="subtle">Shown when support n &gt;= 100 and abs(diff from feature global delta) &gt;= 3 points.</div>
-  {table(['dataset','feature_label','feature_family','context_indicator','n','delta_mean','global_delta_mean','diff_from_global','win_rate','loss_rate'], strong_context, limit=250)}
+  <div class="subtle">Within-benchmark slice rows shown when support n &gt;= 100 and abs(diff from feature global delta) &gt;= 3 points.</div>
+  {table(['dataset','feature_label','feature_family','context_indicator','n','delta_mean','delta_ci95_low','delta_ci95_high','global_delta_mean','diff_from_global','win_rate','loss_rate'], strong_context, limit=250)}
+
+  <h2>Global Feature x Slice Outcome With CI</h2>
+  <div class="subtle">Shown when pooled support n &gt;= 500 and the slice appears in at least two benchmarks. <code>diff_from_global_*</code> compares the slice effect against the same feature's global effect.</div>
+  {table(['feature_label','feature_family','context_indicator','n','dataset_count','datasets','delta_mean_micro','delta_ci95_low_micro','delta_ci95_high_micro','diff_from_global_micro','delta_mean_macro','delta_ci95_low_macro','delta_ci95_high_macro','diff_from_global_macro'], global_context_strong, limit=300)}
 </body>
 </html>
 """
@@ -466,6 +627,9 @@ def main() -> int:
     conn = open_conn(args.db)
     outcome_rows, feature_rows, context_rows, metadata = build_rows(conn, model=args.model, registry=registry)
     conn.close()
+    global_feature_rows, global_context_rows = build_global_summaries(outcome_rows, feature_rows, context_rows)
+    metadata["n_global_feature_rows"] = len(global_feature_rows)
+    metadata["n_global_context_rows"] = len(global_context_rows)
 
     out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -474,6 +638,8 @@ def main() -> int:
         "csv": out_dir / f"{args.prefix}.csv",
         "feature_summary_csv": out_dir / f"{args.prefix}.feature_summary.csv",
         "context_summary_csv": out_dir / f"{args.prefix}.context_summary.csv",
+        "global_feature_summary_csv": out_dir / f"{args.prefix}.global_feature_summary.csv",
+        "global_context_summary_csv": out_dir / f"{args.prefix}.global_context_summary.csv",
         "metadata_json": out_dir / f"{args.prefix}.metadata.json",
         "html": out_dir / f"{args.prefix}.html",
     }
@@ -488,22 +654,50 @@ def main() -> int:
     write_csv(
         paths["feature_summary_csv"],
         feature_rows,
-        ["dataset", "model", "feature_label", "feature_family", "config_id", "n", "base_mean", "score_mean", "delta_mean", "win_rate", "loss_rate", "tie_rate"],
+        ["dataset", "model", "feature_label", "feature_family", "config_id", "n", "base_mean", "score_mean", "delta_mean", "delta_se", "delta_ci95_low", "delta_ci95_high", "win_rate", "loss_rate", "tie_rate"],
     )
     write_csv(
         paths["context_summary_csv"],
         context_rows,
-        ["dataset", "model", "feature_label", "feature_family", "context_indicator", "n", "base_mean", "score_mean", "delta_mean", "global_delta_mean", "diff_from_global", "win_rate", "loss_rate", "tie_rate"],
+        ["dataset", "model", "feature_label", "feature_family", "context_indicator", "n", "base_mean", "score_mean", "delta_mean", "delta_se", "delta_ci95_low", "delta_ci95_high", "global_delta_mean", "diff_from_global", "win_rate", "loss_rate", "tie_rate"],
+    )
+    write_csv(
+        paths["global_feature_summary_csv"],
+        global_feature_rows,
+        ["feature_label", "feature_family", "n", "dataset_count", "datasets", "base_mean_micro", "score_mean_micro", "delta_mean_micro", "delta_se_micro", "delta_ci95_low_micro", "delta_ci95_high_micro", "win_rate_micro", "loss_rate_micro", "tie_rate_micro", "delta_mean_macro", "delta_se_macro", "delta_ci95_low_macro", "delta_ci95_high_macro"],
+    )
+    write_csv(
+        paths["global_context_summary_csv"],
+        global_context_rows,
+        ["feature_label", "feature_family", "context_indicator", "n", "dataset_count", "datasets", "base_mean_micro", "score_mean_micro", "delta_mean_micro", "delta_se_micro", "delta_ci95_low_micro", "delta_ci95_high_micro", "global_delta_mean_micro", "diff_from_global_micro", "win_rate_micro", "loss_rate_micro", "tie_rate_micro", "delta_mean_macro", "delta_se_macro", "delta_ci95_low_macro", "delta_ci95_high_macro", "global_delta_mean_macro", "diff_from_global_macro"],
     )
     paths["metadata_json"].write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    write_html(paths["html"], metadata=metadata, feature_rows=feature_rows, context_rows=context_rows, artifact_paths=paths)
+    write_html(
+        paths["html"],
+        metadata=metadata,
+        feature_rows=feature_rows,
+        context_rows=context_rows,
+        global_feature_rows=global_feature_rows,
+        global_context_rows=global_context_rows,
+        artifact_paths=paths,
+    )
     if args.obsidian_html:
-        write_html(args.obsidian_html, metadata=metadata, feature_rows=feature_rows, context_rows=context_rows, artifact_paths=paths)
+        write_html(
+            args.obsidian_html,
+            metadata=metadata,
+            feature_rows=feature_rows,
+            context_rows=context_rows,
+            global_feature_rows=global_feature_rows,
+            global_context_rows=global_context_rows,
+            artifact_paths=paths,
+        )
 
     print(f"model: {args.model}")
     print(f"outcome_rows: {len(outcome_rows)}")
     print(f"feature_rows: {len(feature_rows)}")
     print(f"context_rows: {len(context_rows)}")
+    print(f"global_feature_rows: {len(global_feature_rows)}")
+    print(f"global_context_rows: {len(global_context_rows)}")
     for name, path in paths.items():
         print(f"{name}: {path}")
     if args.obsidian_html:
